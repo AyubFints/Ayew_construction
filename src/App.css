@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+* { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+body { margin: 0; padding: 0; background-color: #f3f4f6; color: #1f2937; } /* Ochiq kulrang fon */
+.fade-in { animation: fadeIn 0.4s ease-in-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+.app-container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
+.card { background: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); padding: 30px; width: 100%; border: 1px solid #e5e7eb; }
+
+.form-control { width: 100%; padding: 14px 16px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 16px; margin-bottom: 20px; background-color: #f9fafb; color: #111827; }
+.form-control:focus { outline: none; border-color: #1e3a8a; background-color: #ffffff; box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1); }
+
+/* Asosiy To'q Ko'k tugma */
+.btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-primary { background-color: #1e3a8a; color: #ffffff; }
+.btn-primary:hover { background-color: #172554; }
+
+/* Kulrang tugma (O'chirish, Chiqish uchun) */
+.btn-danger { background-color: #4b5563; color: #ffffff; }
+.btn-danger:hover { background-color: #374151; }
+
+.dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 30px; }
+.menu-card { background: #ffffff; padding: 30px 20px; border-radius: 12px; text-align: center; cursor: pointer; border: 1px solid #e5e7eb; transition: all 0.2s; }
+.menu-card:hover { border-color: #1e3a8a; box-shadow: 0 10px 15px rgba(30, 58, 138, 0.1); transform: translateY(-3px); }
+.menu-icon { font-size: 36px; margin-bottom: 15px; color: #1e3a8a; }
+.menu-title { font-size: 16px; font-weight: 600; color: #1f2937; }

@@ -1,0 +1,186 @@
+import React, { useState, useMemo } from 'react';
+import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, Trash2, CheckCircle } from 'lucide-react';
+
+const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage }) => {
+  const [customer, setCustomer] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [sellQty, setSellQty] = useState('');
+  const [cart, setCart] = useState([]); 
+  const [error, setError] = useState('');
+  
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyType, setHistoryType] = useState('daily');
+
+  const todayStr = new Date().toLocaleDateString('uz-UZ');
+  const todayIncome = sales.filter(s => s.isReceived && new Date(s.receivedAt || s.id).toLocaleDateString('uz-UZ') === todayStr).reduce((acc, s) => acc + s.totalSum, 0);
+  const todayExpense = returns.filter(r => new Date(r.id).toLocaleDateString('uz-UZ') === todayStr).reduce((acc, r) => acc + r.returnSum, 0);
+  const todayNetProfit = todayIncome - todayExpense;
+
+  const aggregatedHistory = useMemo(() => {
+    const map = {};
+    const getKeyAndLabel = (timestamp) => {
+      const d = new Date(timestamp);
+      if (historyType === 'daily') return { key: d.toLocaleDateString('uz-UZ'), label: d.toLocaleDateString('uz-UZ') + " dagi" };
+      if (historyType === 'monthly') return { key: `${d.getFullYear()}-${d.getMonth()}`, label: `${d.getMonth() + 1}-oy, ${d.getFullYear()} dagi` };
+      return { key: d.getFullYear().toString(), label: `${d.getFullYear()} yildagi` };
+    };
+
+    sales.forEach(s => {
+      if (s.isReceived) { 
+        const { key, label } = getKeyAndLabel(s.id);
+        if (!map[key]) map[key] = { label, income: 0, expense: 0, timestamp: s.id };
+        map[key].income += s.totalSum;
+      }
+    });
+
+    returns.forEach(r => {
+      const { key, label } = getKeyAndLabel(r.id);
+      if (!map[key]) map[key] = { label, income: 0, expense: 0, timestamp: r.id };
+      map[key].expense += r.returnSum;
+    });
+    return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
+  }, [sales, returns, historyType]);
+
+  const selectedProduct = products.find(p => p.id.toString() === selectedProductId);
+
+  const handleAddToCart = (e) => {
+    e.preventDefault();
+    setError('');
+    if (!selectedProduct) return setError("Iltimos, avval tovarni tanlang!");
+    
+    const qty = parseFloat(sellQty);
+    if (qty <= 0 || isNaN(qty)) return setError("Miqdorni to'g'ri kiriting!");
+
+    const alreadyInCart = cart.filter(item => item.product.id === selectedProduct.id).reduce((sum, item) => sum + item.qty, 0);
+
+    if (qty + alreadyInCart > selectedProduct.quantity) {
+      return setError(`Omborda yetarli emas! Qoldiq: ${selectedProduct.quantity}`);
+    }
+
+    setCart([...cart, { id: Date.now(), product: selectedProduct, qty: qty, total: qty * selectedProduct.price }]);
+    setSelectedProductId(''); setSellQty('');
+  };
+
+  const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
+
+  const handleFinalSell = () => {
+    if (!customer) return setError("Mijoz ismini kiriting!");
+    if (cart.length === 0) return setError("Savat bo'sh!");
+
+    let updatedProducts = [...products];
+    cart.forEach(cartItem => {
+      updatedProducts = updatedProducts.map(p => p.id === cartItem.product.id ? { ...p, quantity: p.quantity - cartItem.qty } : p);
+    });
+    setProducts(updatedProducts);
+
+    const overallTotal = cart.reduce((sum, item) => sum + item.total, 0);
+    const combinedNames = cart.map(item => `${item.product.name} (${item.qty})`).join(', ');
+
+    setSales([...sales, { id: Date.now(), productName: combinedNames, unit: 'xil', quantity: cart.length, customer, totalSum: overallTotal, isReceived: false }]);
+    setCart([]); setCustomer(''); setError('');
+  };
+
+  return (
+    <div className="fade-in">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <button onClick={() => setPage('dashboard')} className="btn" style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#e5e7eb', color: '#1f2937', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <ArrowLeft size={18} /> Ortga qaytish
+        </button>
+        <h2 style={{ fontSize: '24px', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>
+          Sotish bo'limi <ShoppingCart size={28} />
+        </h2>
+      </div>
+
+      <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
+        <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #1e3a8a' }}>
+          <p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: 'bold' }}>KIRIM</p>
+          <h2 style={{ margin: '10px 0 0 0', color: '#1e3a8a', fontSize: '28px' }}>{todayIncome.toLocaleString()} so'm</h2>
+        </div>
+        <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #4b5563' }}>
+          <p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: 'bold' }}>CHIQIM</p>
+          <h2 style={{ margin: '10px 0 0 0', color: '#4b5563', fontSize: '28px' }}>{todayExpense.toLocaleString()} so'm</h2>
+        </div>
+        <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#1e3a8a', color: 'white', border: 'none' }}>
+          <p style={{ margin: 0, color: '#d1d5db', fontSize: '14px', fontWeight: 'bold' }}>SOF FOYDA</p>
+          <h2 style={{ margin: '10px 0 0 0', color: '#ffffff', fontSize: '28px' }}>{todayNetProfit.toLocaleString()} so'm</h2>
+        </div>
+      </div>
+
+      <button onClick={() => setShowHistory(!showHistory)} className="btn btn-danger" style={{ marginBottom: '30px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
+        <BarChart3 size={20} /> {showHistory ? "Tarixni yopish" : "Tarixga kirish"}
+      </button>
+
+      {/* SOTISH FORMASI */}
+      <div className="card" style={{ maxWidth: '700px', margin: '0 auto', borderTop: '4px solid #1e3a8a' }}>
+        <div style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '2px dashed #e5e7eb' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 'bold', color: '#111827', fontSize: '16px' }}>
+            <User size={20} color="#1e3a8a" /> Mijoz ismi
+          </label>
+          <input type="text" className="form-control" placeholder="Mijoz ismini yozing" value={customer} onChange={(e) => setCustomer(e.target.value)} style={{ backgroundColor: '#f3f4f6' }} />
+        </div>
+
+        <form onSubmit={handleAddToCart}>
+          <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '15px' }}>
+            <div style={{ flex: '2 1 200px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Tovarni tanlang</label>
+              <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0 }}>
+                <option value="">-- Tanlang --</option>
+                {products.map(p => <option key={p.id} value={p.id}>{p.name} (Qoldi: {p.quantity})</option>)}
+              </select>
+            </div>
+            {selectedProduct && (
+              <div className="fade-in" style={{ flex: '1 1 100px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Hajmi</label>
+                <input type="number" className="form-control" placeholder="Miqdor" value={sellQty} onChange={(e) => { setSellQty(e.target.value); setError(''); }} min="0.1" step="any" style={{ marginBottom: 0 }} />
+              </div>
+            )}
+            <button type="submit" className="btn btn-danger" style={{ flex: '1 1 150px', height: '50px', display: 'flex', gap: '8px', justifyContent: 'center' }} disabled={products.length === 0}>
+              <PlusCircle size={20} /> Savatga
+            </button>
+          </div>
+        </form>
+
+        {error && <div style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '15px' }}>{error}</div>}
+
+        {/* SAVATCHA */}
+        {cart.length > 0 && (
+          <div className="fade-in" style={{ marginTop: '30px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '20px' }}>
+            <h3 style={{ margin: '0 0 15px 0', color: '#1f2937', borderBottom: '1px solid #d1d5db', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShoppingCart size={20} color="#1e3a8a" /> Savatdagi tovarlar
+            </h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+              {cart.map((item, index) => (
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '10px 15px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: 0, fontWeight: 'bold', color: '#111827' }}>{index + 1}. {item.product.name}</p>
+                    <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6b7280' }}>{item.qty} {item.product.unit} x {item.product.price.toLocaleString()} so'm</p>
+                  </div>
+                  <div style={{ fontWeight: 'bold', color: '#1e3a8a', marginRight: '15px' }}>
+                    {item.total.toLocaleString()} so'm
+                  </div>
+                  <button onClick={() => handleRemoveFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e5e7eb', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+              <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#374151' }}>Umumiy Summa:</span>
+              <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#1e3a8a' }}>
+                {cart.reduce((sum, item) => sum + item.total, 0).toLocaleString()} so'm
+              </span>
+            </div>
+
+            <button onClick={handleFinalSell} className="btn btn-primary" style={{ fontSize: '18px', padding: '16px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
+              <CheckCircle size={22} /> Tasdiqlash va Sotish
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Sell;
