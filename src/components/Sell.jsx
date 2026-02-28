@@ -11,24 +11,38 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
   const [showHistory, setShowHistory] = useState(false);
   const [historyType, setHistoryType] = useState('daily');
 
+  // --- BUGUNGI STATISTIKA ---
   const todayStr = new Date().toLocaleDateString('uz-UZ');
-  const todayIncome = sales.filter(s => s.isReceived && new Date(s.receivedAt || s.id).toLocaleDateString('uz-UZ') === todayStr).reduce((acc, s) => acc + s.totalSum, 0);
-  const todayExpense = returns.filter(r => new Date(r.id).toLocaleDateString('uz-UZ') === todayStr).reduce((acc, r) => acc + r.returnSum, 0);
+  
+  const todayIncome = sales
+    .filter(s => s.isReceived && new Date(s.receivedAt || s.id).toLocaleDateString('uz-UZ') === todayStr)
+    .reduce((acc, s) => acc + s.totalSum, 0);
+    
+  const todayExpense = returns
+    .filter(r => new Date(r.id).toLocaleDateString('uz-UZ') === todayStr)
+    .reduce((acc, r) => acc + r.returnSum, 0);
+    
   const todayNetProfit = todayIncome - todayExpense;
 
+  // --- TARIH VA HISOBOTLAR ---
   const aggregatedHistory = useMemo(() => {
     const map = {};
     const getKeyAndLabel = (timestamp) => {
       const d = new Date(timestamp);
       if (historyType === 'daily') return { key: d.toLocaleDateString('uz-UZ'), label: d.toLocaleDateString('uz-UZ') + " dagi" };
-      if (historyType === 'monthly') return { key: `${d.getFullYear()}-${d.getMonth()}`, label: `${d.getMonth() + 1}-oy, ${d.getFullYear()} dagi` };
+      if (historyType === 'monthly') {
+        const months = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
+        return { key: `${d.getFullYear()}-${d.getMonth()}`, label: `${months[d.getMonth()]} ${d.getFullYear()} dagi` };
+      }
       return { key: d.getFullYear().toString(), label: `${d.getFullYear()} yildagi` };
     };
 
     sales.forEach(s => {
       if (s.isReceived) { 
-        const { key, label } = getKeyAndLabel(s.id);
-        if (!map[key]) map[key] = { label, income: 0, expense: 0, timestamp: s.id };
+        // DIQQAT: Sotilgan kuni emas, aynan puli KASSAGA tushgan kuni tarixga yoziladi
+        const timeToUse = s.receivedAt || s.id; 
+        const { key, label } = getKeyAndLabel(timeToUse);
+        if (!map[key]) map[key] = { label, income: 0, expense: 0, timestamp: timeToUse };
         map[key].income += s.totalSum;
       }
     });
@@ -38,14 +52,17 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
       if (!map[key]) map[key] = { label, income: 0, expense: 0, timestamp: r.id };
       map[key].expense += r.returnSum;
     });
+
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
   }, [sales, returns, historyType]);
 
   const selectedProduct = products.find(p => p.id.toString() === selectedProductId);
 
+  // --- SAVATGA QO'SHISH ---
   const handleAddToCart = (e) => {
     e.preventDefault();
     setError('');
+    
     if (!selectedProduct) return setError("Iltimos, avval tovarni tanlang!");
     
     const qty = parseFloat(sellQty);
@@ -54,30 +71,58 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
     const alreadyInCart = cart.filter(item => item.product.id === selectedProduct.id).reduce((sum, item) => sum + item.qty, 0);
 
     if (qty + alreadyInCart > selectedProduct.quantity) {
-      return setError(`Omborda yetarli emas! Qoldiq: ${selectedProduct.quantity}`);
+      return setError(`Omborda yetarli emas! Qoldiq: ${selectedProduct.quantity} ${selectedProduct.unit}. Savatingizda: ${alreadyInCart} bor.`);
     }
 
-    setCart([...cart, { id: Date.now(), product: selectedProduct, qty: qty, total: qty * selectedProduct.price }]);
-    setSelectedProductId(''); setSellQty('');
+    const itemTotal = qty * selectedProduct.price;
+
+    setCart([...cart, {
+      id: Date.now(),
+      product: selectedProduct,
+      qty: qty,
+      total: itemTotal
+    }]);
+
+    setSelectedProductId('');
+    setSellQty('');
   };
 
-  const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
+  const handleRemoveFromCart = (cartItemId) => {
+    setCart(cart.filter(item => item.id !== cartItemId));
+  };
 
+  // --- BARCHASINI SOTISH ---
   const handleFinalSell = () => {
     if (!customer) return setError("Mijoz ismini kiriting!");
-    if (cart.length === 0) return setError("Savat bo'sh!");
+    if (cart.length === 0) return setError("Savat bo'sh! Tovar qo'shing.");
 
     let updatedProducts = [...products];
     cart.forEach(cartItem => {
-      updatedProducts = updatedProducts.map(p => p.id === cartItem.product.id ? { ...p, quantity: p.quantity - cartItem.qty } : p);
+      updatedProducts = updatedProducts.map(p => 
+        p.id === cartItem.product.id ? { ...p, quantity: p.quantity - cartItem.qty } : p
+      );
     });
     setProducts(updatedProducts);
 
     const overallTotal = cart.reduce((sum, item) => sum + item.total, 0);
-    const combinedNames = cart.map(item => `${item.product.name} (${item.qty})`).join(', ');
+    const combinedNames = cart.map(item => `${item.product.name} (${item.qty} ${item.product.unit})`).join(', ');
 
-    setSales([...sales, { id: Date.now(), productName: combinedNames, unit: 'xil', quantity: cart.length, customer, totalSum: overallTotal, isReceived: false }]);
-    setCart([]); setCustomer(''); setError('');
+    const newSale = {
+      id: Date.now(),
+      productName: combinedNames,
+      unit: 'xil tovar',
+      quantity: cart.length,
+      customer,
+      totalSum: overallTotal,
+      isReceived: false // Kassa kutish ro'yxatiga (Qarzga) o'tadi
+    };
+
+    setSales([...sales, newSale]);
+
+    setCart([]);
+    setCustomer('');
+    setError('');
+    alert(`✅ Savdo yakunlandi! Jami summa: ${overallTotal.toLocaleString()} so'm\n\n(Pul "Bugungi kassa" bo'limida kutilmoqda. Tasdiqlanmaguncha tarixda ko'rinmaydi)`);
   };
 
   return (
@@ -91,6 +136,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
         </h2>
       </div>
 
+      {/* STATISTIKA */}
       <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
         <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #1e3a8a' }}>
           <p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: 'bold' }}>KIRIM</p>
@@ -106,9 +152,33 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
         </div>
       </div>
 
-      <button onClick={() => setShowHistory(!showHistory)} className="btn btn-danger" style={{ marginBottom: '30px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
-        <BarChart3 size={20} /> {showHistory ? "Tarixni yopish" : "Tarixga kirish"}
+      <button onClick={() => setShowHistory(!showHistory)} className="btn btn-danger" style={{ marginBottom: '30px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
+        <BarChart3 size={20} /> {showHistory ? "Tarixni yopish 🔼" : "Tarixga kirish 🔽"}
       </button>
+
+      {/* TARIX OYNASI */}
+      {showHistory && (
+        <div className="fade-in card" style={{ padding: '20px', marginBottom: '30px', backgroundColor: '#f9fafb' }}>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+            <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'daily' ? '#1e3a8a' : '#e5e7eb', color: historyType === 'daily' ? 'white' : '#1f2937' }} onClick={() => setHistoryType('daily')}>Kunlik</button>
+            <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'monthly' ? '#1e3a8a' : '#e5e7eb', color: historyType === 'monthly' ? 'white' : '#1f2937' }} onClick={() => setHistoryType('monthly')}>Oylik</button>
+            <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'yearly' ? '#1e3a8a' : '#e5e7eb', color: historyType === 'yearly' ? 'white' : '#1f2937' }} onClick={() => setHistoryType('yearly')}>Yillik</button>
+          </div>
+
+          {aggregatedHistory.length === 0 ? <p style={{ textAlign: 'center', color: '#6b7280' }}>Hozircha tarixda puli tushgan savdolar yo'q.</p> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {aggregatedHistory.map((item, index) => (
+                <div key={index} style={{ padding: '15px', background: 'white', borderRadius: '8px', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                  <div style={{ fontWeight: 'bold', width: '100%', marginBottom: '8px', color: '#1f2937' }}>{item.label}</div>
+                  <div style={{ color: '#1e3a8a', fontSize: '14px', fontWeight: 'bold' }}>Kirim: +{item.income.toLocaleString()}</div>
+                  <div style={{ color: '#4b5563', fontSize: '14px', fontWeight: 'bold' }}>Chiqim: -{item.expense.toLocaleString()}</div>
+                  <div style={{ color: '#111827', fontSize: '14px', fontWeight: 'bold' }}>Foyda: {(item.income - item.expense).toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* SOTISH FORMASI */}
       <div className="card" style={{ maxWidth: '700px', margin: '0 auto', borderTop: '4px solid #1e3a8a' }}>
@@ -125,7 +195,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
               <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Tovarni tanlang</label>
               <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0 }}>
                 <option value="">-- Tanlang --</option>
-                {products.map(p => <option key={p.id} value={p.id}>{p.name} (Qoldi: {p.quantity})</option>)}
+                {products.map(p => <option key={p.id} value={p.id}>{p.name} (Qoldi: {p.quantity} {p.unit})</option>)}
               </select>
             </div>
             {selectedProduct && (
@@ -159,9 +229,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
                   <div style={{ fontWeight: 'bold', color: '#1e3a8a', marginRight: '15px' }}>
                     {item.total.toLocaleString()} so'm
                   </div>
-                  <button onClick={() => handleRemoveFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
-                    <Trash2 size={20} />
-                  </button>
+                  <button onClick={() => handleRemoveFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '18px' }}>✖</button>
                 </div>
               ))}
             </div>
