@@ -194,7 +194,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
             <div style={{ flex: '2 1 200px' }}>
               <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Tovarni tanlang</label>
               <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0 }}>
-                <option value="">-- Tanlang --</option>
+                <option value="">Tavarni tanlang</option>
                 {products.map(p => <option key={p.id} value={p.id}>{p.name} (Qoldi: {p.quantity} {p.unit})</option>)}
               </select>
             </div>

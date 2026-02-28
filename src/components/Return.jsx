@@ -123,7 +123,7 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
           <div style={{ marginBottom: '15px' }}>
             <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Qaytgan tovarni tanlang</label>
             <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} required>
-              <option value="">-- Tanlang --</option>
+              <option value="">Tavarni tanlang</option>
               {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
