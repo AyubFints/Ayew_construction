@@ -1,29 +1,47 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Settings as SettingsIcon, Store, Trash2, Save, AlertTriangle } from 'lucide-react';
+import { Settings as SettingsIcon, ArrowLeft, Store, Trash2, ShieldAlert } from 'lucide-react';
+import { auth } from '../firebase';
+import { updatePassword } from 'firebase/auth';
 
 const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, setPage }) => {
   const [newName, setNewName] = useState(storeName);
+  
+  // Parol o'zgartirish uchun
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordMsg, setPasswordMsg] = useState('');
 
-  // Do'kon nomini saqlash
   const handleSaveName = (e) => {
     e.preventDefault();
     setStoreName(newName);
-    alert(`✅ Do'kon nomi "${newName}" ga o'zgartirildi!`);
+    alert("Do'kon nomi muvaffaqiyatli o'zgartirildi!");
   };
 
-  // Barcha ma'lumotlarni tozalash (Nolga tushirish)
-  const handleClearAllData = () => {
-    const confirm1 = window.confirm("DIQQAT! Barcha ma'lumotlarni o'chirmoqchimisiz? Bu amalni orqaga qaytarib bo'lmaydi!");
-    if (confirm1) {
-      const confirm2 = window.prompt("O'chirishni tasdiqlash uchun 'OCHIRISH' deb yozing:");
-      if (confirm2 === 'OCHIRISH') {
+  const handleClearData = () => {
+    if (window.confirm("DIQQAT! Barcha tovarlar, sotuvlar va qarzlar o'chib ketadi. Buni orqaga qaytarib bo'lmaydi! Rozimisiz?")) {
+      const pass = window.prompt("Tasdiqlash uchun parolingizni yoki '1234' ni kiriting:");
+      if (pass) {
         setProducts([]);
         setSales([]);
         setReturns([]);
-        alert("🗑️ Barcha ma'lumotlar muvaffaqiyatli tozalandi! Dastur nolga tushdi.");
-      } else {
-        alert("❌ O'chirish bekor qilindi. Noto'g'ri so'z kiritildi.");
+        alert("Barcha ma'lumotlar tozalandi!");
       }
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordMsg('');
+    if (newPassword.length < 6) return setPasswordMsg("Parol kamida 6 xonali bo'lishi kerak!");
+    
+    try {
+      if (auth.currentUser) {
+        await updatePassword(auth.currentUser, newPassword);
+        setPasswordMsg("✅ Parol muvaffaqiyatli o'zgartirildi!");
+        setNewPassword('');
+      }
+    } catch (error) {
+      console.error(error);
+      setPasswordMsg("❌ Xatolik! (Xavfsizlik uchun tizimdan chiqib qayta kiring va keyin urinib ko'ring)");
     }
   };
 
@@ -38,44 +56,48 @@ const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, 
         </h2>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', maxWidth: '800px', margin: '0 auto' }}>
+      <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
         
-        {/* DO'KON NOMINI O'ZGARTIRISH */}
-        <div className="card" style={{ borderTop: '4px solid #1e3a8a' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1f2937', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Store size={22} color="#1e3a8a" /> Do'kon ma'lumotlari
+        {/* DO'KON NOMI */}
+        <div className="card fade-in" style={{ flex: '1 1 300px', borderTop: '4px solid #1e3a8a' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
+            <Store size={22} /> Do'kon nomini o'zgartirish
           </h3>
-          <form onSubmit={handleSaveName} style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 300px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Dastur bosh sahifasidagi do'kon nomi</label>
-              <input 
-                type="text" 
-                className="form-control" 
-                value={newName} 
-                onChange={(e) => setNewName(e.target.value)} 
-                required 
-                style={{ marginBottom: 0 }}
-              />
-            </div>
-            <button type="submit" className="btn btn-primary" style={{ flex: '0 0 auto', width: 'auto', padding: '14px 24px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <Save size={20} /> Saqlash
-            </button>
+          <form onSubmit={handleSaveName}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#374151' }}>Yangi nom:</label>
+            <input type="text" className="form-control" value={newName} onChange={(e) => setNewName(e.target.value)} required />
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Saqlash</button>
           </form>
         </div>
 
-        {/* BARCHA MA'LUMOTLARNI TOZALASH (XAVFLI HUDUD) */}
-        <div className="card" style={{ borderTop: '4px solid #dc2626', backgroundColor: '#fff5f5' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#991b1b', borderBottom: '1px solid #fecaca', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlertTriangle size={22} color="#dc2626" /> Xavfli Hudud
+        {/* PAROLNI O'ZGARTIRISH */}
+        <div className="card fade-in" style={{ flex: '1 1 300px', borderTop: '4px solid #10b981' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
+            <ShieldAlert size={22} /> Parolni o'zgartirish
           </h3>
-          <p style={{ color: '#7f1d1d', marginBottom: '20px', lineHeight: '1.6' }}>
-            Agar quyidagi tugmani bossangiz, dasturdagi barcha ma'lumotlar: <b>Tovarlar ombori, Kassa tarixi, Qaytishlar va Qarzlar</b> butunlay o'chib ketadi. Bu amalni orqaga qaytarib bo'lmaydi. Faqatgina dasturni yangitdan boshlamoqchi bo'lsangiz ishlating!
-          </p>
-          <button onClick={handleClearAllData} className="btn" style={{ backgroundColor: '#dc2626', color: 'white', display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', width: 'auto', padding: '14px 24px' }}>
-            <Trash2 size={20} /> Barcha ma'lumotlarni tozalash (Reset)
-          </button>
+          <form onSubmit={handleChangePassword}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#374151' }}>Yangi parol yozing (kamida 6 belgi):</label>
+            <input type="password" className="form-control" placeholder="Yangi parol..." value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength="6" />
+            
+            {passwordMsg && <p style={{ margin: '0 0 15px 0', fontSize: '14px', fontWeight: 'bold', color: passwordMsg.includes('✅') ? '#10b981' : '#ef4444' }}>{passwordMsg}</p>}
+            
+            <button type="submit" className="btn" style={{ width: '100%', backgroundColor: '#10b981', color: 'white' }}>Parolni yangilash</button>
+          </form>
         </div>
 
+        {/* BAZANI TOZALASH */}
+        <div className="card fade-in" style={{ flex: '1 1 300px', borderTop: '4px solid #ef4444' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
+            <Trash2 size={22} /> Xavfli hudud
+          </h3>
+          <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '20px', lineHeight: '1.5' }}>
+            Agar dastur xotirasi to'lib ketsa yoki noldan boshlamoqchi bo'lsangiz, barcha ma'lumotlarni o'chirishingiz mumkin. Bu amalni orqaga qaytarib bo'lmaydi!
+          </p>
+          <button onClick={handleClearData} className="btn btn-danger" style={{ width: '100%', padding: '12px' }}>
+            Barcha ma'lumotlarni tozalash
+          </button>
+        </div>
+        
       </div>
     </div>
   );
