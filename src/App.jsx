@@ -14,11 +14,16 @@ function App() {
   const [page, setPage] = useState('dashboard');
 
   const [storeName, setStoreName] = useState(() => { const saved = localStorage.getItem('app_storeName'); return saved ? saved : "Qurilish mollari do'koni"; });
+  
+  // YANGI XOTIRA: BO'LIMLAR (Papkalar)
+  const [categories, setCategories] = useState(() => { const saved = localStorage.getItem('app_categories'); return saved ? JSON.parse(saved) : []; });
+  
   const [products, setProducts] = useState(() => { const saved = localStorage.getItem('app_products'); return saved ? JSON.parse(saved) : []; });
   const [sales, setSales] = useState(() => { const saved = localStorage.getItem('app_sales'); return saved ? JSON.parse(saved) : []; });
   const [returns, setReturns] = useState(() => { const saved = localStorage.getItem('app_returns'); return saved ? JSON.parse(saved) : []; });
 
   useEffect(() => { localStorage.setItem('app_storeName', storeName); }, [storeName]);
+  useEffect(() => { localStorage.setItem('app_categories', JSON.stringify(categories)); }, [categories]);
   useEffect(() => { localStorage.setItem('app_products', JSON.stringify(products)); }, [products]);
   useEffect(() => { localStorage.setItem('app_sales', JSON.stringify(sales)); }, [sales]);
   useEffect(() => { localStorage.setItem('app_returns', JSON.stringify(returns)); }, [returns]);
@@ -32,23 +37,15 @@ function App() {
 
   const renderPage = () => {
     switch (page) {
-      case 'dashboard': 
-        // MANA SHU YERDA PRODUCTS QO'SHILDI
-        return <Dashboard storeName={storeName} products={products} setPage={setPage} onLogout={handleLogout} />;
-      case 'products': 
-        return <Products products={products} setProducts={setProducts} setPage={setPage} />;
-      case 'sell': 
-        return <Sell products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} />;
-      case 'return': 
-        return <Return products={products} setProducts={setProducts} returns={returns} setReturns={setReturns} setPage={setPage} />;
-      case 'todaysales': 
-        return <TodaySales sales={sales} setSales={setSales} returns={returns} setPage={setPage} />;
-      case 'debts': 
-        return <Debts sales={sales} setSales={setSales} setPage={setPage} />;
-      case 'settings': 
-        return <Settings storeName={storeName} setStoreName={setStoreName} setProducts={setProducts} setSales={setSales} setReturns={setReturns} setPage={setPage} />;
-      default: 
-        return <Dashboard storeName={storeName} products={products} setPage={setPage} onLogout={handleLogout} />;
+      case 'dashboard': return <Dashboard storeName={storeName} products={products} setPage={setPage} onLogout={handleLogout} />;
+      // DIQQAT: categories bu yerga qo'shildi
+      case 'products': return <Products products={products} setProducts={setProducts} categories={categories} setCategories={setCategories} setPage={setPage} />;
+      case 'sell': return <Sell products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} />;
+      case 'return': return <Return products={products} setProducts={setProducts} returns={returns} setReturns={setReturns} setPage={setPage} />;
+      case 'todaysales': return <TodaySales sales={sales} setSales={setSales} returns={returns} setPage={setPage} />;
+      case 'debts': return <Debts sales={sales} setSales={setSales} setPage={setPage} />;
+      case 'settings': return <Settings storeName={storeName} setStoreName={setStoreName} setProducts={setProducts} setSales={setSales} setReturns={setReturns} setPage={setPage} />;
+      default: return <Dashboard storeName={storeName} products={products} setPage={setPage} onLogout={handleLogout} />;
     }
   };
 

@@ -1,10 +1,14 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, Trash2, CheckCircle, ClipboardList, CalendarDays, Filter } from 'lucide-react';
+import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, Trash2, CheckCircle, ClipboardList, CalendarDays, Filter, Search } from 'lucide-react';
 
 const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage }) => {
   const [customer, setCustomer] = useState('');
+  
+  // QIDIRUV UCHUN YANGI STATE
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [sellQty, setSellQty] = useState('');
+  
   const [cart, setCart] = useState([]); 
   const [error, setError] = useState('');
   
@@ -83,6 +87,12 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
   }, [sales, detailFilter, detailDate]);
 
   const tableTotalSum = tableData.reduce((acc, curr) => acc + curr.totalSum, 0);
+  
+  // QIDIRUV UCHUN BARCHA TOVARLARNI FILTRLASH (Bo'limdan qat'iy nazar)
+  const filteredProducts = products.filter(p => 
+    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   const selectedProduct = products.find(p => p.id.toString() === selectedProductId);
 
   const handleAddToCart = (e) => {
@@ -95,7 +105,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
     if (qty + alreadyInCart > selectedProduct.quantity) return setError(`Omborda yetarli emas! Qoldiq: ${selectedProduct.quantity} ${selectedProduct.unit}`);
 
     setCart([...cart, { id: Date.now(), product: selectedProduct, qty: qty, total: qty * selectedProduct.price }]);
-    setSelectedProductId(''); setSellQty('');
+    setSelectedProductId(''); setSellQty(''); setSearchQuery(''); // Qidiruvni tozalash
   };
 
   const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
@@ -157,6 +167,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
         </div>
       )}
 
+      {/* --- SOTISH FORMASI VA QIDIRUV --- */}
       <div className="card" style={{ maxWidth: '700px', margin: '0 auto', borderTop: '4px solid #1e3a8a' }}>
         <div style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '2px dashed #e5e7eb' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 'bold', color: '#111827', fontSize: '16px' }}><User size={20} color="#1e3a8a" /> Mijoz ismi</label>
@@ -164,15 +175,54 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
         </div>
 
         <form onSubmit={handleAddToCart}>
-          <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '15px' }}>
-            <div style={{ flex: '2 1 200px' }}><label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Tovarni tanlang</label><select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0 }}><option value="">-- Tanlang --</option>{products.map(p => <option key={p.id} value={p.id}>{p.name} (Qoldi: {p.quantity} {p.unit})</option>)}</select></div>
-            {selectedProduct && <div className="fade-in" style={{ flex: '1 1 100px' }}><label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Hajmi</label><input type="number" className="form-control" placeholder="Miqdor" value={sellQty} onChange={(e) => { setSellQty(e.target.value); setError(''); }} min="0.1" step="any" style={{ marginBottom: 0 }} /></div>}
-            <button type="submit" className="btn btn-danger" style={{ flex: '1 1 150px', height: '50px', display: 'flex', gap: '8px', justifyContent: 'center' }} disabled={products.length === 0}><PlusCircle size={20} /> Savatga</button>
+          <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: '15px' }}>
+            
+            {/* TOVAR QIDIRISH VA TANLASH */}
+            <div style={{ flex: '2 1 250px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontWeight: '500' }}>Tovarni qidirish va tanlash</label>
+              
+              {/* Qidiruv inputi */}
+              <div style={{ position: 'relative' }}>
+                <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '12px' }} />
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="Nomi bo'yicha qidirish..." 
+                  value={searchQuery} 
+                  onChange={(e) => setSearchQuery(e.target.value)} 
+                  style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#f9fafb', border: '1px solid #d1d5db' }} 
+                />
+              </div>
+
+              {/* Tanlash ro'yxati (Filtrlangan) */}
+              <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0 }}>
+                <option value="">-- Ro'yxatdan tanlang --</option>
+                {filteredProducts.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} (Qoldi: {p.quantity} {p.unit})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Hajmi kiritish */}
+            {selectedProduct && (
+              <div className="fade-in" style={{ flex: '1 1 100px', alignSelf: 'flex-end' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Hajmi</label>
+                <input type="number" className="form-control" placeholder="Miqdor" value={sellQty} onChange={(e) => { setSellQty(e.target.value); setError(''); }} min="0.1" step="any" style={{ marginBottom: 0 }} />
+              </div>
+            )}
+
+            {/* Savatga qo'shish tugmasi */}
+            <button type="submit" className="btn btn-danger" style={{ flex: '1 1 150px', height: '46px', display: 'flex', gap: '8px', justifyContent: 'center', alignSelf: 'flex-end' }} disabled={products.length === 0}>
+              <PlusCircle size={20} /> Savatga
+            </button>
           </div>
         </form>
 
         {error && <div style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '15px' }}>{error}</div>}
 
+        {/* SAVATCHA */}
         {cart.length > 0 && (
           <div className="fade-in" style={{ marginTop: '30px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '20px' }}>
             <h3 style={{ margin: '0 0 15px 0', color: '#1f2937', borderBottom: '1px solid #d1d5db', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}><ShoppingCart size={20} color="#1e3a8a" /> Savatdagi tovarlar</h3>
@@ -191,6 +241,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
         )}
       </div>
 
+      {/* --- BATAFSIL JADVAL --- */}
       <div className="card" style={{ maxWidth: '100%', marginTop: '40px', borderTop: '4px solid #4b5563' }}>
         <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1f2937', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}><ClipboardList size={22} color="#4b5563" /> Batafsil savdolar jadvali</h3>
 
@@ -235,7 +286,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
                       </td>
                       <td style={{ padding: '14px', color: '#111827', fontWeight: '500' }}>
                         {item.customer}
-                        {/* QARZDAN TUSHGAN LIGINI KO'RSATUVCHI BELGI */}
                         {item.wasDebt && (
                            <div style={{ marginTop: '4px', fontSize: '12px', color: '#b45309', fontWeight: 'bold' }}>
                              (Qarzdan to'landi)
