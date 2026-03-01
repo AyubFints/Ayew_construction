@@ -2,12 +2,23 @@ import React, { useState } from 'react';
 import { Package, ArrowLeft, Trash2, PlusCircle } from 'lucide-react';
 
 const Products = ({ products, setProducts, setPage }) => {
-  const [name, setName] = useState(''); const [unit, setUnit] = useState('metr'); const [quantity, setQuantity] = useState(''); const [price, setPrice] = useState('');
+  const [name, setName] = useState(''); 
+  const [unit, setUnit] = useState('metr'); 
+  const [quantity, setQuantity] = useState(''); 
+  const [price, setPrice] = useState('');
+  
   const totalWarehouseValue = products.reduce((acc, curr) => acc + (curr.quantity * curr.price), 0);
 
   const handleAddProduct = (e) => {
     e.preventDefault();
-    setProducts([...products, { id: Date.now(), name, unit, quantity: parseFloat(quantity), price: parseFloat(price) }]);
+    setProducts([...products, { 
+      id: Date.now(), 
+      name, 
+      unit, 
+      quantity: parseFloat(quantity), 
+      // parseFloat orqali nuqtali sonlar (6.200) ham to'liq va to'g'ri saqlanadi
+      price: parseFloat(price) 
+    }]);
     setName(''); setQuantity(''); setPrice('');
   };
   
@@ -39,10 +50,13 @@ const Products = ({ products, setProducts, setPage }) => {
             <select className="form-control" value={unit} onChange={(e) => setUnit(e.target.value)}>
               <option value="metr">Metr</option><option value="dona">Dona</option><option value="pachka">Pachka</option><option value="kg">KG</option><option value="qop">Qop</option>
             </select>
-            <input type="number" className="form-control" placeholder="Miqdori" value={quantity} onChange={(e) => setQuantity(e.target.value)} required min="0.1" step="any" />
-            <input type="number" className="form-control" placeholder="1 dona narxi" value={price} onChange={(e) => setPrice(e.target.value)} required min="1" />
             
-            {quantity && price && <div style={{ padding: '15px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '20px', fontWeight: 'bold', color: '#1e3a8a' }}>Umumiy: {(parseFloat(quantity) * parseFloat(price)).toLocaleString()} so'm</div>}
+            <input type="number" className="form-control" placeholder="Miqdori" value={quantity} onChange={(e) => setQuantity(e.target.value)} required min="0.001" step="any" />
+            
+            {/* MANA SHU YERDA O'ZGARISH BO'LDI: step="any" qilib qo'yildi */}
+            <input type="number" className="form-control" placeholder="1 dona narxi (Masalan: 6.200)" value={price} onChange={(e) => setPrice(e.target.value)} required min="0" step="any" />
+            
+            {quantity && price && <div style={{ padding: '15px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '20px', fontWeight: 'bold', color: '#1e3a8a' }}>Umumiy qiymati: {(parseFloat(quantity) * parseFloat(price)).toLocaleString()} so'm</div>}
             
             <button type="submit" className="btn btn-primary" style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center' }}>
               <PlusCircle size={20} /> Omborga qo'shish
@@ -60,7 +74,7 @@ const Products = ({ products, setProducts, setPage }) => {
                     <Trash2 size={20} />
                   </button>
                   <h4 style={{ margin: 0, color: '#111827', fontSize: '16px' }}>{p.name}</h4>
-                  <div style={{ color: '#4b5563', fontSize: '14px', marginTop: '8px' }}>Qoldiq: <span style={{ fontWeight: 'bold', color: '#1e3a8a' }}>{p.quantity} {p.unit}</span> | Narxi: {p.price.toLocaleString()}</div>
+                  <div style={{ color: '#4b5563', fontSize: '14px', marginTop: '8px' }}>Qoldiq: <span style={{ fontWeight: 'bold', color: '#1e3a8a' }}>{p.quantity} {p.unit}</span> | Narxi: {p.price.toLocaleString()} so'm</div>
                 </div>
               ))}
             </div>
