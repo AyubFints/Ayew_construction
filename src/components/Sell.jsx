@@ -29,17 +29,31 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
     else setDetailDate(currentYearStr);
   };
 
-  const todayStr = d.toLocaleDateString('uz-UZ');
+  // --- YANGI MANTIQ: Tanlangan sanaga qarab hamma narsani hisoblash ---
+  const isMatchDate = (timestamp) => {
+    const t = new Date(timestamp);
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(t.getDate()).padStart(2, '0');
+    
+    if (detailFilter === 'daily') return `${y}-${m}-${dayStr}` === detailDate;
+    if (detailFilter === 'monthly') return `${y}-${m}` === detailDate;
+    return `${y}` === detailDate;
+  };
+
+  const tableData = useMemo(() => {
+    return sales.filter(s => s.isReceived && isMatchDate(s.receivedAt || s.id)).sort((a, b) => b.id - a.id);
+  }, [sales, detailFilter, detailDate]);
+
+  // Tepadagi bloklar uchun dinamik hisob-kitoblar (Endi faqat "bugun" emas, tanlangan sana uchun ishlaydi)
+  const periodIncome = tableData.reduce((acc, curr) => acc + curr.totalSum, 0);
   
-  const todayIncome = sales
-    .filter(s => s.isReceived && new Date(s.receivedAt || s.id).toLocaleDateString('uz-UZ') === todayStr)
-    .reduce((acc, s) => acc + s.totalSum, 0);
-    
-  const todayExpense = returns
-    .filter(r => new Date(r.id).toLocaleDateString('uz-UZ') === todayStr)
-    .reduce((acc, r) => acc + r.returnSum, 0);
-    
-  const todayNetProfit = todayIncome - todayExpense;
+  const periodExpense = useMemo(() => {
+    return returns.filter(r => isMatchDate(r.id)).reduce((acc, curr) => acc + curr.returnSum, 0);
+  }, [returns, detailFilter, detailDate]);
+
+  const periodNetProfit = periodIncome - periodExpense;
+  // ----------------------------------------------------------------------
 
   const aggregatedHistory = useMemo(() => {
     const map = {};
@@ -70,22 +84,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
 
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
   }, [sales, returns, historyType]);
-
-  const tableData = useMemo(() => {
-    return sales.filter(s => {
-      if (!s.isReceived) return false;
-      const t = new Date(s.receivedAt || s.id);
-      const y = t.getFullYear();
-      const m = String(t.getMonth() + 1).padStart(2, '0');
-      const dayStr = String(t.getDate()).padStart(2, '0');
-      
-      if (detailFilter === 'daily') return `${y}-${m}-${dayStr}` === detailDate;
-      if (detailFilter === 'monthly') return `${y}-${m}` === detailDate;
-      return `${y}` === detailDate;
-    }).sort((a, b) => b.id - a.id);
-  }, [sales, detailFilter, detailDate]);
-
-  const tableTotalSum = tableData.reduce((acc, curr) => acc + curr.totalSum, 0);
   
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -140,10 +138,23 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
         <h2 style={{ fontSize: '24px', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>Sotish bo'limi <ShoppingCart size={28} /></h2>
       </div>
 
+      {/* --- DINAMIK TEPADAGI BLOKLAR --- */}
       <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
-        <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #1e3a8a' }}><p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: 'bold' }}>KIRIM</p><h2 style={{ margin: '10px 0 0 0', color: '#1e3a8a', fontSize: '28px' }}>{todayIncome.toLocaleString()} so'm</h2></div>
-        <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #4b5563' }}><p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: 'bold' }}>CHIQIM</p><h2 style={{ margin: '10px 0 0 0', color: '#4b5563', fontSize: '28px' }}>{todayExpense.toLocaleString()} so'm</h2></div>
-        <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#1e3a8a', color: 'white', border: 'none' }}><p style={{ margin: 0, color: '#d1d5db', fontSize: '14px', fontWeight: 'bold' }}>SOF FOYDA</p><h2 style={{ margin: '10px 0 0 0', color: '#ffffff', fontSize: '28px' }}>{todayNetProfit.toLocaleString()} so'm</h2></div>
+        <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #1e3a8a', position: 'relative' }}>
+          <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#e0e7ff', color: '#3730a3', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
+          <p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: 'bold' }}>KIRIM</p>
+          <h2 style={{ margin: '10px 0 0 0', color: '#1e3a8a', fontSize: '28px' }}>{periodIncome.toLocaleString()} so'm</h2>
+        </div>
+        <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #4b5563', position: 'relative' }}>
+          <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#f3f4f6', color: '#4b5563', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
+          <p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: 'bold' }}>CHIQIM</p>
+          <h2 style={{ margin: '10px 0 0 0', color: '#4b5563', fontSize: '28px' }}>{periodExpense.toLocaleString()} so'm</h2>
+        </div>
+        <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#1e3a8a', color: 'white', border: 'none', position: 'relative' }}>
+          <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#3b82f6', color: '#ffffff', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
+          <p style={{ margin: 0, color: '#d1d5db', fontSize: '14px', fontWeight: 'bold' }}>SOF FOYDA</p>
+          <h2 style={{ margin: '10px 0 0 0', color: '#ffffff', fontSize: '28px' }}>{periodNetProfit.toLocaleString()} so'm</h2>
+        </div>
       </div>
 
       <button onClick={() => setShowHistory(!showHistory)} className="btn btn-danger" style={{ marginBottom: '30px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
@@ -290,7 +301,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
               <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e5e7eb', backgroundColor: '#ffffff' }}>
                 <thead>
                   <tr>
-                    {/* USTUNLAR JOYLASHUVI O'ZGARDI */}
                     <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Sana/Vaqt</th>
                     <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Jami Summa</th>
                     <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Olingan tovarlar</th>
@@ -303,15 +313,10 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
                       <td style={{ padding: '14px', color: '#6b7280', fontSize: '14px' }}>
                         {new Date(item.receivedAt || item.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
                       </td>
-                      
-                      {/* 1-O'RINDA ENDI JAMI SUMMA (Yashil rangda, ko'zga yaqqol tashlanadi) */}
                       <td style={{ padding: '14px', color: '#10b981', fontWeight: 'bold', fontSize: '16px' }}>
                         +{item.totalSum.toLocaleString()} so'm
                       </td>
-                      
                       <td style={{ padding: '14px', color: '#4b5563', lineHeight: '1.6', fontSize: '14px', whiteSpace: 'pre-line' }}>{item.productName}</td>
-                      
-                      {/* ENG OXIRIDA MIJOZ ISMI */}
                       <td style={{ padding: '14px', color: '#1e3a8a', fontWeight: 'bold', textAlign: 'right' }}>
                         {item.customer}
                         {item.wasDebt && (

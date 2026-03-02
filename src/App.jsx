@@ -26,31 +26,25 @@ function App() {
   const [sales, setSales] = useState([]);
   const [returns, setReturns] = useState([]);
 
-  // --- YANGI: TELEFONNING "ORTGA" TUGMASI UCHUN KOD ---
+  // TELEFONNING "ORTGA" TUGMASI UCHUN KOD
   useEffect(() => {
-    // 1. Dastur ochilganda URL (manzil) dagi yozuvni o'qish
     const hash = window.location.hash.replace('#', '');
     if (hash && hash !== page) {
       setPage(hash);
     }
-
-    // 2. Telefonning "Ortga" tugmasi bosilganda tutib olish
     const handlePopState = () => {
       const currentHash = window.location.hash.replace('#', '');
       setPage(currentHash || 'dashboard');
     };
-
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // 3. Biz dastur ichida biron bo'limga kirsak, uni telefon tarixiga yozish
   useEffect(() => {
     if (window.location.hash !== `#${page}`) {
       window.history.pushState(null, '', `#${page}`);
     }
   }, [page]);
-  // ----------------------------------------------------
 
   // BAZADAN MA'LUMOTNI TORTISH
   useEffect(() => {
@@ -105,7 +99,7 @@ function App() {
     }
   };
 
-  // SUZIB YURUVCHI PASTKI MENYU
+  // SUZIB YURUVCHI PASTKI MENYU (YANGILANGAN: YOZUVLAR BILAN)
   const renderBottomNav = () => {
     if (!isAuth || !dataLoaded || page === 'dashboard' || page === 'settings') return null;
 
@@ -121,24 +115,41 @@ function App() {
 
     return (
       <div style={{
-        position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
+        position: 'fixed', bottom: '15px', left: '50%', transform: 'translateX(-50%)',
         backgroundColor: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)',
-        boxShadow: '0 10px 30px rgba(30, 58, 138, 0.2)', borderRadius: '50px',
-        display: 'flex', gap: '12px', padding: '12px 20px', zIndex: 1000, border: '1px solid #e0e7ff'
+        boxShadow: '0 10px 30px rgba(30, 58, 138, 0.2)', borderRadius: '30px',
+        display: 'flex', gap: '15px', padding: '12px 25px', zIndex: 1000, border: '1px solid #e0e7ff'
       }}>
         {visibleNavs.map(item => (
-          <button
-            key={item.id} onClick={() => setPage(item.id)} title={item.label}
+          <div
+            key={item.id} 
+            onClick={() => setPage(item.id)} 
+            title={item.label}
             style={{
-              width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#f1f5f9',
-              border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#1e3a8a', cursor: 'pointer', transition: 'all 0.3s ease', boxShadow: '0 4px 6px rgba(0,0,0,0.05)'
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1e3a8a'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#1e3a8a'; e.currentTarget.style.transform = 'translateY(0)'; }}
+            onMouseEnter={(e) => { 
+              e.currentTarget.children[0].style.backgroundColor = '#1e3a8a'; 
+              e.currentTarget.children[0].style.color = '#ffffff'; 
+              e.currentTarget.children[0].style.transform = 'translateY(-3px)'; 
+            }}
+            onMouseLeave={(e) => { 
+              e.currentTarget.children[0].style.backgroundColor = '#f1f5f9'; 
+              e.currentTarget.children[0].style.color = '#1e3a8a'; 
+              e.currentTarget.children[0].style.transform = 'translateY(0)'; 
+            }}
           >
-            {item.icon}
-          </button>
+            {/* Dumaloq ikonka qismi */}
+            <div style={{
+              width: '46px', height: '46px', borderRadius: '50%', backgroundColor: '#f1f5f9',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#1e3a8a', transition: 'all 0.3s ease', boxShadow: '0 4px 6px rgba(0,0,0,0.05)'
+            }}>
+              {item.icon}
+            </div>
+            {/* Tagidagi mayda yozuv */}
+            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e3a8a' }}>{item.label}</span>
+          </div>
         ))}
       </div>
     );
@@ -160,7 +171,7 @@ function App() {
   };
 
   return (
-    <div className="app-container" style={{ paddingBottom: page !== 'dashboard' && page !== 'settings' ? '90px' : '20px' }}>
+    <div className="app-container" style={{ paddingBottom: page !== 'dashboard' && page !== 'settings' ? '110px' : '20px' }}>
       {!isAuth ? <Login /> : renderPage()}
       {renderBottomNav()}
     </div>
