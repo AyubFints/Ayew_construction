@@ -9,10 +9,8 @@ import TodaySales from './components/TodaySales';
 import Debts from './components/Debts';
 import Settings from './components/Settings';
 
-// Ikonkalar menyu uchun
-import { Home, Package, ShoppingCart, RotateCcw, Wallet, BookOpen, Settings as SettingsIcon } from 'lucide-react';
+import { Home, Package, ShoppingCart, RotateCcw, Wallet, BookOpen } from 'lucide-react';
 
-// Firebase importlari
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -28,7 +26,33 @@ function App() {
   const [sales, setSales] = useState([]);
   const [returns, setReturns] = useState([]);
 
-  // --- 1. BAZADAN MA'LUMOTNI TORTISH ---
+  // --- YANGI: TELEFONNING "ORTGA" TUGMASI UCHUN KOD ---
+  useEffect(() => {
+    // 1. Dastur ochilganda URL (manzil) dagi yozuvni o'qish
+    const hash = window.location.hash.replace('#', '');
+    if (hash && hash !== page) {
+      setPage(hash);
+    }
+
+    // 2. Telefonning "Ortga" tugmasi bosilganda tutib olish
+    const handlePopState = () => {
+      const currentHash = window.location.hash.replace('#', '');
+      setPage(currentHash || 'dashboard');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // 3. Biz dastur ichida biron bo'limga kirsak, uni telefon tarixiga yozish
+  useEffect(() => {
+    if (window.location.hash !== `#${page}`) {
+      window.history.pushState(null, '', `#${page}`);
+    }
+  }, [page]);
+  // ----------------------------------------------------
+
+  // BAZADAN MA'LUMOTNI TORTISH
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
@@ -65,7 +89,7 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // --- 2. FIREBASE'GA SAQLASH ---
+  // FIREBASE'GA SAQLASH
   useEffect(() => {
     if (isAuth && dataLoaded && auth.currentUser) {
       const docRef = doc(db, "stores", auth.currentUser.uid);
@@ -81,12 +105,10 @@ function App() {
     }
   };
 
-  // --- 3. SUZIB YURUVCHI PASTKI MENYU ---
+  // SUZIB YURUVCHI PASTKI MENYU
   const renderBottomNav = () => {
-    // Agar Asosiy oynada (dashboard) bo'lsak yoki tizimga kirmagan bo'lsak, menyu chiqmaydi
     if (!isAuth || !dataLoaded || page === 'dashboard' || page === 'settings') return null;
 
-    // Barcha bo'limlar ro'yxati
     const navItems = [
       { id: 'dashboard', icon: <Home size={22} />, label: 'Asosiy' },
       { id: 'products', icon: <Package size={22} />, label: 'Ombor' },
@@ -95,43 +117,22 @@ function App() {
       { id: 'debts', icon: <BookOpen size={22} />, label: 'Qarz' },
     ];
 
-    // Siz aytgandek, HOZIRGI ochiq bo'limni ro'yxatdan olib tashlaymiz
     const visibleNavs = navItems.filter(item => item.id !== page);
 
     return (
       <div style={{
-        position: 'fixed',
-        bottom: '20px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(10px)',
-        boxShadow: '0 10px 30px rgba(30, 58, 138, 0.2)',
-        borderRadius: '50px',
-        display: 'flex',
-        gap: '12px',
-        padding: '12px 20px',
-        zIndex: 1000,
-        border: '1px solid #e0e7ff'
+        position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)',
+        boxShadow: '0 10px 30px rgba(30, 58, 138, 0.2)', borderRadius: '50px',
+        display: 'flex', gap: '12px', padding: '12px 20px', zIndex: 1000, border: '1px solid #e0e7ff'
       }}>
         {visibleNavs.map(item => (
           <button
-            key={item.id}
-            onClick={() => setPage(item.id)}
-            title={item.label}
+            key={item.id} onClick={() => setPage(item.id)} title={item.label}
             style={{
-              width: '50px',
-              height: '50px',
-              borderRadius: '50%',
-              backgroundColor: '#f1f5f9',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#1e3a8a',
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.05)'
+              width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#f1f5f9',
+              border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#1e3a8a', cursor: 'pointer', transition: 'all 0.3s ease', boxShadow: '0 4px 6px rgba(0,0,0,0.05)'
             }}
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1e3a8a'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#1e3a8a'; e.currentTarget.style.transform = 'translateY(0)'; }}
@@ -158,7 +159,6 @@ function App() {
     }
   };
 
-  // paddingBottom qo'shdikki, pastki menyu yozuvlarni to'sib qo'ymasin
   return (
     <div className="app-container" style={{ paddingBottom: page !== 'dashboard' && page !== 'settings' ? '90px' : '20px' }}>
       {!isAuth ? <Login /> : renderPage()}

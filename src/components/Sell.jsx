@@ -1,10 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, Trash2, CheckCircle, ClipboardList, CalendarDays, Filter, Search } from 'lucide-react';
+import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, Trash2, CheckCircle, ClipboardList, CalendarDays, Filter, Search, X } from 'lucide-react';
 
 const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage }) => {
   const [customer, setCustomer] = useState('');
   
-  // QIDIRUV UCHUN YANGI STATE
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [sellQty, setSellQty] = useState('');
@@ -88,12 +87,18 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
 
   const tableTotalSum = tableData.reduce((acc, curr) => acc + curr.totalSum, 0);
   
-  // QIDIRUV UCHUN BARCHA TOVARLARNI FILTRLASH (Bo'limdan qat'iy nazar)
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const selectedProduct = products.find(p => p.id.toString() === selectedProductId);
+
+  const handleClearSelection = () => {
+    setSearchQuery('');
+    setSelectedProductId('');
+    setSellQty('');
+    setError('');
+  };
 
   const handleAddToCart = (e) => {
     e.preventDefault();
@@ -105,7 +110,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
     if (qty + alreadyInCart > selectedProduct.quantity) return setError(`Omborda yetarli emas! Qoldiq: ${selectedProduct.quantity} ${selectedProduct.unit}`);
 
     setCart([...cart, { id: Date.now(), product: selectedProduct, qty: qty, total: qty * selectedProduct.price }]);
-    setSelectedProductId(''); setSellQty(''); setSearchQuery(''); // Qidiruvni tozalash
+    handleClearSelection();
   };
 
   const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
@@ -119,7 +124,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
     setProducts(updatedProducts);
 
     const overallTotal = cart.reduce((sum, item) => sum + item.total, 0);
-    const combinedNames = cart.map(item => `${item.product.name} (${item.qty} ${item.product.unit})`).join(', ');
+    const combinedNames = cart.map(item => `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} so'm)`).join('\n');
 
     setSales([...sales, { id: Date.now(), productName: combinedNames, unit: 'xil tovar', quantity: cart.length, customer, totalSum: overallTotal, isReceived: false }]);
     setCart([]); setCustomer(''); setError('');
@@ -167,7 +172,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
         </div>
       )}
 
-      {/* --- SOTISH FORMASI VA QIDIRUV --- */}
+      {/* --- SOTISH FORMASI --- */}
       <div className="card" style={{ maxWidth: '700px', margin: '0 auto', borderTop: '4px solid #1e3a8a' }}>
         <div style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '2px dashed #e5e7eb' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 'bold', color: '#111827', fontSize: '16px' }}><User size={20} color="#1e3a8a" /> Mijoz ismi</label>
@@ -175,48 +180,61 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
         </div>
 
         <form onSubmit={handleAddToCart}>
-          <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: '15px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '15px' }}>
             
-            {/* TOVAR QIDIRISH VA TANLASH */}
-            <div style={{ flex: '2 1 250px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: '500' }}>Tovarni qidirish va tanlash</label>
+            <div style={{ backgroundColor: '#f9fafb', padding: '15px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+              <label style={{ fontWeight: '600', display: 'block', marginBottom: '10px', color: '#374151' }}>Tovarni qidirish va tanlash</label>
               
-              {/* Qidiruv inputi */}
-              <div style={{ position: 'relative' }}>
-                <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '12px' }} />
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  placeholder="Nomi bo'yicha qidirish..." 
-                  value={searchQuery} 
-                  onChange={(e) => setSearchQuery(e.target.value)} 
-                  style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#f9fafb', border: '1px solid #d1d5db' }} 
-                />
-              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ position: 'relative' }}>
+                  <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    placeholder="Nomi bo'yicha qidirish..." 
+                    value={searchQuery} 
+                    onChange={(e) => setSearchQuery(e.target.value)} 
+                    style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
+                  />
+                </div>
 
-              {/* Tanlash ro'yxati (Filtrlangan) */}
-              <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0 }}>
-                <option value="">-- Ro'yxatdan tanlang --</option>
-                {filteredProducts.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} (Qoldi: {p.quantity} {p.unit})
-                  </option>
-                ))}
-              </select>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0, flex: 1 }}>
+                    <option value="">-- Ro'yxatdan tanlang --</option>
+                    {filteredProducts.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} (Qoldi: {p.quantity} {p.unit})
+                      </option>
+                    ))}
+                  </select>
+
+                  {(selectedProductId || searchQuery) && (
+                    <button 
+                      type="button" 
+                      onClick={handleClearSelection} 
+                      className="btn btn-danger" 
+                      style={{ width: '46px', height: '46px', padding: '0', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}
+                      title="Tanlovni bekor qilish"
+                    >
+                      <X size={20} />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* Hajmi kiritish */}
-            {selectedProduct && (
-              <div className="fade-in" style={{ flex: '1 1 100px', alignSelf: 'flex-end' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Hajmi</label>
-                <input type="number" className="form-control" placeholder="Miqdor" value={sellQty} onChange={(e) => { setSellQty(e.target.value); setError(''); }} min="0.1" step="any" style={{ marginBottom: 0 }} />
-              </div>
-            )}
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
+              {selectedProduct && (
+                <div className="fade-in" style={{ flex: '1' }}>
+                  <input type="number" className="form-control" placeholder={`Miqdor (${selectedProduct.unit})`} value={sellQty} onChange={(e) => { setSellQty(e.target.value); setError(''); }} min="0.1" step="any" style={{ marginBottom: 0, height: '46px' }} />
+                </div>
+              )}
+              
+              <button type="submit" className="btn btn-danger" style={{ flex: selectedProduct ? '1' : '100%', height: '46px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }} disabled={!selectedProduct && products.length > 0}>
+                <PlusCircle size={20} /> Savatga qo'shish
+              </button>
+            </div>
 
-            {/* Savatga qo'shish tugmasi */}
-            <button type="submit" className="btn btn-danger" style={{ flex: '1 1 150px', height: '46px', display: 'flex', gap: '8px', justifyContent: 'center', alignSelf: 'flex-end' }} disabled={products.length === 0}>
-              <PlusCircle size={20} /> Savatga
-            </button>
           </div>
         </form>
 
@@ -272,10 +290,11 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
               <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e5e7eb', backgroundColor: '#ffffff' }}>
                 <thead>
                   <tr>
+                    {/* USTUNLAR JOYLASHUVI O'ZGARDI */}
                     <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Sana/Vaqt</th>
-                    <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Xaridor (Mijoz)</th>
+                    <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Jami Summa</th>
                     <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Olingan tovarlar</th>
-                    <th style={{ textAlign: 'right', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Summa</th>
+                    <th style={{ textAlign: 'right', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Xaridor (Mijoz)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -284,17 +303,22 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
                       <td style={{ padding: '14px', color: '#6b7280', fontSize: '14px' }}>
                         {new Date(item.receivedAt || item.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
                       </td>
-                      <td style={{ padding: '14px', color: '#111827', fontWeight: '500' }}>
+                      
+                      {/* 1-O'RINDA ENDI JAMI SUMMA (Yashil rangda, ko'zga yaqqol tashlanadi) */}
+                      <td style={{ padding: '14px', color: '#10b981', fontWeight: 'bold', fontSize: '16px' }}>
+                        +{item.totalSum.toLocaleString()} so'm
+                      </td>
+                      
+                      <td style={{ padding: '14px', color: '#4b5563', lineHeight: '1.6', fontSize: '14px', whiteSpace: 'pre-line' }}>{item.productName}</td>
+                      
+                      {/* ENG OXIRIDA MIJOZ ISMI */}
+                      <td style={{ padding: '14px', color: '#1e3a8a', fontWeight: 'bold', textAlign: 'right' }}>
                         {item.customer}
                         {item.wasDebt && (
                            <div style={{ marginTop: '4px', fontSize: '12px', color: '#b45309', fontWeight: 'bold' }}>
                              (Qarzdan to'landi)
                            </div>
                         )}
-                      </td>
-                      <td style={{ padding: '14px', color: '#4b5563', lineHeight: '1.5', fontSize: '14px' }}>{item.productName}</td>
-                      <td style={{ padding: '14px', color: '#1e3a8a', fontWeight: 'bold', textAlign: 'right' }}>
-                        {item.totalSum.toLocaleString()}
                       </td>
                     </tr>
                   ))}

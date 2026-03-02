@@ -215,10 +215,12 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #d1d5db' }}>
                     
-                    {/* Qoldiq va Narxi */}
+                    {/* YANGLANGAN QISM: Qoldiq, Narxi va JAMI QIYMATI */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <div style={{ color: '#6b7280', fontSize: '13px' }}>Qoldiq: <span style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '16px' }}>{p.quantity} {p.unit}</span></div>
                       <div style={{ color: '#6b7280', fontSize: '13px' }}>Narxi: <span style={{ fontWeight: 'bold', color: '#111827', fontSize: '14px' }}>{p.price.toLocaleString()} so'm</span></div>
+                      {/* YANGI QATOR: JAMI QIYMATI */}
+                      <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px' }}>Jami qiymati: <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>{(p.quantity * p.price).toLocaleString()} so'm</span></div>
                     </div>
 
                     {/* TUGMALAR (KIRIM QILISH VA BO'LIMGA O'TKAZISH) */}

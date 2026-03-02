@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, ArrowLeft, Store, Trash2, ShieldAlert } from 'lucide-react';
+import { Settings as SettingsIcon, ArrowLeft, Store, Trash2, ShieldAlert, HelpCircle, Phone, Send } from 'lucide-react';
 import { auth } from '../firebase';
 import { updatePassword } from 'firebase/auth';
 
@@ -46,10 +46,10 @@ const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, 
   };
 
   return (
-    <div className="fade-in">
+    <div className="fade-in" style={{ paddingBottom: '80px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <button onClick={() => setPage('dashboard')} className="btn" style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#e5e7eb', color: '#1f2937', display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <ArrowLeft size={18} /> Ortga qaytish
+          <ArrowLeft size={18} /> Ortga
         </button>
         <h2 style={{ fontSize: '24px', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>
           Sozlamalar <SettingsIcon size={28} />
@@ -83,6 +83,36 @@ const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, 
             
             <button type="submit" className="btn" style={{ width: '100%', backgroundColor: '#10b981', color: 'white' }}>Parolni yangilash</button>
           </form>
+        </div>
+
+        {/* DASTURCHI BILAN ALOQA (YORDAM BO'LIMI) */}
+        <div className="card fade-in" style={{ flex: '1 1 300px', borderTop: '4px solid #0ea5e9' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
+            <HelpCircle size={22} /> Yordam va Aloqa
+          </h3>
+          <p style={{ color: '#4b5563', fontSize: '14px', marginBottom: '20px', lineHeight: '1.5' }}>
+            Agar dasturdan foydalanishda qandaydir savollar tug'ilsa yoki nimadir tushunarsiz bo'lsa, bemalol biz bilan bog'lanishingiz mumkin. Biz doim yordam berishga tayyormiz!
+          </p>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Telefon raqam */}
+            <a href="tel:+998772781808" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: '#1f2937', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', transition: '0.2s', cursor: 'pointer' }}>
+              <Phone size={20} color="#10b981" /> 
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>Telefon orqali:</div>
+                <div style={{ fontWeight: 'bold', fontSize: '16px' }}>+998 77 278 18 08</div>
+              </div>
+            </a>
+            
+            {/* Telegram */}
+            <a href="https://t.me/xaamiitov" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: '#1f2937', padding: '12px', backgroundColor: '#f0f9ff', borderRadius: '8px', border: '1px solid #bae6fd', transition: '0.2s', cursor: 'pointer' }}>
+              <Send size={20} color="#0284c7" /> 
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>Telegram orqali:</div>
+                <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#0284c7' }}>@xaamiitov</div>
+              </div>
+            </a>
+          </div>
         </div>
 
         {/* BAZANI TOZALASH */}
