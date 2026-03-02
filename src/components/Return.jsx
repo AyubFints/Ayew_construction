@@ -1,10 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { RotateCcw, ArrowLeft, BarChart3, User, PlusCircle, Trash2, CheckCircle, ClipboardList, CalendarDays, Filter, PackageMinus, Search } from 'lucide-react';
+import { RotateCcw, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, PackageMinus, Search, X } from 'lucide-react';
 
 const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
   const [customer, setCustomer] = useState('');
   
-  // QIDIRUV UCHUN YANGI STATE
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [returnQty, setReturnQty] = useState('');
@@ -30,11 +29,29 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
     else setDetailDate(currentYearStr);
   };
 
-  const todayStr = d.toLocaleDateString('uz-UZ');
-  
-  const todayExpense = returns
-    .filter(r => new Date(r.id).toLocaleDateString('uz-UZ') === todayStr)
-    .reduce((acc, r) => acc + r.returnSum, 0);
+  // --- ZIRHLI MANTIQ: Sanani xatosiz tekshirish ---
+  const isMatchDate = (timestamp) => {
+    if (!timestamp) return false;
+    const t = new Date(timestamp);
+    if (isNaN(t.getTime())) return false;
+
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(t.getDate()).padStart(2, '0');
+    
+    if (detailFilter === 'daily') return `${y}-${m}-${dayStr}` === detailDate;
+    if (detailFilter === 'monthly') return `${y}-${m}` === detailDate;
+    return `${y}` === detailDate;
+  };
+
+  // Jadval ma'lumotlari
+  const tableData = useMemo(() => {
+    return returns.filter(r => isMatchDate(r.id)).sort((a, b) => b.id - a.id);
+  }, [returns, detailFilter, detailDate]);
+
+  // --- DINAMIK HISOBLASH (Faqat tanlangan sana uchun ishlaydi) ---
+  const periodExpense = tableData.reduce((acc, curr) => acc + (Number(curr.returnSum) || Number(curr.totalSum) || 0), 0);
+  const tableTotalExpense = periodExpense;
 
   const aggregatedHistory = useMemo(() => {
     const map = {};
@@ -51,33 +68,25 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
     returns.forEach(r => {
       const { key, label } = getKeyAndLabel(r.id);
       if (!map[key]) map[key] = { label, expense: 0, timestamp: r.id };
-      map[key].expense += r.returnSum;
+      map[key].expense += (Number(r.returnSum) || Number(r.totalSum) || 0);
     });
 
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
   }, [returns, historyType]);
 
-  const tableData = useMemo(() => {
-    return returns.filter(r => {
-      const t = new Date(r.id);
-      const y = t.getFullYear();
-      const m = String(t.getMonth() + 1).padStart(2, '0');
-      const dayStr = String(t.getDate()).padStart(2, '0');
-      
-      if (detailFilter === 'daily') return `${y}-${m}-${dayStr}` === detailDate;
-      if (detailFilter === 'monthly') return `${y}-${m}` === detailDate;
-      return `${y}` === detailDate;
-    }).sort((a, b) => b.id - a.id);
-  }, [returns, detailFilter, detailDate]);
-
-  const tableTotalExpense = tableData.reduce((acc, curr) => acc + curr.returnSum, 0);
-
-  // QIDIRUV UCHUN BARCHA TOVARLARNI FILTRLASH
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const selectedProduct = products.find(p => p.id.toString() === selectedProductId);
+
+  // Tanlovni bekor qilish (Tozalash)
+  const handleClearSelection = () => {
+    setSearchQuery('');
+    setSelectedProductId('');
+    setReturnQty('');
+    setError('');
+  };
 
   const handleAddToCart = (e) => {
     e.preventDefault();
@@ -90,16 +99,8 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
 
     const itemTotal = qty * selectedProduct.price;
 
-    setCart([...cart, {
-      id: Date.now(),
-      product: selectedProduct,
-      qty: qty,
-      total: itemTotal
-    }]);
-
-    setSelectedProductId('');
-    setReturnQty('');
-    setSearchQuery(''); // Qidiruvni tozalash
+    setCart([...cart, { id: Date.now(), product: selectedProduct, qty: qty, total: itemTotal }]);
+    handleClearSelection();
   };
 
   const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
@@ -107,7 +108,6 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
   const handleFinalReturn = () => {
     if (cart.length === 0) return setError("Savat bo'sh! Qaytarilayotgan tovarni qo'shing.");
 
-    // Ombordagi tovarlarga qaytarib qo'shish (Plus)
     let updatedProducts = [...products];
     cart.forEach(cartItem => {
       updatedProducts = updatedProducts.map(p => 
@@ -117,19 +117,20 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
     setProducts(updatedProducts);
 
     const overallTotal = cart.reduce((sum, item) => sum + item.total, 0);
-    const combinedNames = cart.map(item => `${item.product.name} (${item.qty} ${item.product.unit})`).join(', ');
+    
+    // YANGLANGAN FORMAT: Har bir mahsulot yangi qatorda va narxi bilan
+    const combinedNames = cart.map(item => `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} so'm)`).join('\n');
 
     const newReturn = {
       id: Date.now(),
       productName: combinedNames,
       unit: 'xil tovar',
       quantity: cart.length,
-      customer: customer || 'Mijoz',
+      customer: customer || "Noma'lum",
       returnSum: overallTotal
     };
 
     setReturns([...returns, newReturn]);
-
     setCart([]); setCustomer(''); setError('');
     alert(`↩️ Qaytish muvaffaqiyatli amalga oshirildi!\n\nMahsulotlar omborga qaytdi.\nChiqim (Kassadan beriladigan pul): ${overallTotal.toLocaleString()} so'm`);
   };
@@ -145,14 +146,16 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
         </h2>
       </div>
 
-      <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#374151', color: '#ffffff', marginBottom: '30px', textAlign: 'center', border: 'none' }}>
+      {/* --- DINAMIK TEPADAGI BLOK (Sanaga qarab o'zgaradi) --- */}
+      <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#374151', color: '#ffffff', marginBottom: '30px', textAlign: 'center', border: 'none', position: 'relative' }}>
+        <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#4b5563', color: '#e5e7eb', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
         <p style={{ margin: 0, fontSize: '16px', color: '#d1d5db', textTransform: 'uppercase', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
-           Bugungi Jami Chiqim
+           Tanlangan kundagi Jami Chiqim
         </p>
-        <h2 style={{ margin: '10px 0 0 0', fontSize: '36px' }}>-{todayExpense.toLocaleString()} <span style={{fontSize: '20px'}}>so'm</span></h2>
+        <h2 style={{ margin: '10px 0 0 0', fontSize: '36px' }}>-{periodExpense.toLocaleString()} <span style={{fontSize: '20px'}}>so'm</span></h2>
       </div>
 
-      <button onClick={() => setShowHistory(!showHistory)} className="btn btn-danger" style={{ marginBottom: '30px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
+      <button onClick={() => setShowHistory(!showHistory)} className="btn btn-danger" style={{ marginBottom: '30px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', backgroundColor: '#4b5563', border: 'none' }}>
         <BarChart3 size={20} /> {showHistory ? "Qisqa tarixni yopish 🔼" : "Qisqa tarixga kirish 🔽"}
       </button>
 
@@ -169,7 +172,7 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
               {aggregatedHistory.map((item, index) => (
                 <div key={index} style={{ padding: '15px', background: 'white', borderRadius: '8px', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ fontWeight: 'bold', color: '#1f2937', fontSize: '16px' }}>{item.label}</div>
-                  <div style={{ color: '#4b5563', fontSize: '18px', fontWeight: 'bold' }}>Chiqim: -{item.expense.toLocaleString()} so'm</div>
+                  <div style={{ color: '#ef4444', fontSize: '18px', fontWeight: 'bold' }}>Chiqim: -{item.expense.toLocaleString()} so'm</div>
                 </div>
               ))}
             </div>
@@ -177,7 +180,7 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
         </div>
       )}
 
-      {/* --- QAYTARISH FORMASI VA QIDIRUV --- */}
+      {/* --- QAYTARISH FORMASI MOBILGA MOSLASHGAN HOLATDA --- */}
       <div className="card" style={{ maxWidth: '700px', margin: '0 auto', borderTop: '4px solid #4b5563' }}>
         
         <div style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '2px dashed #e5e7eb' }}>
@@ -188,48 +191,62 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
         </div>
 
         <form onSubmit={handleAddToCart}>
-          <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: '15px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '15px' }}>
             
-            {/* QAYTGAN TOVARNI QIDIRISH VA TANLASH */}
-            <div style={{ flex: '2 1 250px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: '500' }}>Qaytgan tovarni qidirish va tanlash</label>
+            {/* MOBILGA MOS QIDIRUV BLOKI */}
+            <div style={{ backgroundColor: '#f9fafb', padding: '15px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+              <label style={{ fontWeight: '600', display: 'block', marginBottom: '10px', color: '#374151' }}>Qaytgan tovarni qidirish va tanlash</label>
               
-              {/* Qidiruv inputi */}
-              <div style={{ position: 'relative' }}>
-                <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '12px' }} />
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  placeholder="Nomi bo'yicha qidirish..." 
-                  value={searchQuery} 
-                  onChange={(e) => setSearchQuery(e.target.value)} 
-                  style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#f9fafb', border: '1px solid #d1d5db' }} 
-                />
-              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ position: 'relative' }}>
+                  <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    placeholder="Nomi bo'yicha qidirish..." 
+                    value={searchQuery} 
+                    onChange={(e) => setSearchQuery(e.target.value)} 
+                    style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
+                  />
+                </div>
 
-              {/* Tanlash ro'yxati (Filtrlangan) */}
-              <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0 }}>
-                <option value="">-- Ro'yxatdan tanlang --</option>
-                {filteredProducts.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0, flex: 1 }}>
+                    <option value="">-- Ro'yxatdan tanlang --</option>
+                    {filteredProducts.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+
+                  {/* TOZALASH (X) TUGMASI */}
+                  {(selectedProductId || searchQuery) && (
+                    <button 
+                      type="button" 
+                      onClick={handleClearSelection} 
+                      className="btn btn-danger" 
+                      style={{ width: '46px', height: '46px', padding: '0', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0, backgroundColor: '#ef4444' }}
+                      title="Tanlovni bekor qilish"
+                    >
+                      <X size={20} />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-            
-            {/* Hajmi kiritish */}
-            {selectedProduct && (
-              <div className="fade-in" style={{ flex: '1 1 100px', alignSelf: 'flex-end' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Qancha qaytdi? ({selectedProduct.unit})</label>
-                <input type="number" className="form-control" placeholder="Miqdor" value={returnQty} onChange={(e) => { setReturnQty(e.target.value); setError(''); }} min="0.1" step="any" style={{ marginBottom: 0 }} />
-              </div>
-            )}
 
-            {/* Ro'yxatga qo'shish tugmasi */}
-            <button type="submit" className="btn btn-danger" style={{ flex: '1 1 150px', height: '46px', display: 'flex', gap: '8px', justifyContent: 'center', alignSelf: 'flex-end', backgroundColor: '#4b5563' }} disabled={products.length === 0}>
-              <PlusCircle size={20} /> Ro'yxatga
-            </button>
+            {/* MIQDOR VA RO'YXATGA QO'SHISH YONMA-YON */}
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
+              {selectedProduct && (
+                <div className="fade-in" style={{ flex: '1' }}>
+                  <input type="number" className="form-control" placeholder={`Qancha qaytdi? (${selectedProduct.unit})`} value={returnQty} onChange={(e) => { setReturnQty(e.target.value); setError(''); }} min="0.1" step="any" style={{ marginBottom: 0, height: '46px' }} />
+                </div>
+              )}
+              
+              <button type="submit" className="btn btn-primary" style={{ flex: selectedProduct ? '1' : '100%', height: '46px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', backgroundColor: '#4b5563', border: 'none' }} disabled={!selectedProduct && products.length > 0}>
+                <PlusCircle size={20} /> Ro'yxatga qo'shish
+              </button>
+            </div>
+
           </div>
         </form>
 
@@ -259,18 +276,19 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e5e7eb', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
               <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#374151' }}>Umumiy Chiqim:</span>
-              <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#111827' }}>
-                {cart.reduce((sum, item) => sum + item.total, 0).toLocaleString()} so'm
+              <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#ef4444' }}>
+                -{cart.reduce((sum, item) => sum + item.total, 0).toLocaleString()} so'm
               </span>
             </div>
 
-            <button onClick={handleFinalReturn} className="btn" style={{ fontSize: '18px', padding: '16px', display: 'flex', gap: '8px', justifyContent: 'center', backgroundColor: '#374151', color: 'white' }}>
+            <button onClick={handleFinalReturn} className="btn" style={{ fontSize: '18px', padding: '16px', display: 'flex', gap: '8px', justifyContent: 'center', backgroundColor: '#374151', color: 'white', border: 'none' }}>
               <CheckCircle size={22} /> Tasdiqlash va Chiqim qilish
             </button>
           </div>
         )}
       </div>
 
+      {/* --- BATAFSIL JADVAL (O'ZGARISH: Ustunlar tartibi almashdi) --- */}
       <div className="card" style={{ maxWidth: '100%', marginTop: '40px', borderTop: '4px solid #4b5563' }}>
         <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1f2937', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <ClipboardList size={22} color="#4b5563" /> Batafsil chiqimlar jadvali
@@ -304,9 +322,9 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Sana/Vaqt</th>
-                    <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Xaridor (Mijoz)</th>
+                    <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Jami Summa</th>
                     <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Qaytarilgan tovarlar</th>
-                    <th style={{ textAlign: 'right', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Summa (Chiqim)</th>
+                    <th style={{ textAlign: 'right', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Xaridor (Mijoz)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -315,10 +333,12 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
                       <td style={{ padding: '14px', color: '#6b7280', fontSize: '14px' }}>
                         {new Date(item.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
                       </td>
-                      <td style={{ padding: '14px', color: '#111827', fontWeight: '500' }}>{item.customer}</td>
-                      <td style={{ padding: '14px', color: '#4b5563', lineHeight: '1.5', fontSize: '14px' }}>{item.productName}</td>
+                      <td style={{ padding: '14px', color: '#ef4444', fontWeight: 'bold', fontSize: '16px' }}>
+                        -{(Number(item.returnSum) || Number(item.totalSum) || 0).toLocaleString()} so'm
+                      </td>
+                      <td style={{ padding: '14px', color: '#4b5563', lineHeight: '1.6', fontSize: '14px', whiteSpace: 'pre-line' }}>{item.productName}</td>
                       <td style={{ padding: '14px', color: '#111827', fontWeight: 'bold', textAlign: 'right' }}>
-                        -{item.returnSum.toLocaleString()}
+                        {item.customer}
                       </td>
                     </tr>
                   ))}

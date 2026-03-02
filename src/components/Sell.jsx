@@ -29,9 +29,12 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
     else setDetailDate(currentYearStr);
   };
 
-  // --- YANGI MANTIQ: Tanlangan sanaga qarab hamma narsani hisoblash ---
+  // --- ZIRHLI MANTIQ: Sanani xatosiz tekshirish ---
   const isMatchDate = (timestamp) => {
+    if (!timestamp) return false;
     const t = new Date(timestamp);
+    if (isNaN(t.getTime())) return false; // Xato sanalarni o'tkazib yuboradi
+
     const y = t.getFullYear();
     const m = String(t.getMonth() + 1).padStart(2, '0');
     const dayStr = String(t.getDate()).padStart(2, '0');
@@ -41,19 +44,21 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
     return `${y}` === detailDate;
   };
 
+  // Jadval uchun ma'lumotlarni saralash
   const tableData = useMemo(() => {
     return sales.filter(s => s.isReceived && isMatchDate(s.receivedAt || s.id)).sort((a, b) => b.id - a.id);
   }, [sales, detailFilter, detailDate]);
 
-  // Tepadagi bloklar uchun dinamik hisob-kitoblar (Endi faqat "bugun" emas, tanlangan sana uchun ishlaydi)
-  const periodIncome = tableData.reduce((acc, curr) => acc + curr.totalSum, 0);
+  // --- MUAMMONING YECHIMI: Hamma narsani majburlab raqamga (Number) o'tkazamiz ---
+  const periodIncome = tableData.reduce((acc, curr) => acc + (Number(curr.totalSum) || Number(curr.total) || 0), 0);
   
   const periodExpense = useMemo(() => {
-    return returns.filter(r => isMatchDate(r.id)).reduce((acc, curr) => acc + curr.returnSum, 0);
+    return returns.filter(r => isMatchDate(r.id)).reduce((acc, curr) => acc + (Number(curr.returnSum) || Number(curr.totalSum) || Number(curr.total) || Number(curr.price) || 0), 0);
   }, [returns, detailFilter, detailDate]);
 
   const periodNetProfit = periodIncome - periodExpense;
-  // ----------------------------------------------------------------------
+  const tableTotalSum = periodIncome; // Ikkisi bir xil narsa, chalkashmaslik uchun
+  // ---------------------------------------------------------------------------------
 
   const aggregatedHistory = useMemo(() => {
     const map = {};
@@ -72,14 +77,14 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
         const timeToUse = s.receivedAt || s.id; 
         const { key, label } = getKeyAndLabel(timeToUse);
         if (!map[key]) map[key] = { label, income: 0, expense: 0, timestamp: timeToUse };
-        map[key].income += s.totalSum;
+        map[key].income += (Number(s.totalSum) || Number(s.total) || 0);
       }
     });
 
     returns.forEach(r => {
       const { key, label } = getKeyAndLabel(r.id);
       if (!map[key]) map[key] = { label, income: 0, expense: 0, timestamp: r.id };
-      map[key].expense += r.returnSum;
+      map[key].expense += (Number(r.returnSum) || Number(r.totalSum) || 0);
     });
 
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
@@ -138,7 +143,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
         <h2 style={{ fontSize: '24px', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>Sotish bo'limi <ShoppingCart size={28} /></h2>
       </div>
 
-      {/* --- DINAMIK TEPADAGI BLOKLAR --- */}
       <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
         <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #1e3a8a', position: 'relative' }}>
           <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#e0e7ff', color: '#3730a3', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
@@ -251,7 +255,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
 
         {error && <div style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '15px' }}>{error}</div>}
 
-        {/* SAVATCHA */}
         {cart.length > 0 && (
           <div className="fade-in" style={{ marginTop: '30px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '20px' }}>
             <h3 style={{ margin: '0 0 15px 0', color: '#1f2937', borderBottom: '1px solid #d1d5db', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}><ShoppingCart size={20} color="#1e3a8a" /> Savatdagi tovarlar</h3>
@@ -314,7 +317,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
                         {new Date(item.receivedAt || item.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
                       </td>
                       <td style={{ padding: '14px', color: '#10b981', fontWeight: 'bold', fontSize: '16px' }}>
-                        +{item.totalSum.toLocaleString()} so'm
+                        +{(Number(item.totalSum) || Number(item.total) || 0).toLocaleString()} so'm
                       </td>
                       <td style={{ padding: '14px', color: '#4b5563', lineHeight: '1.6', fontSize: '14px', whiteSpace: 'pre-line' }}>{item.productName}</td>
                       <td style={{ padding: '14px', color: '#1e3a8a', fontWeight: 'bold', textAlign: 'right' }}>
