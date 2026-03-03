@@ -8,18 +8,80 @@ import Return from './components/Return';
 import TodaySales from './components/TodaySales';
 import Debts from './components/Debts';
 import Settings from './components/Settings';
+import Customers from './components/Customers'; 
 
-import { Home, Package, ShoppingCart, RotateCcw, Wallet, BookOpen } from 'lucide-react';
+import { Home, Package, ShoppingCart, RotateCcw, Wallet, BookOpen, Users, Lock } from 'lucide-react'; 
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
+// --- YANGI: MAXFIY DARVOZA (MASTER GATE) KOMPONENTI ---
+const MasterGate = ({ onUnlock }) => {
+  const [login, setLogin] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // Siz aytgan maxfiy login va parol shu yerda tekshiriladi
+    if (login.trim() === 'Ayew_qur' && password.trim() === 'ayev_AX') {
+      onUnlock();
+    } else {
+      setError("Login yoki parol xato! Ruxsat yo'q.");
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f0f4f8', padding: '20px' }}>
+      <div className="card fade-in" style={{ width: '100%', maxWidth: '400px', textAlign: 'center', padding: '40px 30px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+          <div style={{ background: '#e0e7ff', padding: '20px', borderRadius: '50%', color: '#1e3a8a' }}>
+            <Lock size={40} />
+          </div>
+        </div>
+        <h2 style={{ margin: '0 0 10px 0', color: '#1e3a8a' }}>Maxfiy Ruxsat</h2>
+        <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '30px' }}>Dasturdan foydalanish uchun maxsus login va parolni kiriting.</p>
+        
+        <form onSubmit={handleSubmit}>
+          <input 
+            className="form-control" 
+            placeholder="Maxfiy Login" 
+            value={login} 
+            onChange={e => {setLogin(e.target.value); setError('');}} 
+            required 
+          />
+          <input 
+            className="form-control" 
+            type="password" 
+            placeholder="Maxfiy Parol" 
+            value={password} 
+            onChange={e => {setPassword(e.target.value); setError('');}} 
+            required 
+          />
+          
+          {error && <p style={{ color: '#ef4444', fontSize: '13px', margin: '0 0 15px 0', fontWeight: 'bold' }}>{error}</p>}
+          
+          <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '15px', fontSize: '16px' }}>
+            Tasdiqlash va Kirish
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+// ---------------------------------------------------------
+
 function App() {
-  // 1. DASTUR OCHILISHI BILAN TELEFON XOTIRASINI O'QISH (Kutib turmaslik uchun)
+  // Avvaldan ishlatib yurganlarni aniqlash
   const cachedAuth = localStorage.getItem('app_isAuth') === 'true';
+  const cachedMaster = localStorage.getItem('app_master_unlocked') === 'true';
+
+  // ASOSIY MANTIQ: Agar oldin auth qilingan bo'lsa, avtomat master darvoza ham ochiq bo'ladi
+  const [isMasterUnlocked, setIsMasterUnlocked] = useState(cachedMaster || cachedAuth);
+
   const [isAuth, setIsAuth] = useState(cachedAuth);
-  const [dataLoaded, setDataLoaded] = useState(cachedAuth); // Agar xotirada bo'lsa, darhol ochiladi
+  const [dataLoaded, setDataLoaded] = useState(cachedAuth); 
   const [page, setPage] = useState('dashboard');
 
   const [storeName, setStoreName] = useState(() => localStorage.getItem('app_storeName') || "Qurilish mollari do'koni");
@@ -27,8 +89,8 @@ function App() {
   const [products, setProducts] = useState(() => JSON.parse(localStorage.getItem('app_products') || '[]'));
   const [sales, setSales] = useState(() => JSON.parse(localStorage.getItem('app_sales') || '[]'));
   const [returns, setReturns] = useState(() => JSON.parse(localStorage.getItem('app_returns') || '[]'));
+  const [customers, setCustomers] = useState(() => JSON.parse(localStorage.getItem('app_customers') || '[]'));
 
-  // TELEFONNING "ORTGA" TUGMASI
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
     if (hash && hash !== page) setPage(hash);
@@ -47,11 +109,15 @@ function App() {
     }
   }, [page]);
 
-  // 2. ORQA FONDA INTERNET (FIREBASE) BILAN SINXRONIZATSIYA
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        localStorage.setItem('app_isAuth', 'true'); // Tizimga kirganini eslab qolish
+        localStorage.setItem('app_isAuth', 'true');
+        
+        // Tizimga muvaffaqiyatli kirgandan keyin, ehtiyot shart master darvozani ochiq deb yozib qo'yamiz
+        localStorage.setItem('app_master_unlocked', 'true'); 
+        setIsMasterUnlocked(true);
+
         if (!isAuth) setIsAuth(true);
 
         try {
@@ -60,12 +126,12 @@ function App() {
 
           if (docSnap.exists()) {
             const data = docSnap.data();
-            // Yangi ma'lumot kelsa bildirmasdan yangilaymiz
             setProducts(data.products || []);
             setSales(data.sales || []);
             setReturns(data.returns || []);
             setCategories(data.categories || ["Umumiy"]);
             setStoreName(data.storeName || "Qurilish mollari do'koni");
+            setCustomers(data.customers || []); 
           }
         } catch (error) {
           console.log("Internet sekin. Oflayn rejimda ishlash davom etmoqda...");
@@ -80,33 +146,40 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // 3. MA'LUMOTNI DARHOL XOTIRAGA VA SEKIN INTERNETGA SAQLASH
   useEffect(() => {
     if (dataLoaded) {
-      // A) Oflayn ishlash uchun srazi telefonga saqlaymiz (Internet kerak emas)
       localStorage.setItem('app_products', JSON.stringify(products));
       localStorage.setItem('app_sales', JSON.stringify(sales));
       localStorage.setItem('app_returns', JSON.stringify(returns));
       localStorage.setItem('app_categories', JSON.stringify(categories));
+      localStorage.setItem('app_customers', JSON.stringify(customers));
       localStorage.setItem('app_storeName', storeName);
 
-      // B) Internet bor bo'lsa, orqa fonda serverga saqlaymiz
       if (isAuth && auth.currentUser) {
         const docRef = doc(db, "stores", auth.currentUser.uid);
-        setDoc(docRef, { products, sales, returns, categories, storeName })
-          .catch(err => console.log("Hozircha oflayn. Internet kelganda yuboriladi.")); // Xatolik ekranni qotirmaydi
+        setDoc(docRef, { products, sales, returns, categories, storeName, customers })
+          .catch(err => console.log("Hozircha oflayn. Internet kelganda yuboriladi."));
       }
     }
-  }, [products, sales, returns, categories, storeName, isAuth, dataLoaded]);
+  }, [products, sales, returns, categories, storeName, customers, isAuth, dataLoaded]);
 
   const handleLogout = async () => {
     if(window.confirm("Tizimdan chiqasizmi?")) {
       await signOut(auth);
-      localStorage.setItem('app_isAuth', 'false'); // Chiqib ketganda xotirani tozalash
+      localStorage.setItem('app_isAuth', 'false');
+      // Diqqat: Dasturdan chiqqanda Master Gateni yopmaymiz, chunki u qurilma uchun bir marta ochilishi kerak.
       setIsAuth(false); 
       setPage('dashboard'); 
     }
   };
+
+  // --- MAXFIY DARVOZANI TEKSHIRISH ---
+  if (!isMasterUnlocked) {
+    return <MasterGate onUnlock={() => {
+      setIsMasterUnlocked(true);
+      localStorage.setItem('app_master_unlocked', 'true');
+    }} />;
+  }
 
   const renderBottomNav = () => {
     if (!isAuth || !dataLoaded || page === 'dashboard' || page === 'settings') return null;
@@ -116,6 +189,7 @@ function App() {
       { id: 'products', icon: <Package size={22} />, label: 'Ombor' },
       { id: 'sell', icon: <ShoppingCart size={22} />, label: 'Sotuv' },
       { id: 'todaysales', icon: <Wallet size={22} />, label: 'Kassa' },
+      { id: 'customers', icon: <Users size={22} />, label: 'Mijozlar' }, 
       { id: 'debts', icon: <BookOpen size={22} />, label: 'Qarz' },
     ];
 
@@ -134,16 +208,6 @@ function App() {
             onClick={() => setPage(item.id)} 
             title={item.label}
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-            onMouseEnter={(e) => { 
-              e.currentTarget.children[0].style.backgroundColor = '#1e3a8a'; 
-              e.currentTarget.children[0].style.color = '#ffffff'; 
-              e.currentTarget.children[0].style.transform = 'translateY(-3px)'; 
-            }}
-            onMouseLeave={(e) => { 
-              e.currentTarget.children[0].style.backgroundColor = '#f1f5f9'; 
-              e.currentTarget.children[0].style.color = '#1e3a8a'; 
-              e.currentTarget.children[0].style.transform = 'translateY(0)'; 
-            }}
           >
             <div style={{
               width: '46px', height: '46px', borderRadius: '50%', backgroundColor: '#f1f5f9',
@@ -165,9 +229,10 @@ function App() {
     switch (page) {
       case 'dashboard': return <Dashboard storeName={storeName} products={products} setPage={setPage} onLogout={handleLogout} />;
       case 'products': return <Products products={products} setProducts={setProducts} categories={categories} setCategories={setCategories} setPage={setPage} />;
-      case 'sell': return <Sell products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} />;
-      case 'return': return <Return products={products} setProducts={setProducts} returns={returns} setReturns={setReturns} setPage={setPage} />;
+      case 'sell': return <Sell products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} customers={customers} />;
+      case 'return': return <Return products={products} setProducts={setProducts} returns={returns} setReturns={setReturns} setPage={setPage} customers={customers} />;
       case 'todaysales': return <TodaySales products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} />;
+      case 'customers': return <Customers customers={customers} setCustomers={setCustomers} sales={sales} setPage={setPage} />;
       case 'debts': return <Debts sales={sales} setSales={setSales} setPage={setPage} />;
       case 'settings': return <Settings storeName={storeName} setStoreName={setStoreName} setProducts={setProducts} setSales={setSales} setReturns={setReturns} setPage={setPage} />;
       default: return <Dashboard storeName={storeName} products={products} setPage={setPage} onLogout={handleLogout} />;

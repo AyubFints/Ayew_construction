@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, RotateCcw, Package, Wallet, BookOpen, LogOut, Settings as SettingsIcon, AlertTriangle } from 'lucide-react';
+import { ShoppingCart, RotateCcw, Package, Wallet, BookOpen, LogOut, Settings as SettingsIcon, AlertTriangle, Users } from 'lucide-react';
 
 const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
   
@@ -18,7 +18,7 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
         </button>
       </div>
 
-      {/* KAM QOLGAN TOVARLAR OGOHLANTIRISHI (Faqat tovar tugayotganda chiqadi) */}
+      {/* KAM QOLGAN TOVARLAR OGOHLANTIRISHI */}
       {lowStockProducts.length > 0 && (
         <div className="fade-in card" style={{ padding: '25px', backgroundColor: '#ffffff', border: '1px solid #d1d5db', borderLeft: '5px solid #1f2937', marginBottom: '40px' }}>
           <h3 style={{ margin: '0 0 15px 0', color: '#111827', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -38,31 +38,43 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
       )}
 
       <div className="dashboard-grid">
+        {/* SOTUV BO'LIMI */}
         <div className="menu-card" onClick={() => setPage('sell')}>
           <div className="menu-icon"><ShoppingCart size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Sotish bo'limi</div>
         </div>
         
+        {/* QAYTISH BO'LIMI */}
         <div className="menu-card" onClick={() => setPage('return')}>
           <div className="menu-icon"><RotateCcw size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Qaytish (Vozvrat)</div>
         </div>
         
+        {/* OMBORXONA */}
         <div className="menu-card" onClick={() => setPage('products')}>
           <div className="menu-icon"><Package size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Tovarlar ombori</div>
         </div>
         
+        {/* KASSA */}
         <div className="menu-card" onClick={() => setPage('todaysales')}>
           <div className="menu-icon"><Wallet size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Bugungi kassa</div>
         </div>
+
+        {/* --- MIJOZLAR BAZASI (YANGI!) --- */}
+        <div className="menu-card" onClick={() => setPage('customers')} style={{ borderBottom: '4px solid #1e3a8a' }}>
+          <div className="menu-icon"><Users size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
+          <div className="menu-title" style={{ fontWeight: 'bold' }}>Mijozlar bazasi</div>
+        </div>
         
+        {/* QARZ DAFTARI */}
         <div className="menu-card" onClick={() => setPage('debts')}>
           <div className="menu-icon"><BookOpen size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Qarz Daftari</div>
         </div>
 
+        {/* SOZLAMALAR */}
         <div className="menu-card" onClick={() => setPage('settings')} style={{ backgroundColor: '#f9fafb' }}>
           <div className="menu-icon"><SettingsIcon size={40} color="#4b5563" strokeWidth={1.5} /></div>
           <div className="menu-title" style={{ color: '#4b5563' }}>Sozlamalar</div>

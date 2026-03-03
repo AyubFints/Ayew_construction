@@ -1,13 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { RotateCcw, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, PackageMinus, Search, X } from 'lucide-react';
+import { RotateCcw, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, PackageMinus, Search, X, TrendingDown, Landmark } from 'lucide-react';
 
-const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
+// DIQQAT: Bu yerga 'customers' propini qo'shdik, App.jsx dan keladi
+const Return = ({ products, setProducts, returns, setReturns, setPage, customers = [] }) => {
   const [customer, setCustomer] = useState('');
-  
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [returnQty, setReturnQty] = useState('');
-  
   const [cart, setCart] = useState([]); 
   const [error, setError] = useState('');
 
@@ -29,12 +28,10 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
     else setDetailDate(currentYearStr);
   };
 
-  // --- ZIRHLI MANTIQ: Sanani xatosiz tekshirish ---
   const isMatchDate = (timestamp) => {
     if (!timestamp) return false;
     const t = new Date(timestamp);
     if (isNaN(t.getTime())) return false;
-
     const y = t.getFullYear();
     const m = String(t.getMonth() + 1).padStart(2, '0');
     const dayStr = String(t.getDate()).padStart(2, '0');
@@ -44,12 +41,10 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
     return `${y}` === detailDate;
   };
 
-  // Jadval ma'lumotlari
   const tableData = useMemo(() => {
     return returns.filter(r => isMatchDate(r.id)).sort((a, b) => b.id - a.id);
   }, [returns, detailFilter, detailDate]);
 
-  // --- DINAMIK HISOBLASH (Faqat tanlangan sana uchun ishlaydi) ---
   const periodExpense = tableData.reduce((acc, curr) => acc + (Number(curr.returnSum) || Number(curr.totalSum) || 0), 0);
   const tableTotalExpense = periodExpense;
 
@@ -80,7 +75,6 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
 
   const selectedProduct = products.find(p => p.id.toString() === selectedProductId);
 
-  // Tanlovni bekor qilish (Tozalash)
   const handleClearSelection = () => {
     setSearchQuery('');
     setSelectedProductId('');
@@ -91,14 +85,10 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
   const handleAddToCart = (e) => {
     e.preventDefault();
     setError('');
-    
     if (!selectedProduct) return setError("Iltimos, avval tovarni tanlang!");
-    
     const qty = parseFloat(returnQty);
     if (qty <= 0 || isNaN(qty)) return setError("Miqdor to'g'ri emas!");
-
     const itemTotal = qty * selectedProduct.price;
-
     setCart([...cart, { id: Date.now(), product: selectedProduct, qty: qty, total: itemTotal }]);
     handleClearSelection();
   };
@@ -106,19 +96,16 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
   const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
 
   const handleFinalReturn = () => {
-    if (cart.length === 0) return setError("Savat bo'sh! Qaytarilayotgan tovarni qo'shing.");
+    if (!customer) return setError("Mijozni tanlang!");
+    if (cart.length === 0) return setError("Savat bo'sh! Tovar qo'shing.");
 
     let updatedProducts = [...products];
     cart.forEach(cartItem => {
-      updatedProducts = updatedProducts.map(p => 
-        p.id === cartItem.product.id ? { ...p, quantity: p.quantity + cartItem.qty } : p
-      );
+      updatedProducts = updatedProducts.map(p => p.id === cartItem.product.id ? { ...p, quantity: p.quantity + cartItem.qty } : p);
     });
     setProducts(updatedProducts);
 
     const overallTotal = cart.reduce((sum, item) => sum + item.total, 0);
-    
-    // YANGLANGAN FORMAT: Har bir mahsulot yangi qatorda va narxi bilan
     const combinedNames = cart.map(item => `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} so'm)`).join('\n');
 
     const newReturn = {
@@ -126,36 +113,42 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
       productName: combinedNames,
       unit: 'xil tovar',
       quantity: cart.length,
-      customer: customer || "Noma'lum",
+      customer: customer,
       returnSum: overallTotal
     };
 
     setReturns([...returns, newReturn]);
     setCart([]); setCustomer(''); setError('');
-    alert(`↩️ Qaytish muvaffaqiyatli amalga oshirildi!\n\nMahsulotlar omborga qaytdi.\nChiqim (Kassadan beriladigan pul): ${overallTotal.toLocaleString()} so'm`);
+    alert(`↩️ Qaytish bajarildi! Jami chiqim: ${overallTotal.toLocaleString()} so'm`);
   };
 
   return (
-    <div className="fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <button onClick={() => setPage('dashboard')} className="btn" style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#e5e7eb', color: '#1f2937', display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <ArrowLeft size={18} /> Ortga qaytish
+    <div className="fade-in app-container">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+        <button onClick={() => setPage('dashboard')} className="btn btn-danger" style={{ width: 'auto' }}>
+          <ArrowLeft size={18} /> Orqaga
         </button>
-        <h2 style={{ fontSize: '24px', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>
           Qaytish bo'limi <RotateCcw size={28} />
         </h2>
       </div>
 
-      {/* --- DINAMIK TEPADAGI BLOK (Sanaga qarab o'zgaradi) --- */}
-      <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#374151', color: '#ffffff', marginBottom: '30px', textAlign: 'center', border: 'none', position: 'relative' }}>
-        <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#4b5563', color: '#e5e7eb', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
-        <p style={{ margin: 0, fontSize: '16px', color: '#d1d5db', textTransform: 'uppercase', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
-           Tanlangan kundagi Jami Chiqim
-        </p>
-        <h2 style={{ margin: '10px 0 0 0', fontSize: '36px' }}>-{periodExpense.toLocaleString()} <span style={{fontSize: '20px'}}>so'm</span></h2>
+      {/* --- DINAMIK TEPADAGI BLOKLAR --- */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+        <div className="card" style={{ borderTop: '6px solid #4b5563', position: 'relative', overflow: 'hidden' }}>
+          <TrendingDown size={60} style={{ position: 'absolute', right: '-10px', bottom: '-10px', opacity: 0.05 }} color="#4b5563" />
+          <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Jami Chiqim (Vozvrat)</p>
+          <h2 style={{ margin: '10px 0 0 0', color: '#4b5563', fontSize: '28px', fontWeight: '800' }}>-{periodExpense.toLocaleString()} <span style={{fontSize: '14px'}}>so'm</span></h2>
+        </div>
+        
+        <div className="card" style={{ background: 'linear-gradient(135deg, #374151 0%, #1f2937 100%)', color: 'white', border: 'none', position: 'relative' }}>
+          <Landmark size={60} style={{ position: 'absolute', right: '-10px', bottom: '-10px', opacity: 0.1 }} color="#ffffff" />
+          <p style={{ margin: 0, opacity: 0.8, fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Tanlangan Sana</p>
+          <h2 style={{ margin: '10px 0 0 0', fontSize: '24px', fontWeight: '800' }}>{detailDate}</h2>
+        </div>
       </div>
 
-      <button onClick={() => setShowHistory(!showHistory)} className="btn btn-danger" style={{ marginBottom: '30px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', backgroundColor: '#4b5563', border: 'none' }}>
+      <button onClick={() => setShowHistory(!showHistory)} className="btn" style={{ marginBottom: '30px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', backgroundColor: '#4b5563', color: 'white' }}>
         <BarChart3 size={20} /> {showHistory ? "Qisqa tarixni yopish 🔼" : "Qisqa tarixga kirish 🔽"}
       </button>
 
@@ -166,187 +159,104 @@ const Return = ({ products, setProducts, returns, setReturns, setPage }) => {
             <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'monthly' ? '#4b5563' : '#e5e7eb', color: historyType === 'monthly' ? 'white' : '#1f2937' }} onClick={() => setHistoryType('monthly')}>Oylik</button>
             <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'yearly' ? '#4b5563' : '#e5e7eb', color: historyType === 'yearly' ? 'white' : '#1f2937' }} onClick={() => setHistoryType('yearly')}>Yillik</button>
           </div>
-
-          {aggregatedHistory.length === 0 ? <p style={{ textAlign: 'center', color: '#6b7280' }}>Ma'lumot yo'q.</p> : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {aggregatedHistory.map((item, index) => (
-                <div key={index} style={{ padding: '15px', background: 'white', borderRadius: '8px', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontWeight: 'bold', color: '#1f2937', fontSize: '16px' }}>{item.label}</div>
-                  <div style={{ color: '#ef4444', fontSize: '18px', fontWeight: 'bold' }}>Chiqim: -{item.expense.toLocaleString()} so'm</div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {aggregatedHistory.map((item, index) => (
+              <div key={index} style={{ padding: '15px', background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontWeight: 'bold', color: '#1f2937' }}>{item.label}</div>
+                <div style={{ color: '#ef4444', fontSize: '18px', fontWeight: 'bold' }}>-{item.expense.toLocaleString()} so'm</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* --- QAYTARISH FORMASI MOBILGA MOSLASHGAN HOLATDA --- */}
-      <div className="card" style={{ maxWidth: '700px', margin: '0 auto', borderTop: '4px solid #4b5563' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
         
-        <div style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '2px dashed #e5e7eb' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 'bold', color: '#111827', fontSize: '16px' }}>
-            <User size={20} color="#4b5563" /> Mijoz ismi (Ixtiyoriy)
-          </label>
-          <input type="text" className="form-control" placeholder="Mijoz ismini yozing" value={customer} onChange={(e) => setCustomer(e.target.value)} style={{ backgroundColor: '#f3f4f6' }} />
-        </div>
+        {/* --- QAYTARISH FORMASI --- */}
+        <div className="card" style={{ borderTop: '5px solid #4b5563' }}>
+          {/* MIJOZNI TANLASH QISMI (YANGILANGAN!) */}
+          <div style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '2px dashed #e5e7eb' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 'bold', color: '#111827' }}>
+              <User size={20} color="#4b5563" /> Mijozni tanlang
+            </label>
+            <select 
+              className="form-control" 
+              value={customer} 
+              onChange={(e) => setCustomer(e.target.value)}
+              style={{ backgroundColor: '#f3f4f6', cursor: 'pointer' }}
+            >
+              <option value="">-- Mijozlar ro'yxati --</option>
+              <option value="Chakana xaridor">Chakana xaridor (Oddiy qaytish)</option>
+              {customers.map(c => (
+                <option key={c.id} value={c.name}>{c.name}</option>
+              ))}
+            </select>
+          </div>
 
-        <form onSubmit={handleAddToCart}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '15px' }}>
-            
-            {/* MOBILGA MOS QIDIRUV BLOKI */}
-            <div style={{ backgroundColor: '#f9fafb', padding: '15px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-              <label style={{ fontWeight: '600', display: 'block', marginBottom: '10px', color: '#374151' }}>Qaytgan tovarni qidirish va tanlash</label>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ position: 'relative' }}>
-                  <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    placeholder="Nomi bo'yicha qidirish..." 
-                    value={searchQuery} 
-                    onChange={(e) => setSearchQuery(e.target.value)} 
-                    style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0, flex: 1 }}>
-                    <option value="">-- Ro'yxatdan tanlang --</option>
-                    {filteredProducts.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-
-                  {/* TOZALASH (X) TUGMASI */}
-                  {(selectedProductId || searchQuery) && (
-                    <button 
-                      type="button" 
-                      onClick={handleClearSelection} 
-                      className="btn btn-danger" 
-                      style={{ width: '46px', height: '46px', padding: '0', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0, backgroundColor: '#ef4444' }}
-                      title="Tanlovni bekor qilish"
-                    >
-                      <X size={20} />
-                    </button>
-                  )}
-                </div>
+          <form onSubmit={handleAddToCart}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div style={{ position: 'relative' }}>
+                <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
+                <input className="form-control" style={{ paddingLeft: '38px' }} placeholder="Tovarni qidiring..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
               </div>
-            </div>
-
-            {/* MIQDOR VA RO'YXATGA QO'SHISH YONMA-YON */}
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
+              <select className="form-control" value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}>
+                <option value="">-- Tovarni tanlang --</option>
+                {filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name} ({p.quantity} {p.unit})</option>)}
+              </select>
               {selectedProduct && (
-                <div className="fade-in" style={{ flex: '1' }}>
-                  <input type="number" className="form-control" placeholder={`Qancha qaytdi? (${selectedProduct.unit})`} value={returnQty} onChange={(e) => { setReturnQty(e.target.value); setError(''); }} min="0.1" step="any" style={{ marginBottom: 0, height: '46px' }} />
-                </div>
+                <input type="number" className="form-control" placeholder={`Qancha qaytdi? (${selectedProduct.unit})`} value={returnQty} onChange={e => setReturnQty(e.target.value)} />
               )}
-              
-              <button type="submit" className="btn btn-primary" style={{ flex: selectedProduct ? '1' : '100%', height: '46px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', backgroundColor: '#4b5563', border: 'none' }} disabled={!selectedProduct && products.length > 0}>
-                <PlusCircle size={20} /> Ro'yxatga qo'shish
+              <button type="submit" className="btn" style={{ background: '#4b5563', color: 'white', width: '100%' }}>
+                <PlusCircle size={20} /> Savatga qo'shish
               </button>
             </div>
+          </form>
 
-          </div>
-        </form>
+          {error && <div style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginTop: '15px' }}>{error}</div>}
 
-        {error && <div style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '15px' }}>{error}</div>}
-
-        {/* QAYTARISH SAVATCHASI */}
-        {cart.length > 0 && (
-          <div className="fade-in" style={{ marginTop: '30px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '20px' }}>
-            <h3 style={{ margin: '0 0 15px 0', color: '#1f2937', borderBottom: '1px solid #d1d5db', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <PackageMinus size={20} color="#4b5563" /> Qaytarilayotgan tovarlar
-            </h3>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+          {cart.length > 0 && (
+            <div className="fade-in" style={{ marginTop: '30px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px' }}>
+              <h4 style={{ margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}><PackageMinus size={20} color="#4b5563" /> Qaytarish savatchasi</h4>
               {cart.map((item, index) => (
-                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '10px 15px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '12px', borderRadius: '10px', border: '1px solid #e5e7eb', marginBottom: '10px' }}>
                   <div style={{ flex: 1 }}>
-                    <p style={{ margin: 0, fontWeight: 'bold', color: '#111827' }}>{index + 1}. {item.product.name}</p>
-                    <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6b7280' }}>{item.qty} {item.product.unit} x {item.product.price.toLocaleString()} so'm</p>
+                    <p style={{ margin: 0, fontWeight: 'bold' }}>{index + 1}. {item.product.name}</p>
+                    <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#6b7280' }}>{item.qty} {item.product.unit} x {item.product.price.toLocaleString()} so'm</p>
                   </div>
-                  <div style={{ fontWeight: 'bold', color: '#4b5563', marginRight: '15px' }}>
-                    {item.total.toLocaleString()} so'm
-                  </div>
-                  <button onClick={() => handleRemoveFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '18px' }}>✖</button>
+                  <div style={{ fontWeight: 'bold', color: '#ef4444', marginRight: '15px' }}>{item.total.toLocaleString()} so'm</div>
+                  <button onClick={() => handleRemoveFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>✖</button>
                 </div>
               ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e5e7eb', padding: '15px', borderRadius: '10px', marginTop: '20px' }}>
+                <span style={{ fontWeight: 'bold' }}>Jami Chiqim:</span>
+                <span style={{ fontSize: '20px', fontWeight: '800', color: '#ef4444' }}>-{cart.reduce((sum, item) => sum + item.total, 0).toLocaleString()} so'm</span>
+              </div>
+              <button onClick={handleFinalReturn} className="btn" style={{ width: '100%', marginTop: '15px', background: '#374151', color: 'white' }}>Tasdiqlash</button>
             </div>
+          )}
+        </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e5e7eb', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-              <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#374151' }}>Umumiy Chiqim:</span>
-              <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#ef4444' }}>
-                -{cart.reduce((sum, item) => sum + item.total, 0).toLocaleString()} so'm
-              </span>
-            </div>
-
-            <button onClick={handleFinalReturn} className="btn" style={{ fontSize: '18px', padding: '16px', display: 'flex', gap: '8px', justifyContent: 'center', backgroundColor: '#374151', color: 'white', border: 'none' }}>
-              <CheckCircle size={22} /> Tasdiqlash va Chiqim qilish
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* --- BATAFSIL JADVAL (O'ZGARISH: Ustunlar tartibi almashdi) --- */}
-      <div className="card" style={{ maxWidth: '100%', marginTop: '40px', borderTop: '4px solid #4b5563' }}>
-        <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1f2937', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <ClipboardList size={22} color="#4b5563" /> Batafsil chiqimlar jadvali
-        </h3>
-
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: '10px', flex: '1 1 300px' }}>
-            <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: detailFilter === 'daily' ? '#4b5563' : '#e5e7eb', color: detailFilter === 'daily' ? 'white' : '#1f2937' }} onClick={() => handleDetailFilterChange('daily')}>Kunlik</button>
-            <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: detailFilter === 'monthly' ? '#4b5563' : '#e5e7eb', color: detailFilter === 'monthly' ? 'white' : '#1f2937' }} onClick={() => handleDetailFilterChange('monthly')}>Oylik</button>
-            <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: detailFilter === 'yearly' ? '#4b5563' : '#e5e7eb', color: detailFilter === 'yearly' ? 'white' : '#1f2937' }} onClick={() => handleDetailFilterChange('yearly')}>Yillik</button>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#f9fafb', padding: '5px 15px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
-            <Filter size={18} color="#4b5563" /><span style={{ fontWeight: '500', color: '#374151' }}>Sanani tanlang:</span>
-            {detailFilter === 'daily' && <input type="date" value={detailDate} onChange={(e) => setDetailDate(e.target.value)} className="form-control" style={{ width: 'auto', marginBottom: 0, padding: '8px', height: '40px' }} />}
-            {detailFilter === 'monthly' && <input type="month" value={detailDate} onChange={(e) => setDetailDate(e.target.value)} className="form-control" style={{ width: 'auto', marginBottom: 0, padding: '8px', height: '40px' }} />}
-            {detailFilter === 'yearly' && <input type="number" min="2020" max="2050" value={detailDate} onChange={(e) => setDetailDate(e.target.value)} className="form-control" style={{ width: 'auto', marginBottom: 0, padding: '8px', height: '40px' }} />}
+        {/* --- TARIX RO'YXATI --- */}
+        <div className="card">
+          <h3 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <ClipboardList size={22} color="#4b5563" /> Oxirgi qaytishlar
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {tableData.length === 0 ? <p style={{textAlign: 'center', color: '#94a3b8'}}>Ma'lumot yo'q</p> : 
+              tableData.map(r => (
+                <div key={r.id} style={{ padding: '15px', borderRadius: '15px', background: '#f8fafc', borderLeft: '5px solid #4b5563', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{r.customer}</div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(r.id).toLocaleTimeString()}</div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '5px', whiteSpace: 'pre-line' }}>{r.productName}</div>
+                  </div>
+                  <div style={{ fontWeight: '800', color: '#ef4444', fontSize: '16px' }}>-{r.returnSum.toLocaleString()}</div>
+                </div>
+              ))
+            }
           </div>
         </div>
 
-        {tableData.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px dashed #d1d5db' }}>Tanlangan sana (<b>{detailDate}</b>) uchun hech qanday chiqim yo'q.</p>
-        ) : (
-          <div className="fade-in">
-            <div style={{ backgroundColor: '#f3f4f6', padding: '15px', borderRadius: '8px 8px 0 0', border: '1px solid #e5e7eb', borderBottom: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 'bold', color: '#4b5563', display: 'flex', alignItems: 'center', gap: '8px' }}><CalendarDays size={18} /> Sana: {detailDate}</span>
-              <span style={{ fontWeight: 'bold', color: '#111827', fontSize: '16px' }}>Shu kundagi jami chiqim: -{tableTotalExpense.toLocaleString()} so'm</span>
-            </div>
-            
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e5e7eb', backgroundColor: '#ffffff' }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Sana/Vaqt</th>
-                    <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Jami Summa</th>
-                    <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Qaytarilgan tovarlar</th>
-                    <th style={{ textAlign: 'right', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Xaridor (Mijoz)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableData.map(item => (
-                    <tr key={item.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '14px', color: '#6b7280', fontSize: '14px' }}>
-                        {new Date(item.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                      <td style={{ padding: '14px', color: '#ef4444', fontWeight: 'bold', fontSize: '16px' }}>
-                        -{(Number(item.returnSum) || Number(item.totalSum) || 0).toLocaleString()} so'm
-                      </td>
-                      <td style={{ padding: '14px', color: '#4b5563', lineHeight: '1.6', fontSize: '14px', whiteSpace: 'pre-line' }}>{item.productName}</td>
-                      <td style={{ padding: '14px', color: '#111827', fontWeight: 'bold', textAlign: 'right' }}>
-                        {item.customer}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -1,32 +1,58 @@
-import React from 'react';
-import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, FileText, Clock, Tag, XCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, FileText, Clock, Tag, XCircle, Banknote } from 'lucide-react';
 
 const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }) => {
 
+  // YANGI: Har bir savdo uchun yozilayotgan pul miqdorini saqlash
+  const [partialAmounts, setPartialAmounts] = useState({});
+
   const todayStr = new Date().toLocaleDateString('uz-UZ');
   
+  // O'ZGARDI: Endi qisman to'langan pullar ham kassaga qoshib hisoblanadi
   const totalIncome = sales
-    .filter(s => s.isReceived && new Date(s.receivedAt || s.id).toLocaleDateString('uz-UZ') === todayStr)
-    .reduce((acc, curr) => acc + curr.totalSum, 0);
+    .filter(s => (s.isReceived || s.paidAmount > 0) && new Date(s.receivedAt || s.id).toLocaleDateString('uz-UZ') === todayStr)
+    .reduce((acc, curr) => acc + (curr.paidAmount || curr.totalSum), 0);
     
   const totalExpense = returns.filter(r => new Date(r.id).toLocaleDateString('uz-UZ') === todayStr).reduce((acc, curr) => acc + curr.returnSum, 0);
   const netCash = totalIncome - totalExpense;
 
   const handleReceive = (id, customer, sum) => {
     if (window.confirm(`${customer} to'lov qildimi?`)) {
-      setSales(sales.map(s => s.id === id ? { ...s, isReceived: true, receivedAt: Date.now() } : s));
+      setSales(sales.map(s => s.id === id ? { ...s, isReceived: true, paidAmount: s.totalSum, isDebt: false, receivedAt: Date.now() } : s));
     }
   };
 
   const handleToDebt = (id) => {
-    setSales(sales.map(s => s.id === id ? { ...s, isDebt: true } : s));
+    setSales(sales.map(s => s.id === id ? { ...s, isDebt: true, paidAmount: 0 } : s));
   };
 
-  // --- YANGI: Sotuvni bekor qilish va tovarlarni omborga qaytarish ---
+  // --- YANGI: Qisman to'lov va qarzga o'tkazish funksiyasi ---
+  const handlePartialPayment = (sale) => {
+    const inputAmount = parseFloat(partialAmounts[sale.id]);
+    
+    if (isNaN(inputAmount) || inputAmount <= 0) return alert("Summani to'g'ri kiriting!");
+    
+    if (inputAmount >= sale.totalSum) {
+      return handleReceive(sale.id, sale.customer, sale.totalSum);
+    }
+
+    const remaining = sale.totalSum - inputAmount;
+    if (window.confirm(`${sale.customer}dan ${inputAmount.toLocaleString()} so'm olindi.\nQolgan ${remaining.toLocaleString()} so'm qarzga yozilsinmi?`)) {
+      setSales(sales.map(s => s.id === sale.id ? { 
+        ...s, 
+        isReceived: true, // Kassaga tushishi uchun
+        paidAmount: inputAmount, // Qancha bergani
+        isDebt: true, // Qarz ro'yxatiga tushishi uchun belgi
+        receivedAt: Date.now() 
+      } : s));
+      setPartialAmounts({ ...partialAmounts, [sale.id]: '' });
+    }
+  };
+  // ---------------------------------------------------------
+
   const handleCancelSale = (saleToCancel) => {
     if (window.confirm(`ROSTDAN HAM BEKOR QILASIZMI?\n\nMijoz: ${saleToCancel.customer || "Noma'lum"}\nTasdiqlasangiz, barcha tovarlar omborga qaytadi va savdo o'chib ketadi.`)) {
       
-      // Agar tovarlar aniq ro'yxati (cartItems) bo'lsa omborga qaytaramiz
       if (saleToCancel.cartItems) {
         let updatedProducts = [...products];
         saleToCancel.cartItems.forEach(cartItem => {
@@ -39,14 +65,12 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
         alert("DIQQAT! Bu savdo tizimning eski versiyasida qilingan ekan. Tovar avtomatik tarzda omborga qayta olmadi. Ularni 'Qaytish' bo'limidan qo'lda qaytarib qo'yishingiz kerak bo'ladi.");
       }
 
-      // Savdoni o'chirish (Go'yoki hech qachon sotilmagandek)
       setSales(sales.filter(s => s.id !== saleToCancel.id));
     }
   };
-  // ------------------------------------------------------------------
 
   const pendingSales = sales.filter(s => !s.isReceived && !s.isDebt);
-  const paidSales = sales.filter(s => s.isReceived && new Date(s.receivedAt || s.id).toLocaleDateString('uz-UZ') === todayStr);
+  const paidSales = sales.filter(s => (s.isReceived || s.paidAmount > 0) && new Date(s.receivedAt || s.id).toLocaleDateString('uz-UZ') === todayStr);
 
   return (
     <div className="fade-in">
@@ -91,13 +115,35 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                     <div>{sale.productName}</div>
                   </div>
 
+                  {/* YANGI: QISMAN TO'LOV INPUTI */}
+                  <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #e5e7eb', marginBottom: '15px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#374151', marginBottom: '8px' }}>
+                      Mijoz bergan summa:
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <div style={{ position: 'relative', flex: 1 }}>
+                        <Banknote size={16} style={{ position: 'absolute', left: '10px', top: '12px', color: '#6b7280' }} />
+                        <input 
+                          type="number" 
+                          className="form-control" 
+                          placeholder="Summa..." 
+                          value={partialAmounts[sale.id] || ''}
+                          onChange={(e) => setPartialAmounts({...partialAmounts, [sale.id]: e.target.value})}
+                          style={{ marginBottom: 0, paddingLeft: '32px', height: '40px' }}
+                        />
+                      </div>
+                      <button onClick={() => handlePartialPayment(sale)} className="btn btn-primary" style={{ padding: '0 15px', height: '40px', width: 'auto' }}>
+                        To'lash
+                      </button>
+                    </div>
+                  </div>
+
                   <div style={{ borderTop: '1px dashed #d1d5db', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <div style={{ display: 'flex', gap: '10px' }}>
-                      <button onClick={() => handleReceive(sale.id, sale.customer, sale.totalSum)} className="btn btn-primary" style={{ flex: 1, padding: '12px' }}>Puli olindi</button>
+                      <button onClick={() => handleReceive(sale.id, sale.customer, sale.totalSum)} className="btn btn-primary" style={{ flex: 1, padding: '12px' }}>Puli to'liq olindi</button>
                       <button onClick={() => handleToDebt(sale.id)} className="btn" style={{ flex: 1, padding: '12px', backgroundColor: '#f59e0b', color: 'white', border: 'none' }}>Qarzga yozish</button>
                     </div>
                     
-                    {/* YANGI: Bekor qilish tugmasi */}
                     <button onClick={() => handleCancelSale(sale)} className="btn" style={{ width: '100%', padding: '12px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', backgroundColor: '#ef4444', color: 'white', border: 'none' }}>
                       <XCircle size={18} /> Sotuvni bekor qilish (Qaytarish)
                     </button>
@@ -118,7 +164,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                     
                     <div style={{ flex: '1' }}>
                       <div style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Jami Summa</div>
-                      <div style={{ fontWeight: 'bold', color: '#10b981', fontSize: '18px' }}>+{sale.totalSum.toLocaleString()} so'm</div>
+                      <div style={{ fontWeight: 'bold', color: '#10b981', fontSize: '18px' }}>+{(sale.paidAmount || sale.totalSum).toLocaleString()} so'm</div>
                     </div>
 
                     <div style={{ flex: '1', textAlign: 'center', borderLeft: '1px solid #eee', borderRight: '1px solid #eee' }}>
@@ -145,6 +191,14 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                   <div style={{ color: '#94a3b8', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', borderTop: '1px solid #fafafa', paddingTop: '5px', whiteSpace: 'pre-line' }}>
                     <FileText size={14} style={{flexShrink: 0}} /> <div>{sale.productName} {sale.quantity && !sale.productName.includes('•') && `(${sale.quantity} dona/metr)`}</div>
                   </div>
+                  
+                  {/* YANGI: Qarz qolganini ko'rsatish */}
+                  {sale.isDebt && (
+                    <div style={{ marginTop: '8px', fontSize: '12px', color: '#ef4444', fontWeight: 'bold', display: 'flex', justifyContent: 'flex-end' }}>
+                      ⚠️ Qoldi: {(sale.totalSum - sale.paidAmount).toLocaleString()} so'm qarz
+                    </div>
+                  )}
+
                 </div>
               ))}
             </div>

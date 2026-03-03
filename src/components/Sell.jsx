@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, Trash2, CheckCircle, ClipboardList, CalendarDays, Filter, Search, X } from 'lucide-react';
+import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, Search, X } from 'lucide-react';
 
-const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage }) => {
+const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, customers = [] }) => {
   const [customer, setCustomer] = useState('');
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -43,8 +43,10 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
     return `${y}` === detailDate;
   };
 
+  // Bu yerda barcha savdolar chiqadi (Kutilayotganlar ham tarixda ko'rinishi uchun isReceived shartini olib tashladik yoki faqat ombordan chiqqanini ko'rsatamiz)
+  // Biz kassani emas, omborni ko'rayotganimiz uchun hamma savdo (qarz/naqd/kutilayotgan) chiqishi kerak.
   const tableData = useMemo(() => {
-    return sales.filter(s => s.isReceived && isMatchDate(s.receivedAt || s.id)).sort((a, b) => b.id - a.id);
+    return sales.filter(s => isMatchDate(s.id)).sort((a, b) => b.id - a.id);
   }, [sales, detailFilter, detailDate]);
 
   const periodIncome = tableData.reduce((acc, curr) => acc + (Number(curr.totalSum) || Number(curr.total) || 0), 0);
@@ -69,12 +71,10 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
     };
 
     sales.forEach(s => {
-      if (s.isReceived) { 
-        const timeToUse = s.receivedAt || s.id; 
-        const { key, label } = getKeyAndLabel(timeToUse);
-        if (!map[key]) map[key] = { label, income: 0, expense: 0, timestamp: timeToUse };
-        map[key].income += (Number(s.totalSum) || Number(s.total) || 0);
-      }
+      const timeToUse = s.id; // Sotilgan vaqt
+      const { key, label } = getKeyAndLabel(timeToUse);
+      if (!map[key]) map[key] = { label, income: 0, expense: 0, timestamp: timeToUse };
+      map[key].income += (Number(s.totalSum) || Number(s.total) || 0);
     });
 
     returns.forEach(r => {
@@ -115,7 +115,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
   const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
 
   const handleFinalSell = () => {
-    if (!customer) return setError("Mijoz ismini kiriting!");
+    if (!customer) return setError("Mijozni tanlang!");
     if (cart.length === 0) return setError("Savat bo'sh! Tovar qo'shing.");
 
     let updatedProducts = [...products];
@@ -125,18 +125,17 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
     const overallTotal = cart.reduce((sum, item) => sum + item.total, 0);
     const combinedNames = cart.map(item => `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} so'm)`).join('\n');
 
-    // SHU YERDA cartItems: cart QO'SHILDI
     setSales([...sales, { id: Date.now(), productName: combinedNames, unit: 'xil tovar', quantity: cart.length, customer, totalSum: overallTotal, isReceived: false, cartItems: cart }]);
     
     setCart([]); setCustomer(''); setError('');
-    alert(`✅ Savdo yakunlandi! Jami summa: ${overallTotal.toLocaleString()} so'm\n(Kassada tasdiqlanmaguncha tarixda ko'rinmaydi)`);
+    alert(`✅ Savdo yakunlandi! Jami summa: ${overallTotal.toLocaleString()} so'm\n(Pulini qabul qilish uchun Kassa bo'limiga o'ting)`);
   };
 
   return (
-    <div className="fade-in">
+    <div className="fade-in app-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <button onClick={() => setPage('dashboard')} className="btn" style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#e5e7eb', color: '#1f2937', display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <ArrowLeft size={18} /> Ortga qaytish
+        <button onClick={() => setPage('dashboard')} className="btn btn-danger" style={{ width: 'auto' }}>
+          <ArrowLeft size={18} /> Orqaga
         </button>
         <h2 style={{ fontSize: '24px', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>Sotish bo'limi <ShoppingCart size={28} /></h2>
       </div>
@@ -144,22 +143,22 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
       <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
         <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #1e3a8a', position: 'relative' }}>
           <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#e0e7ff', color: '#3730a3', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
-          <p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: 'bold' }}>KIRIM</p>
+          <p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: 'bold' }}>SOTILGAN TOVARLAR SUMMASI</p>
           <h2 style={{ margin: '10px 0 0 0', color: '#1e3a8a', fontSize: '28px' }}>{periodIncome.toLocaleString()} so'm</h2>
         </div>
         <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #4b5563', position: 'relative' }}>
           <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#f3f4f6', color: '#4b5563', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
-          <p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: 'bold' }}>CHIQIM</p>
+          <p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: 'bold' }}>QAYTGAN TOVARLAR SUMMASI</p>
           <h2 style={{ margin: '10px 0 0 0', color: '#4b5563', fontSize: '28px' }}>{periodExpense.toLocaleString()} so'm</h2>
         </div>
         <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#1e3a8a', color: 'white', border: 'none', position: 'relative' }}>
           <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#3b82f6', color: '#ffffff', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
-          <p style={{ margin: 0, color: '#d1d5db', fontSize: '14px', fontWeight: 'bold' }}>SOF FOYDA</p>
+          <p style={{ margin: 0, color: '#d1d5db', fontSize: '14px', fontWeight: 'bold' }}>SOF SAVDO</p>
           <h2 style={{ margin: '10px 0 0 0', color: '#ffffff', fontSize: '28px' }}>{periodNetProfit.toLocaleString()} so'm</h2>
         </div>
       </div>
 
-      <button onClick={() => setShowHistory(!showHistory)} className="btn btn-danger" style={{ marginBottom: '30px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
+      <button onClick={() => setShowHistory(!showHistory)} className="btn btn-primary" style={{ marginBottom: '30px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
         <BarChart3 size={20} /> {showHistory ? "Qisqa tarixni yopish 🔼" : "Qisqa tarixga kirish 🔽"}
       </button>
 
@@ -175,9 +174,9 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
               {aggregatedHistory.map((item, index) => (
                 <div key={index} style={{ padding: '15px', background: 'white', borderRadius: '8px', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                   <div style={{ fontWeight: 'bold', width: '100%', marginBottom: '8px', color: '#1f2937' }}>{item.label}</div>
-                  <div style={{ color: '#1e3a8a', fontSize: '14px', fontWeight: 'bold' }}>Kirim: +{item.income.toLocaleString()}</div>
-                  <div style={{ color: '#4b5563', fontSize: '14px', fontWeight: 'bold' }}>Chiqim: -{item.expense.toLocaleString()}</div>
-                  <div style={{ color: '#111827', fontSize: '14px', fontWeight: 'bold' }}>Foyda: {(item.income - item.expense).toLocaleString()}</div>
+                  <div style={{ color: '#1e3a8a', fontSize: '14px', fontWeight: 'bold' }}>Sotuv: +{item.income.toLocaleString()}</div>
+                  <div style={{ color: '#4b5563', fontSize: '14px', fontWeight: 'bold' }}>Vozvrat: -{item.expense.toLocaleString()}</div>
+                  <div style={{ color: '#111827', fontSize: '14px', fontWeight: 'bold' }}>Sof: {(item.income - item.expense).toLocaleString()}</div>
                 </div>
               ))}
             </div>
@@ -187,67 +186,64 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
 
       {/* --- SOTISH FORMASI --- */}
       <div className="card" style={{ maxWidth: '700px', margin: '0 auto', borderTop: '4px solid #1e3a8a' }}>
+        
+        {/* MIJOZNI TANLASH */}
         <div style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '2px dashed #e5e7eb' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 'bold', color: '#111827', fontSize: '16px' }}><User size={20} color="#1e3a8a" /> Mijoz ismi</label>
-          <input type="text" className="form-control" placeholder="Mijoz ismini yozing" value={customer} onChange={(e) => setCustomer(e.target.value)} style={{ backgroundColor: '#f3f4f6' }} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 'bold', color: '#111827', fontSize: '16px' }}>
+            <User size={20} color="#1e3a8a" /> Mijozni tanlang
+          </label>
+          <select 
+            className="form-control" 
+            value={customer} 
+            onChange={(e) => setCustomer(e.target.value)} 
+            style={{ backgroundColor: '#f3f4f6', cursor: 'pointer' }}
+          >
+            <option value="">-- Mijozlar ro'yxatidan tanlang --</option>
+            <option value="Chakana xaridor">Chakana xaridor (Oddiy savdo)</option>
+            {customers.map(c => (
+              <option key={c.id} value={c.name}>{c.name}</option>
+            ))}
+          </select>
         </div>
 
         <form onSubmit={handleAddToCart}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '15px' }}>
-            
             <div style={{ backgroundColor: '#f9fafb', padding: '15px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
               <label style={{ fontWeight: '600', display: 'block', marginBottom: '10px', color: '#374151' }}>Tovarni qidirish va tanlash</label>
-              
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div style={{ position: 'relative' }}>
                   <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
                   <input 
-                    type="text" 
-                    className="form-control" 
-                    placeholder="Nomi bo'yicha qidirish..." 
-                    value={searchQuery} 
-                    onChange={(e) => setSearchQuery(e.target.value)} 
+                    type="text" className="form-control" placeholder="Nomi bo'yicha qidirish..." 
+                    value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} 
                     style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
                   />
                 </div>
-
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0, flex: 1 }}>
                     <option value="">-- Ro'yxatdan tanlang --</option>
                     {filteredProducts.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} (Qoldi: {p.quantity} {p.unit})
-                      </option>
+                      <option key={p.id} value={p.id}>{p.name} (Qoldi: {p.quantity} {p.unit})</option>
                     ))}
                   </select>
-
                   {(selectedProductId || searchQuery) && (
-                    <button 
-                      type="button" 
-                      onClick={handleClearSelection} 
-                      className="btn btn-danger" 
-                      style={{ width: '46px', height: '46px', padding: '0', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}
-                      title="Tanlovni bekor qilish"
-                    >
+                    <button type="button" onClick={handleClearSelection} className="btn btn-danger" style={{ width: '46px', height: '46px', padding: '0', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
                       <X size={20} />
                     </button>
                   )}
                 </div>
               </div>
             </div>
-
             <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
               {selectedProduct && (
                 <div className="fade-in" style={{ flex: '1' }}>
                   <input type="number" className="form-control" placeholder={`Miqdor (${selectedProduct.unit})`} value={sellQty} onChange={(e) => { setSellQty(e.target.value); setError(''); }} min="0.1" step="any" style={{ marginBottom: 0, height: '46px' }} />
                 </div>
               )}
-              
-              <button type="submit" className="btn btn-danger" style={{ flex: selectedProduct ? '1' : '100%', height: '46px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }} disabled={!selectedProduct && products.length > 0}>
+              <button type="submit" className="btn btn-primary" style={{ flex: selectedProduct ? '1' : '100%', height: '46px' }} disabled={!selectedProduct && products.length > 0}>
                 <PlusCircle size={20} /> Savatga qo'shish
               </button>
             </div>
-
           </div>
         </form>
 
@@ -259,21 +255,31 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
               {cart.map((item, index) => (
                 <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '10px 15px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
-                  <div style={{ flex: 1 }}><p style={{ margin: 0, fontWeight: 'bold', color: '#111827' }}>{index + 1}. {item.product.name}</p><p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6b7280' }}>{item.qty} {item.product.unit} x {item.product.price.toLocaleString()} so'm</p></div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: 0, fontWeight: 'bold', color: '#111827' }}>{index + 1}. {item.product.name}</p>
+                    <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6b7280' }}>{item.qty} {item.product.unit} x {item.product.price.toLocaleString()} so'm</p>
+                  </div>
                   <div style={{ fontWeight: 'bold', color: '#1e3a8a', marginRight: '15px' }}>{item.total.toLocaleString()} so'm</div>
                   <button onClick={() => handleRemoveFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '18px' }}>✖</button>
                 </div>
               ))}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e5e7eb', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}><span style={{ fontSize: '16px', fontWeight: 'bold', color: '#374151' }}>Umumiy Summa:</span><span style={{ fontSize: '22px', fontWeight: 'bold', color: '#1e3a8a' }}>{cart.reduce((sum, item) => sum + item.total, 0).toLocaleString()} so'm</span></div>
-            <button onClick={handleFinalSell} className="btn btn-primary" style={{ fontSize: '18px', padding: '16px', display: 'flex', gap: '8px', justifyContent: 'center' }}><CheckCircle size={22} /> Tasdiqlash va Sotish</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e5e7eb', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+              <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#374151' }}>Umumiy Summa:</span>
+              <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#1e3a8a' }}>{cart.reduce((sum, item) => sum + item.total, 0).toLocaleString()} so'm</span>
+            </div>
+            <button onClick={handleFinalSell} className="btn btn-primary" style={{ fontSize: '18px', padding: '16px', display: 'flex', gap: '8px', justifyContent: 'center', width: '100%' }}>
+              <CheckCircle size={22} /> Tasdiqlash va Sotish
+            </button>
           </div>
         )}
       </div>
 
-      {/* --- BATAFSIL JADVAL --- */}
+      {/* --- BATAFSIL JADVAL (O'ZGARISH MANA SHU YERDA QILINDI) --- */}
       <div className="card" style={{ maxWidth: '100%', marginTop: '40px', borderTop: '4px solid #4b5563' }}>
-        <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1f2937', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}><ClipboardList size={22} color="#4b5563" /> Batafsil savdolar jadvali</h3>
+        <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1f2937', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ClipboardList size={22} color="#4b5563" /> Batafsil savdolar jadvali
+        </h3>
 
         <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '10px', flex: '1 1 300px' }}>
@@ -302,30 +308,43 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
               <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e5e7eb', backgroundColor: '#ffffff' }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Sana/Vaqt</th>
+                    {/* USTUNLAR O'RNI ALMASHTIRILDI */}
+                    <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Xaridor (Mijoz)</th>
                     <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Jami Summa</th>
                     <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Olingan tovarlar</th>
-                    <th style={{ textAlign: 'right', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Xaridor (Mijoz)</th>
+                    <th style={{ textAlign: 'right', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Sana/Vaqt</th>
                   </tr>
                 </thead>
                 <tbody>
                   {tableData.map(item => (
                     <tr key={item.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '14px', color: '#6b7280', fontSize: '14px' }}>
-                        {new Date(item.receivedAt || item.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                      <td style={{ padding: '14px', color: '#10b981', fontWeight: 'bold', fontSize: '16px' }}>
-                        +{(Number(item.totalSum) || Number(item.total) || 0).toLocaleString()} so'm
-                      </td>
-                      <td style={{ padding: '14px', color: '#4b5563', lineHeight: '1.6', fontSize: '14px', whiteSpace: 'pre-line' }}>{item.productName}</td>
-                      <td style={{ padding: '14px', color: '#1e3a8a', fontWeight: 'bold', textAlign: 'right' }}>
+                      
+                      {/* MIJOZ ISMI BIRINCHI USTUNGA O'TDI */}
+                      <td style={{ padding: '14px', color: '#1e3a8a', fontWeight: 'bold' }}>
                         {item.customer}
+                        {!item.isReceived && !item.isDebt && (
+                           <div style={{ marginTop: '4px', fontSize: '11px', color: '#f59e0b', fontWeight: 'bold' }}>
+                             (Kassada kutilmoqda)
+                           </div>
+                        )}
                         {item.wasDebt && (
-                           <div style={{ marginTop: '4px', fontSize: '12px', color: '#b45309', fontWeight: 'bold' }}>
+                           <div style={{ marginTop: '4px', fontSize: '11px', color: '#b45309', fontWeight: 'bold' }}>
                              (Qarzdan to'landi)
                            </div>
                         )}
                       </td>
+
+                      <td style={{ padding: '14px', color: '#10b981', fontWeight: 'bold', fontSize: '16px' }}>
+                        +{(Number(item.totalSum) || Number(item.total) || 0).toLocaleString()} so'm
+                      </td>
+
+                      <td style={{ padding: '14px', color: '#4b5563', lineHeight: '1.6', fontSize: '14px', whiteSpace: 'pre-line' }}>{item.productName}</td>
+                      
+                      {/* VAQT OXIRGI USTUNGA O'TDI */}
+                      <td style={{ padding: '14px', color: '#6b7280', fontSize: '14px', textAlign: 'right' }}>
+                        {new Date(item.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+
                     </tr>
                   ))}
                 </tbody>
