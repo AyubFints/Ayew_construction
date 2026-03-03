@@ -1,53 +1,46 @@
 import React, { useState } from 'react';
-import { BookOpen, Search, ArrowLeft, User, Calendar, CheckCircle } from 'lucide-react';
+import { ArrowLeft, BookOpen, Search, User, Calendar, CheckCircle } from 'lucide-react';
 
 const Debts = ({ sales, setSales, setPage }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [repayAmounts, setRepayAmounts] = useState({});
 
-  // Faqat qarz bo'lgan savdolarni ajratib olish (isDebt: true)
+  // Faqat qarz bo'lgan savdolarni ajratib olish
   const debtSales = sales.filter(s => s.isDebt === true);
 
   const filteredDebts = debtSales.filter(s => 
     s.customer.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Jami qarzni hisoblash (Jami summa - to'langan qismi)
+  // Jami qarzni hisoblash
   const totalDebtSum = debtSales.reduce((acc, s) => acc + (s.totalSum - (s.paidAmount || 0)), 0);
 
-  // Qarzni qabul qilish
+  // QARZNI BITTA TUGMA BILAN TO'LIQ YOPISH
   const handleRepay = (sale) => {
-    const amount = parseFloat(repayAmounts[sale.id]);
     const remainingDebt = sale.totalSum - (sale.paidAmount || 0);
 
-    if (isNaN(amount) || amount <= 0) return alert("Summani to'g'ri kiriting!");
-    if (amount > remainingDebt) return alert(`Xato! Mijozning qarzi faqatgina ${remainingDebt.toLocaleString()} so'm.`);
-
-    if (window.confirm(`${sale.customer}dan ${amount.toLocaleString()} so'm qarzni qabul qilasizmi?`)) {
-      const newPaidAmount = (sale.paidAmount || 0) + amount;
-      
+    if (window.confirm(`${sale.customer} haqiqatan ham qolgan ${remainingDebt.toLocaleString()} so'm qarzni to'liq to'ladimi?`)) {
       setSales(sales.map(s => {
         if (s.id === sale.id) {
-          const isFullyPaid = newPaidAmount >= s.totalSum;
           return { 
             ...s, 
-            paidAmount: newPaidAmount, 
-            isDebt: !isFullyPaid, // Agar to'liq to'lasa, qarzdan o'chadi
-            wasDebt: true, 
-            receivedAt: Date.now() // Bugungi kassaga tushadi
+            paidAmount: s.totalSum, // Pul to'liq to'landi deb belgilanadi
+            isDebt: false, // Qarz ro'yxatidan o'chadi
+            wasDebt: true, // Tarix uchun (qarzdan yopilganini bilish uchun)
+            // Bugungi kassaga (TodaySales) tushishi uchun tarixga yozamiz:
+            paymentHistory: [...(s.paymentHistory || []), { amount: remainingDebt, date: Date.now() }]
           };
         }
         return s;
       }));
 
-      setRepayAmounts({ ...repayAmounts, [sale.id]: '' });
+      alert("✅ Qarz to'liq uzildi va bugungi kassaga tushum bo'lib qo'shildi!");
     }
   };
 
   return (
-    <div className="fade-in">
+    <div className="fade-in app-container" style={{ paddingBottom: '60px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <button onClick={() => setPage('dashboard')} className="btn" style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#e5e7eb', color: '#1f2937', display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <button onClick={() => setPage('dashboard')} className="btn btn-danger" style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#e5e7eb', color: '#1f2937', display: 'flex', gap: '8px', alignItems: 'center' }}>
           <ArrowLeft size={18} /> Ortga qaytish
         </button>
         <h2 style={{ fontSize: '24px', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -75,7 +68,7 @@ const Debts = ({ sales, setSales, setPage }) => {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           {filteredDebts.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px' }}>Hozircha hech qanday qarz yo'q.</p>
+            <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px' }}>Hozircha hech qanday qarz yo'q. Ishlar ajoyib!</p>
           ) : (
             filteredDebts.map(sale => {
               const remaining = sale.totalSum - (sale.paidAmount || 0);
@@ -106,25 +99,21 @@ const Debts = ({ sales, setSales, setPage }) => {
 
                   </div>
 
-                  {/* YANGI: Qarzni qabul qilish qismi */}
-                  <div style={{ marginTop: '20px', borderTop: '1px dashed #d1d5db', paddingTop: '15px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <input 
-                      type="number" 
-                      className="form-control" 
-                      placeholder="To'lanayotgan summa..." 
-                      value={repayAmounts[sale.id] || ''}
-                      onChange={(e) => setRepayAmounts({...repayAmounts, [sale.id]: e.target.value})}
-                      style={{ marginBottom: 0, flex: 1, height: '45px' }}
-                    />
+                  {/* SHU YER O'ZGARDI: Faqat bitta yashil tugma qoldi */}
+                  <div style={{ marginTop: '20px', borderTop: '1px dashed #d1d5db', paddingTop: '15px', display: 'flex', justifyContent: 'flex-end' }}>
                     <button 
                       onClick={() => handleRepay(sale)} 
                       className="btn" 
-                      style={{ backgroundColor: '#10b981', color: 'white', border: 'none', height: '45px', padding: '0 20px', display: 'flex', alignItems: 'center', gap: '8px' }}
+                      style={{ 
+                        backgroundColor: '#10b981', color: 'white', border: 'none', 
+                        height: '45px', padding: '0 25px', display: 'flex', alignItems: 'center', gap: '8px',
+                        fontSize: '15px', fontWeight: 'bold', borderRadius: '10px', cursor: 'pointer'
+                      }}
                     >
-                      <CheckCircle size={18} /> Qarzni to'lash
+                      <CheckCircle size={20} /> To'liq to'lash
                     </button>
                   </div>
-
+                  
                 </div>
               );
             })

@@ -2,31 +2,61 @@ import React, { useState } from 'react';
 import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, FileText, Clock, Tag, XCircle, Banknote } from 'lucide-react';
 
 const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }) => {
-
-  // YANGI: Har bir savdo uchun yozilayotgan pul miqdorini saqlash
   const [partialAmounts, setPartialAmounts] = useState({});
-
   const todayStr = new Date().toLocaleDateString('uz-UZ');
   
-  // O'ZGARDI: Endi qisman to'langan pullar ham kassaga qoshib hisoblanadi
-  const totalIncome = sales
-    .filter(s => (s.isReceived || s.paidAmount > 0) && new Date(s.receivedAt || s.id).toLocaleDateString('uz-UZ') === todayStr)
-    .reduce((acc, curr) => acc + (curr.paidAmount || curr.totalSum), 0);
-    
-  const totalExpense = returns.filter(r => new Date(r.id).toLocaleDateString('uz-UZ') === todayStr).reduce((acc, curr) => acc + curr.returnSum, 0);
+  // 1. KASSANING YANGI MANTIQI: Bugun tushgan barcha to'lovlarni (qarz va naqd) hisoblash
+  let totalIncome = 0;
+  const todaysPayments = []; // Bugun tushgan pullar ro'yxati
+
+  sales.forEach(sale => {
+    if (sale.paymentHistory) {
+      // Agar yangi tizim orqali to'langan bo'lsa (to'lovlar tarixi bor bo'lsa)
+      sale.paymentHistory.forEach(payment => {
+        if (new Date(payment.date).toLocaleDateString('uz-UZ') === todayStr) {
+          totalIncome += payment.amount;
+          todaysPayments.push({
+            ...sale,
+            paymentAmountToday: payment.amount, // Aynan bugun bergan puli
+            paymentDate: payment.date
+          });
+        }
+      });
+    } else {
+      // Eski ma'lumotlar uchun himoya
+      if ((sale.isReceived || sale.paidAmount > 0) && new Date(sale.receivedAt || sale.id).toLocaleDateString('uz-UZ') === todayStr) {
+        const amt = sale.paidAmount || sale.totalSum;
+        totalIncome += amt;
+        todaysPayments.push({
+          ...sale,
+          paymentAmountToday: amt,
+          paymentDate: sale.receivedAt || sale.id
+        });
+      }
+    }
+  });
+
+  // Tushumlarni vaqti bo'yicha ketma-ket joylash (yangilari tepada)
+  todaysPayments.sort((a, b) => b.paymentDate - a.paymentDate);
+
+  const totalExpense = returns.filter(r => new Date(r.id).toLocaleDateString('uz-UZ') === todayStr).reduce((acc, curr) => acc + (curr.returnSum || 0), 0);
   const netCash = totalIncome - totalExpense;
 
+  // TO'LIQ TO'LOV QABUL QILISH
   const handleReceive = (id, customer, sum) => {
-    if (window.confirm(`${customer} to'lov qildimi?`)) {
-      setSales(sales.map(s => s.id === id ? { ...s, isReceived: true, paidAmount: s.totalSum, isDebt: false, receivedAt: Date.now() } : s));
+    if (window.confirm(`${customer} hamma pulni to'liq to'ladimi?`)) {
+      setSales(sales.map(s => s.id === id ? { 
+        ...s, 
+        isReceived: true, 
+        paidAmount: s.totalSum, 
+        isDebt: false, 
+        receivedAt: Date.now(),
+        paymentHistory: [...(s.paymentHistory || []), { amount: s.totalSum, date: Date.now() }] // Tarixga yozish
+      } : s));
     }
   };
 
-  const handleToDebt = (id) => {
-    setSales(sales.map(s => s.id === id ? { ...s, isDebt: true, paidAmount: 0 } : s));
-  };
-
-  // --- YANGI: Qisman to'lov va qarzga o'tkazish funksiyasi ---
+  // QISMAN TO'LOV QABUL QILISH
   const handlePartialPayment = (sale) => {
     const inputAmount = parseFloat(partialAmounts[sale.id]);
     
@@ -40,19 +70,24 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     if (window.confirm(`${sale.customer}dan ${inputAmount.toLocaleString()} so'm olindi.\nQolgan ${remaining.toLocaleString()} so'm qarzga yozilsinmi?`)) {
       setSales(sales.map(s => s.id === sale.id ? { 
         ...s, 
-        isReceived: true, // Kassaga tushishi uchun
-        paidAmount: inputAmount, // Qancha bergani
-        isDebt: true, // Qarz ro'yxatiga tushishi uchun belgi
-        receivedAt: Date.now() 
+        isReceived: true, 
+        paidAmount: inputAmount, 
+        isDebt: true, 
+        receivedAt: Date.now(),
+        paymentHistory: [...(s.paymentHistory || []), { amount: inputAmount, date: Date.now() }] // Tarixga yozish
       } : s));
       setPartialAmounts({ ...partialAmounts, [sale.id]: '' });
     }
   };
-  // ---------------------------------------------------------
+
+  const handleToDebt = (id) => {
+    if (window.confirm("Hamma pulni qarzga yozamizmi?")) {
+      setSales(sales.map(s => s.id === id ? { ...s, isDebt: true, paidAmount: 0 } : s));
+    }
+  };
 
   const handleCancelSale = (saleToCancel) => {
     if (window.confirm(`ROSTDAN HAM BEKOR QILASIZMI?\n\nMijoz: ${saleToCancel.customer || "Noma'lum"}\nTasdiqlasangiz, barcha tovarlar omborga qaytadi va savdo o'chib ketadi.`)) {
-      
       if (saleToCancel.cartItems) {
         let updatedProducts = [...products];
         saleToCancel.cartItems.forEach(cartItem => {
@@ -61,19 +96,15 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
           );
         });
         setProducts(updatedProducts);
-      } else {
-        alert("DIQQAT! Bu savdo tizimning eski versiyasida qilingan ekan. Tovar avtomatik tarzda omborga qayta olmadi. Ularni 'Qaytish' bo'limidan qo'lda qaytarib qo'yishingiz kerak bo'ladi.");
       }
-
       setSales(sales.filter(s => s.id !== saleToCancel.id));
     }
   };
 
   const pendingSales = sales.filter(s => !s.isReceived && !s.isDebt);
-  const paidSales = sales.filter(s => (s.isReceived || s.paidAmount > 0) && new Date(s.receivedAt || s.id).toLocaleDateString('uz-UZ') === todayStr);
 
   return (
-    <div className="fade-in">
+    <div className="fade-in app-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <button onClick={() => setPage('dashboard')} className="btn" style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#e5e7eb', color: '#1f2937', display: 'flex', gap: '8px', alignItems: 'center' }}>
           <ArrowLeft size={18} /> Ortga qaytish
@@ -99,6 +130,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
       </div>
 
       <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
+        {/* KUTILAYOTGAN TO'LOVLAR */}
         <div className="card" style={{ flex: '1 1 400px', borderTop: '4px solid #4b5563' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1f2937', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={20} color="#4b5563" /> Kutilayotgan to'lovlar</h3>
           {pendingSales.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Kutilayotganlar yo'q.</p> : (
@@ -115,7 +147,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                     <div>{sale.productName}</div>
                   </div>
 
-                  {/* YANGI: QISMAN TO'LOV INPUTI */}
                   <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #e5e7eb', marginBottom: '15px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#374151', marginBottom: '8px' }}>
                       Mijoz bergan summa:
@@ -124,9 +155,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                       <div style={{ position: 'relative', flex: 1 }}>
                         <Banknote size={16} style={{ position: 'absolute', left: '10px', top: '12px', color: '#6b7280' }} />
                         <input 
-                          type="number" 
-                          className="form-control" 
-                          placeholder="Summa..." 
+                          type="number" className="form-control" placeholder="Summa..." 
                           value={partialAmounts[sale.id] || ''}
                           onChange={(e) => setPartialAmounts({...partialAmounts, [sale.id]: e.target.value})}
                           style={{ marginBottom: 0, paddingLeft: '32px', height: '40px' }}
@@ -143,7 +172,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                       <button onClick={() => handleReceive(sale.id, sale.customer, sale.totalSum)} className="btn btn-primary" style={{ flex: 1, padding: '12px' }}>Puli to'liq olindi</button>
                       <button onClick={() => handleToDebt(sale.id)} className="btn" style={{ flex: 1, padding: '12px', backgroundColor: '#f59e0b', color: 'white', border: 'none' }}>Qarzga yozish</button>
                     </div>
-                    
                     <button onClick={() => handleCancelSale(sale)} className="btn" style={{ width: '100%', padding: '12px', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', backgroundColor: '#ef4444', color: 'white', border: 'none' }}>
                       <XCircle size={18} /> Sotuvni bekor qilish (Qaytarish)
                     </button>
@@ -154,34 +182,38 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
           )}
         </div>
 
+        {/* BUGUNGI KASSAGA TUSHGAN PULLAR RO'YXATI */}
         <div className="card" style={{ flex: '1 1 400px', borderTop: '4px solid #1e3a8a' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1e3a8a', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle size={20} color="#1e3a8a" /> Tasdiqlangan savdolar</h3>
-          {paidSales.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Hali pul tushmadi.</p> : (
+          <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1e3a8a', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CheckCircle size={20} color="#1e3a8a" /> Bugun kassaga tushgan pullar
+          </h3>
+          {todaysPayments.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Hali pul tushmadi.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              {paidSales.slice().reverse().map(sale => (
-                <div key={sale.id} className="fade-in" style={{ padding: '15px', backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderLeft: '4px solid #1e3a8a', borderRadius: '12px' }}>
+              {todaysPayments.map((payment, idx) => (
+                <div key={payment.id + idx} className="fade-in" style={{ padding: '15px', backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderLeft: '4px solid #1e3a8a', borderRadius: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     
                     <div style={{ flex: '1' }}>
-                      <div style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Jami Summa</div>
-                      <div style={{ fontWeight: 'bold', color: '#10b981', fontSize: '18px' }}>+{(sale.paidAmount || sale.totalSum).toLocaleString()} so'm</div>
+                      <div style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Bugun to'langan</div>
+                      <div style={{ fontWeight: 'bold', color: '#10b981', fontSize: '18px' }}>+{payment.paymentAmountToday.toLocaleString()} so'm</div>
                     </div>
 
                     <div style={{ flex: '1', textAlign: 'center', borderLeft: '1px solid #eee', borderRight: '1px solid #eee' }}>
                       <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
-                        <Tag size={12} /> Dona narxi
+                        <Tag size={12} /> Jami savdo
                       </div>
                       <div style={{ fontWeight: '600', color: '#4b5563' }}>
-                        {sale.price ? sale.price.toLocaleString() : (sale.totalSum / (sale.quantity || 1)).toLocaleString()} so'm
+                        {payment.totalSum.toLocaleString()} so'm
                       </div>
                     </div>
 
                     <div style={{ flex: '1', textAlign: 'right' }}>
                       <div style={{ fontSize: '12px', color: '#6b7280' }}>Mijoz</div>
-                      <div style={{ fontWeight: 'bold', color: '#1e3a8a' }}>{sale.customer}</div>
-                      {sale.wasDebt && (
+                      <div style={{ fontWeight: 'bold', color: '#1e3a8a' }}>{payment.customer}</div>
+                      {/* Qarzdan to'laganini ko'rsatish */}
+                      {payment.paymentAmountToday < payment.totalSum && (
                         <span style={{ fontSize: '10px', backgroundColor: '#fef3c7', color: '#b45309', padding: '1px 6px', borderRadius: '10px', border: '1px solid #fde68a', fontWeight: 'bold', marginLeft: '5px' }}>
-                          Qarzdan
+                          Qarz to'lovi
                         </span>
                       )}
                     </div>
@@ -189,15 +221,12 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                   </div>
 
                   <div style={{ color: '#94a3b8', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', borderTop: '1px solid #fafafa', paddingTop: '5px', whiteSpace: 'pre-line' }}>
-                    <FileText size={14} style={{flexShrink: 0}} /> <div>{sale.productName} {sale.quantity && !sale.productName.includes('•') && `(${sale.quantity} dona/metr)`}</div>
+                    <FileText size={14} style={{flexShrink: 0}} /> <div>{payment.productName}</div>
                   </div>
                   
-                  {/* YANGI: Qarz qolganini ko'rsatish */}
-                  {sale.isDebt && (
-                    <div style={{ marginTop: '8px', fontSize: '12px', color: '#ef4444', fontWeight: 'bold', display: 'flex', justifyContent: 'flex-end' }}>
-                      ⚠️ Qoldi: {(sale.totalSum - sale.paidAmount).toLocaleString()} so'm qarz
-                    </div>
-                  )}
+                  <div style={{ marginTop: '8px', fontSize: '11px', color: '#6b7280', display: 'flex', justifyContent: 'flex-end' }}>
+                    Vaqti: {new Date(payment.paymentDate).toLocaleTimeString()}
+                  </div>
 
                 </div>
               ))}
