@@ -16,22 +16,23 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 function App() {
-  const [isAuth, setIsAuth] = useState(false);
+  // 1. DASTUR OCHILISHI BILAN TELEFON XOTIRASINI O'QISH (Kutib turmaslik uchun)
+  const cachedAuth = localStorage.getItem('app_isAuth') === 'true';
+  const [isAuth, setIsAuth] = useState(cachedAuth);
+  const [dataLoaded, setDataLoaded] = useState(cachedAuth); // Agar xotirada bo'lsa, darhol ochiladi
   const [page, setPage] = useState('dashboard');
-  const [dataLoaded, setDataLoaded] = useState(false); 
 
-  const [storeName, setStoreName] = useState("Qurilish mollari do'koni");
-  const [categories, setCategories] = useState(["Umumiy"]);
-  const [products, setProducts] = useState([]);
-  const [sales, setSales] = useState([]);
-  const [returns, setReturns] = useState([]);
+  const [storeName, setStoreName] = useState(() => localStorage.getItem('app_storeName') || "Qurilish mollari do'koni");
+  const [categories, setCategories] = useState(() => JSON.parse(localStorage.getItem('app_categories') || '["Umumiy"]'));
+  const [products, setProducts] = useState(() => JSON.parse(localStorage.getItem('app_products') || '[]'));
+  const [sales, setSales] = useState(() => JSON.parse(localStorage.getItem('app_sales') || '[]'));
+  const [returns, setReturns] = useState(() => JSON.parse(localStorage.getItem('app_returns') || '[]'));
 
-  // TELEFONNING "ORTGA" TUGMASI UCHUN KOD
+  // TELEFONNING "ORTGA" TUGMASI
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
-    if (hash && hash !== page) {
-      setPage(hash);
-    }
+    if (hash && hash !== page) setPage(hash);
+    
     const handlePopState = () => {
       const currentHash = window.location.hash.replace('#', '');
       setPage(currentHash || 'dashboard');
@@ -46,60 +47,67 @@ function App() {
     }
   }, [page]);
 
-  // BAZADAN MA'LUMOTNI TORTISH
+  // 2. ORQA FONDA INTERNET (FIREBASE) BILAN SINXRONIZATSIYA
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        setIsAuth(true);
-        const docRef = doc(db, "stores", currentUser.uid);
-        const docSnap = await getDoc(docRef);
+        localStorage.setItem('app_isAuth', 'true'); // Tizimga kirganini eslab qolish
+        if (!isAuth) setIsAuth(true);
 
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setProducts(data.products || []);
-          setSales(data.sales || []);
-          setReturns(data.returns || []);
-          setCategories(data.categories || ["Umumiy"]);
-          setStoreName(data.storeName || "Qurilish mollari do'koni");
-        } else {
-          const oldProducts = JSON.parse(localStorage.getItem('app_products') || '[]');
-          const oldSales = JSON.parse(localStorage.getItem('app_sales') || '[]');
-          const oldReturns = JSON.parse(localStorage.getItem('app_returns') || '[]');
-          const oldCategories = JSON.parse(localStorage.getItem('app_categories') || '["Umumiy"]');
-          const oldName = localStorage.getItem('app_storeName') || "Qurilish mollari do'koni";
+        try {
+          const docRef = doc(db, "stores", currentUser.uid);
+          const docSnap = await getDoc(docRef);
 
-          await setDoc(docRef, {
-            products: oldProducts, sales: oldSales, returns: oldReturns, categories: oldCategories, storeName: oldName
-          });
-
-          setProducts(oldProducts); setSales(oldSales); setReturns(oldReturns); setCategories(oldCategories); setStoreName(oldName);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            // Yangi ma'lumot kelsa bildirmasdan yangilaymiz
+            setProducts(data.products || []);
+            setSales(data.sales || []);
+            setReturns(data.returns || []);
+            setCategories(data.categories || ["Umumiy"]);
+            setStoreName(data.storeName || "Qurilish mollari do'koni");
+          }
+        } catch (error) {
+          console.log("Internet sekin. Oflayn rejimda ishlash davom etmoqda...");
         }
         setDataLoaded(true);
       } else {
         setIsAuth(false);
         setDataLoaded(false);
+        localStorage.setItem('app_isAuth', 'false');
       }
     });
     return () => unsubscribe();
   }, []);
 
-  // FIREBASE'GA SAQLASH
+  // 3. MA'LUMOTNI DARHOL XOTIRAGA VA SEKIN INTERNETGA SAQLASH
   useEffect(() => {
-    if (isAuth && dataLoaded && auth.currentUser) {
-      const docRef = doc(db, "stores", auth.currentUser.uid);
-      setDoc(docRef, { products, sales, returns, categories, storeName }).catch(err => console.error("Xato:", err));
+    if (dataLoaded) {
+      // A) Oflayn ishlash uchun srazi telefonga saqlaymiz (Internet kerak emas)
+      localStorage.setItem('app_products', JSON.stringify(products));
+      localStorage.setItem('app_sales', JSON.stringify(sales));
+      localStorage.setItem('app_returns', JSON.stringify(returns));
+      localStorage.setItem('app_categories', JSON.stringify(categories));
+      localStorage.setItem('app_storeName', storeName);
+
+      // B) Internet bor bo'lsa, orqa fonda serverga saqlaymiz
+      if (isAuth && auth.currentUser) {
+        const docRef = doc(db, "stores", auth.currentUser.uid);
+        setDoc(docRef, { products, sales, returns, categories, storeName })
+          .catch(err => console.log("Hozircha oflayn. Internet kelganda yuboriladi.")); // Xatolik ekranni qotirmaydi
+      }
     }
   }, [products, sales, returns, categories, storeName, isAuth, dataLoaded]);
 
   const handleLogout = async () => {
     if(window.confirm("Tizimdan chiqasizmi?")) {
       await signOut(auth);
+      localStorage.setItem('app_isAuth', 'false'); // Chiqib ketganda xotirani tozalash
       setIsAuth(false); 
       setPage('dashboard'); 
     }
   };
 
-  // SUZIB YURUVCHI PASTKI MENYU (YANGILANGAN: YOZUVLAR BILAN)
   const renderBottomNav = () => {
     if (!isAuth || !dataLoaded || page === 'dashboard' || page === 'settings') return null;
 
@@ -125,9 +133,7 @@ function App() {
             key={item.id} 
             onClick={() => setPage(item.id)} 
             title={item.label}
-            style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer'
-            }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
             onMouseEnter={(e) => { 
               e.currentTarget.children[0].style.backgroundColor = '#1e3a8a'; 
               e.currentTarget.children[0].style.color = '#ffffff'; 
@@ -139,7 +145,6 @@ function App() {
               e.currentTarget.children[0].style.transform = 'translateY(0)'; 
             }}
           >
-            {/* Dumaloq ikonka qismi */}
             <div style={{
               width: '46px', height: '46px', borderRadius: '50%', backgroundColor: '#f1f5f9',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -147,7 +152,6 @@ function App() {
             }}>
               {item.icon}
             </div>
-            {/* Tagidagi mayda yozuv */}
             <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e3a8a' }}>{item.label}</span>
           </div>
         ))}
@@ -163,7 +167,7 @@ function App() {
       case 'products': return <Products products={products} setProducts={setProducts} categories={categories} setCategories={setCategories} setPage={setPage} />;
       case 'sell': return <Sell products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} />;
       case 'return': return <Return products={products} setProducts={setProducts} returns={returns} setReturns={setReturns} setPage={setPage} />;
-      case 'todaysales': return <TodaySales sales={sales} setSales={setSales} returns={returns} setPage={setPage} />;
+      case 'todaysales': return <TodaySales products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} />;
       case 'debts': return <Debts sales={sales} setSales={setSales} setPage={setPage} />;
       case 'settings': return <Settings storeName={storeName} setStoreName={setStoreName} setProducts={setProducts} setSales={setSales} setReturns={setReturns} setPage={setPage} />;
       default: return <Dashboard storeName={storeName} products={products} setPage={setPage} onLogout={handleLogout} />;

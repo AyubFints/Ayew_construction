@@ -29,11 +29,10 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
     else setDetailDate(currentYearStr);
   };
 
-  // --- ZIRHLI MANTIQ: Sanani xatosiz tekshirish ---
   const isMatchDate = (timestamp) => {
     if (!timestamp) return false;
     const t = new Date(timestamp);
-    if (isNaN(t.getTime())) return false; // Xato sanalarni o'tkazib yuboradi
+    if (isNaN(t.getTime())) return false; 
 
     const y = t.getFullYear();
     const m = String(t.getMonth() + 1).padStart(2, '0');
@@ -44,12 +43,10 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
     return `${y}` === detailDate;
   };
 
-  // Jadval uchun ma'lumotlarni saralash
   const tableData = useMemo(() => {
     return sales.filter(s => s.isReceived && isMatchDate(s.receivedAt || s.id)).sort((a, b) => b.id - a.id);
   }, [sales, detailFilter, detailDate]);
 
-  // --- MUAMMONING YECHIMI: Hamma narsani majburlab raqamga (Number) o'tkazamiz ---
   const periodIncome = tableData.reduce((acc, curr) => acc + (Number(curr.totalSum) || Number(curr.total) || 0), 0);
   
   const periodExpense = useMemo(() => {
@@ -57,8 +54,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
   }, [returns, detailFilter, detailDate]);
 
   const periodNetProfit = periodIncome - periodExpense;
-  const tableTotalSum = periodIncome; // Ikkisi bir xil narsa, chalkashmaslik uchun
-  // ---------------------------------------------------------------------------------
+  const tableTotalSum = periodIncome; 
 
   const aggregatedHistory = useMemo(() => {
     const map = {};
@@ -129,7 +125,9 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage })
     const overallTotal = cart.reduce((sum, item) => sum + item.total, 0);
     const combinedNames = cart.map(item => `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} so'm)`).join('\n');
 
-    setSales([...sales, { id: Date.now(), productName: combinedNames, unit: 'xil tovar', quantity: cart.length, customer, totalSum: overallTotal, isReceived: false }]);
+    // SHU YERDA cartItems: cart QO'SHILDI
+    setSales([...sales, { id: Date.now(), productName: combinedNames, unit: 'xil tovar', quantity: cart.length, customer, totalSum: overallTotal, isReceived: false, cartItems: cart }]);
+    
     setCart([]); setCustomer(''); setError('');
     alert(`✅ Savdo yakunlandi! Jami summa: ${overallTotal.toLocaleString()} so'm\n(Kassada tasdiqlanmaguncha tarixda ko'rinmaydi)`);
   };
