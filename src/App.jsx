@@ -16,19 +16,25 @@ import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-// --- YANGI: MAXFIY DARVOZA (MASTER GATE) KOMPONENTI ---
+// --- MAXFIY DARVOZA (MASTER GATE) KOMPONENTI ---
 const MasterGate = ({ onUnlock }) => {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [showPass, setShowPass] = useState(false); // Parolni ko'rish uchun
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Siz aytgan maxfiy login va parol shu yerda tekshiriladi
-    if (login.trim() === 'Ayew_qur' && password.trim() === 'ayev_AX') {
+    
+    // Hamma harflarni kichik qilib tekshiramiz (katta-kichikligiga qaramaydi)
+    const checkLogin = login.trim().toLowerCase();
+    const checkPass = password.trim().toLowerCase();
+
+    // Loginda "w", parolda "v" borligiga e'tibor bering
+    if (checkLogin === 'ayew_qur' && checkPass === 'ayev_ax') {
       onUnlock();
     } else {
-      setError("Login yoki parol xato! Ruxsat yo'q.");
+      setError("Login yoki parol xato! Nima yozganingizni ko'zdan kechiring.");
     }
   };
 
@@ -44,21 +50,34 @@ const MasterGate = ({ onUnlock }) => {
         <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '30px' }}>Dasturdan foydalanish uchun maxsus login va parolni kiriting.</p>
         
         <form onSubmit={handleSubmit}>
-          <input 
-            className="form-control" 
-            placeholder="Maxfiy Login" 
-            value={login} 
-            onChange={e => {setLogin(e.target.value); setError('');}} 
-            required 
-          />
-          <input 
-            className="form-control" 
-            type="password" 
-            placeholder="Maxfiy Parol" 
-            value={password} 
-            onChange={e => {setPassword(e.target.value); setError('');}} 
-            required 
-          />
+          <div style={{ marginBottom: '15px' }}>
+            <input 
+              className="form-control" 
+              placeholder="Maxfiy Login (ayew_qur)" 
+              value={login} 
+              onChange={e => {setLogin(e.target.value); setError('');}} 
+              required 
+              style={{ marginBottom: 0 }}
+            />
+          </div>
+          <div style={{ position: 'relative', marginBottom: '20px' }}>
+            <input 
+              className="form-control" 
+              type={showPass ? "text" : "password"} 
+              placeholder="Maxfiy Parol (ayev_ax)" 
+              value={password} 
+              onChange={e => {setPassword(e.target.value); setError('');}} 
+              required 
+              style={{ marginBottom: 0, paddingRight: '70px' }}
+            />
+            <button 
+              type="button" 
+              onClick={() => setShowPass(!showPass)} 
+              style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#1e3a8a', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+            >
+              {showPass ? "Yashirish" : "Ko'rish"}
+            </button>
+          </div>
           
           {error && <p style={{ color: '#ef4444', fontSize: '13px', margin: '0 0 15px 0', fontWeight: 'bold' }}>{error}</p>}
           
