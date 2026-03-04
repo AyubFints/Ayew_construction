@@ -1,39 +1,45 @@
 import React, { useState } from 'react';
-import { ArrowLeft, BookOpen, Search, User, Calendar, CheckCircle } from 'lucide-react';
+import { ArrowLeft, BookOpen, Search, User, Calendar, CheckCircle, Banknote } from 'lucide-react';
 
 const Debts = ({ sales, setSales, setPage }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [repayAmounts, setRepayAmounts] = useState({});
 
-  // Faqat qarz bo'lgan savdolarni ajratib olish
   const debtSales = sales.filter(s => s.isDebt === true);
 
   const filteredDebts = debtSales.filter(s => 
     s.customer.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Jami qarzni hisoblash
   const totalDebtSum = debtSales.reduce((acc, s) => acc + (s.totalSum - (s.paidAmount || 0)), 0);
 
-  // QARZNI BITTA TUGMA BILAN TO'LIQ YOPISH
-  const handleRepay = (sale) => {
+  const handleRepay = (sale, isFull) => {
     const remainingDebt = sale.totalSum - (sale.paidAmount || 0);
+    
+    // Agar "Hammasini to'lash" bosilsa summani o'zi topadi, aks holda inputdan oladi
+    const amount = isFull ? remainingDebt : parseFloat(repayAmounts[sale.id]);
 
-    if (window.confirm(`${sale.customer} haqiqatan ham qolgan ${remainingDebt.toLocaleString()} so'm qarzni to'liq to'ladimi?`)) {
+    if (isNaN(amount) || amount <= 0) return alert("Summani to'g'ri kiriting!");
+    if (amount > remainingDebt) return alert(`Xato! Mijozning qarzi faqatgina ${remainingDebt.toLocaleString()} so'm.`);
+
+    if (window.confirm(`${sale.customer}dan ${amount.toLocaleString()} so'm qarzni qabul qilasizmi?`)) {
+      const newPaidAmount = (sale.paidAmount || 0) + amount;
+      const isFullyPaid = newPaidAmount >= sale.totalSum;
+      
       setSales(sales.map(s => {
         if (s.id === sale.id) {
           return { 
             ...s, 
-            paidAmount: s.totalSum, // Pul to'liq to'landi deb belgilanadi
-            isDebt: false, // Qarz ro'yxatidan o'chadi
-            wasDebt: true, // Tarix uchun (qarzdan yopilganini bilish uchun)
-            // Bugungi kassaga (TodaySales) tushishi uchun tarixga yozamiz:
-            paymentHistory: [...(s.paymentHistory || []), { amount: remainingDebt, date: Date.now() }]
+            paidAmount: newPaidAmount, 
+            isDebt: !isFullyPaid, 
+            wasDebt: true, 
+            paymentHistory: [...(s.paymentHistory || []), { amount: amount, date: Date.now() }]
           };
         }
         return s;
       }));
 
-      alert("✅ Qarz to'liq uzildi va bugungi kassaga tushum bo'lib qo'shildi!");
+      setRepayAmounts({ ...repayAmounts, [sale.id]: '' });
     }
   };
 
@@ -99,19 +105,42 @@ const Debts = ({ sales, setSales, setPage }) => {
 
                   </div>
 
-                  {/* SHU YER O'ZGARDI: Faqat bitta yashil tugma qoldi */}
-                  <div style={{ marginTop: '20px', borderTop: '1px dashed #d1d5db', paddingTop: '15px', display: 'flex', justifyContent: 'flex-end' }}>
-                    <button 
-                      onClick={() => handleRepay(sale)} 
-                      className="btn" 
-                      style={{ 
-                        backgroundColor: '#10b981', color: 'white', border: 'none', 
-                        height: '45px', padding: '0 25px', display: 'flex', alignItems: 'center', gap: '8px',
-                        fontSize: '15px', fontWeight: 'bold', borderRadius: '10px', cursor: 'pointer'
-                      }}
-                    >
-                      <CheckCircle size={20} /> To'liq to'lash
-                    </button>
+                  {/* KATTA VA UZUN INPUT HAMDA TUGMALAR */}
+                  <div style={{ marginTop: '20px', borderTop: '1px dashed #d1d5db', paddingTop: '15px' }}>
+                    
+                    <div style={{ position: 'relative', marginBottom: '12px' }}>
+                      <Banknote size={22} style={{ position: 'absolute', left: '15px', top: '14px', color: '#6b7280' }} />
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        placeholder="Mijoz berayotgan summani yozing (Masalan: 200000)" 
+                        value={repayAmounts[sale.id] || ''}
+                        onChange={(e) => setRepayAmounts({...repayAmounts, [sale.id]: e.target.value})}
+                        style={{ 
+                          marginBottom: 0, width: '100%', height: '50px', 
+                          paddingLeft: '45px', fontSize: '16px', fontWeight: 'bold',
+                          backgroundColor: '#ffffff', border: '2px solid #e5e7eb'
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button 
+                        onClick={() => handleRepay(sale, false)} 
+                        className="btn" 
+                        style={{ backgroundColor: '#f59e0b', color: 'white', border: 'none', height: '45px', flex: 1, fontWeight: 'bold', borderRadius: '8px' }}
+                      >
+                        Qismini to'lash
+                      </button>
+                      <button 
+                        onClick={() => handleRepay(sale, true)} 
+                        className="btn" 
+                        style={{ backgroundColor: '#10b981', color: 'white', border: 'none', height: '45px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold', borderRadius: '8px' }}
+                      >
+                        <CheckCircle size={18} /> Hammasini to'lash
+                      </button>
+                    </div>
+
                   </div>
                   
                 </div>
