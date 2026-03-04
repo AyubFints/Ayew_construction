@@ -53,7 +53,7 @@ const MasterGate = ({ onUnlock }) => {
           <div style={{ marginBottom: '15px' }}>
             <input 
               className="form-control" 
-              placeholder="Maxfiy Login (ayew_qur)" 
+              placeholder="Dastur Loginini kiritng" 
               value={login} 
               onChange={e => {setLogin(e.target.value); setError('');}} 
               required 
@@ -64,7 +64,7 @@ const MasterGate = ({ onUnlock }) => {
             <input 
               className="form-control" 
               type={showPass ? "text" : "password"} 
-              placeholder="Maxfiy Parol (ayev_ax)" 
+              placeholder="Dastur Parolini kiriting" 
               value={password} 
               onChange={e => {setPassword(e.target.value); setError('');}} 
               required 
