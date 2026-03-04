@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, ArrowLeft, Trash2, PlusCircle, Check, X, Tags, Filter, FolderPlus, Edit } from 'lucide-react';
+import { Package, ArrowLeft, Trash2, PlusCircle, Check, X, Tags, Filter, FolderPlus, Edit, DollarSign } from 'lucide-react';
 
 const Products = ({ products, setProducts, categories = [], setCategories, setPage }) => {
   // Tovar qo'shish formasi holatlari
@@ -20,9 +20,13 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
   const [assigningCatId, setAssigningCatId] = useState(null);
   const [selectedCat, setSelectedCat] = useState('');
 
-  // --- YANGI: Tovar nomini o'zgartirish ---
+  // Tovar nomini o'zgartirish
   const [editingProductId, setEditingProductId] = useState(null);
   const [editingName, setEditingName] = useState('');
+
+  // --- YANGI: Tovar narxini o'zgartirish ---
+  const [changingPriceId, setChangingPriceId] = useState(null);
+  const [newPriceAmount, setNewPriceAmount] = useState('');
 
   // Jami hisob-kitob
   const totalWarehouseValue = products.reduce((acc, curr) => acc + (curr.quantity * curr.price), 0);
@@ -84,11 +88,19 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     setAssigningCatId(null); setSelectedCat('');
   };
 
-  // --- YANGI: Nomni saqlash funksiyasi ---
   const handleSaveEditName = (id) => {
     if (!editingName.trim()) return alert("Tovar nomi bo'sh bo'lishi mumkin emas!");
     setProducts(products.map(p => p.id === id ? { ...p, name: editingName.trim() } : p));
     setEditingProductId(null);
+  };
+
+  // --- YANGI: Narxni saqlash funksiyasi ---
+  const handleConfirmChangePrice = (id) => {
+    const parsedPrice = parseFloat(newPriceAmount);
+    if (isNaN(parsedPrice) || parsedPrice < 0) return alert("Narxni to'g'ri kiriting!");
+    setProducts(products.map(p => p.id === id ? { ...p, price: parsedPrice } : p));
+    setChangingPriceId(null);
+    setNewPriceAmount('');
   };
 
   return (
@@ -197,7 +209,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                   
                   <button onClick={() => handleDeleteProduct(p.id, p.name)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }} title="O'chirish"><Trash2 size={20} /></button>
                   
-                  {/* --- YANGI: Nomni o'zgartirish bloki --- */}
                   {editingProductId === p.id ? (
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px', paddingRight: '35px' }}>
                       <input 
@@ -214,7 +225,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingRight: '35px' }}>
                       <h4 style={{ margin: 0, color: '#111827', fontSize: '18px' }}>{p.name}</h4>
                       <button 
-                        onClick={() => { setEditingProductId(p.id); setEditingName(p.name); setAddingStockId(null); setAssigningCatId(null); }} 
+                        onClick={() => { setEditingProductId(p.id); setEditingName(p.name); setAddingStockId(null); setAssigningCatId(null); setChangingPriceId(null); }} 
                         style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }} 
                         title="Nomini o'zgartirish"
                       >
@@ -222,7 +233,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                       </button>
                     </div>
                   )}
-                  {/* -------------------------------------- */}
 
                   <span style={{ display: 'inline-block', backgroundColor: '#e5e7eb', color: '#4b5563', fontSize: '12px', fontWeight: 'bold', padding: '2px 8px', borderRadius: '12px', marginTop: '5px' }}>
                     Bo'lim: {p.category || 'Umumiy'}
@@ -238,6 +248,28 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
                       
+                      {/* --- YANGI QO'SHILGAN NARXNI O'ZGARTIRISH TUGMASI --- */}
+                      {changingPriceId === p.id ? (
+                        <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#f0fdf4', padding: '6px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                          <input 
+                            type="number" 
+                            placeholder="Yangi narxi" 
+                            value={newPriceAmount} 
+                            onChange={e => setNewPriceAmount(e.target.value)} 
+                            style={{ width: '90px', padding: '6px', border: '1px solid #86efac', borderRadius: '6px', outline: 'none' }} 
+                            autoFocus 
+                            min="0" step="any" 
+                          />
+                          <button onClick={() => handleConfirmChangePrice(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#10b981', border: 'none' }} title="Saqlash"><Check size={16} /></button>
+                          <button onClick={() => { setChangingPriceId(null); setNewPriceAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }} title="Bekor qilish"><X size={16} /></button>
+                        </div>
+                      ) : (
+                        <button onClick={() => { setChangingPriceId(p.id); setAddingStockId(null); setAssigningCatId(null); setEditingProductId(null); setNewPriceAmount(p.price); }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#f0fdf4', color: '#166534', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #bbf7d0' }}>
+                          <DollarSign size={16} /> Narxni o'zgartirish
+                        </button>
+                      )}
+                      {/* ---------------------------------------------------- */}
+
                       {addingStockId === p.id ? (
                         <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#eff6ff', padding: '6px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
                           <input type="number" placeholder="+ Miqdor" value={stockAmount} onChange={e => setStockAmount(e.target.value)} style={{ width: '80px', padding: '6px', border: '1px solid #93c5fd', borderRadius: '6px', outline: 'none' }} autoFocus min="0.001" step="any" />
@@ -245,7 +277,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                           <button onClick={() => { setAddingStockId(null); setStockAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }}><X size={16} /></button>
                         </div>
                       ) : (
-                        <button onClick={() => { setAddingStockId(p.id); setAssigningCatId(null); setEditingProductId(null); }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#e0e7ff', color: '#4338ca', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #c7d2fe' }}>
+                        <button onClick={() => { setAddingStockId(p.id); setAssigningCatId(null); setEditingProductId(null); setChangingPriceId(null); }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#e0e7ff', color: '#4338ca', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #c7d2fe' }}>
                           <PlusCircle size={16} /> Kirim qilish
                         </button>
                       )}
@@ -261,7 +293,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                           <button onClick={() => setAssigningCatId(null)} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }}><X size={16} /></button>
                         </div>
                       ) : (
-                        <button onClick={() => { setAssigningCatId(p.id); setAddingStockId(null); setSelectedCat(p.category || 'Umumiy'); setEditingProductId(null); }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#f3f4f6', color: '#4b5563', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #d1d5db' }}>
+                        <button onClick={() => { setAssigningCatId(p.id); setAddingStockId(null); setSelectedCat(p.category || 'Umumiy'); setEditingProductId(null); setChangingPriceId(null); }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#f3f4f6', color: '#4b5563', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #d1d5db' }}>
                           <Tags size={16} /> Bo'limga o'tkazish
                         </button>
                       )}
