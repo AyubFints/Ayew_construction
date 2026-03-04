@@ -10,7 +10,7 @@ import Debts from './components/Debts';
 import Settings from './components/Settings';
 import Customers from './components/Customers'; 
 
-import { Home, Package, ShoppingCart, RotateCcw, Wallet, BookOpen, Users, Lock } from 'lucide-react'; 
+import { Home, Package, ShoppingCart, RotateCcw, Wallet, BookOpen, Users, Lock, MessageCircle } from 'lucide-react'; 
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -47,13 +47,13 @@ const MasterGate = ({ onUnlock }) => {
           </div>
         </div>
         <h2 style={{ margin: '0 0 10px 0', color: '#1e3a8a' }}>Maxfiy Ruxsat</h2>
-        <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '30px' }}>Dasturdan foydalanish uchun maxsus login va parolni kiriting.</p>
+        <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>Dasturdan foydalanish uchun maxsus login va parolni kiriting.</p>
         
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '15px' }}>
             <input 
               className="form-control" 
-              placeholder="Dastur Loginini kiritng" 
+              placeholder="Dastur Loginini kiriting" 
               value={login} 
               onChange={e => {setLogin(e.target.value); setError('');}} 
               required 
@@ -81,10 +81,26 @@ const MasterGate = ({ onUnlock }) => {
           
           {error && <p style={{ color: '#ef4444', fontSize: '13px', margin: '0 0 15px 0', fontWeight: 'bold' }}>{error}</p>}
           
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '15px', fontSize: '16px' }}>
+          <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '15px', fontSize: '16px', marginBottom: '25px' }}>
             Tasdiqlash va Kirish
           </button>
         </form>
+
+        {/* YANGI QO'SHILGAN TELEGRAM MUROJAAT QISMI */}
+        <div style={{ padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+          <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#475569', lineHeight: '1.5' }}>
+            Dasturga kirish uchun maxfiy login va parolni bilmasangiz, admin bilan bog'laning:
+          </p>
+          <a 
+            href="https://t.me/xaamiitov" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#0088cc', fontWeight: 'bold', textDecoration: 'none', fontSize: '15px' }}
+          >
+            <MessageCircle size={18} /> @xaamiitov
+          </a>
+        </div>
+
       </div>
     </div>
   );
