@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, RotateCcw, Package, Wallet, BookOpen, LogOut, Settings as SettingsIcon, AlertTriangle, Users } from 'lucide-react';
+import { ShoppingCart, RotateCcw, Package, Wallet, BookOpen, LogOut, Settings as SettingsIcon, AlertTriangle, Users, Landmark } from 'lucide-react';
 
 const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
   
@@ -72,6 +72,12 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
         <div className="menu-card" onClick={() => setPage('debts')}>
           <div className="menu-icon"><BookOpen size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Qarz Daftari</div>
+        </div>
+
+        {/* --- ARENDA VA CHIQIMLAR (YANGI QO'SHILDI) --- */}
+        <div className="menu-card" onClick={() => setPage('arenda')}>
+          <div className="menu-icon"><Landmark size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
+          <div className="menu-title">Arenda va Chiqimlar</div>
         </div>
 
         {/* SOZLAMALAR */}

@@ -9,28 +9,26 @@ import TodaySales from './components/TodaySales';
 import Debts from './components/Debts';
 import Settings from './components/Settings';
 import Customers from './components/Customers'; 
+// 1. ARENDA KOMPONENTINI IMPORT QILAMIZ
+import Arenda from './components/Arenda'; 
 
-import { Home, Package, ShoppingCart, RotateCcw, Wallet, BookOpen, Users, Lock, MessageCircle } from 'lucide-react'; 
+import { Home, Package, ShoppingCart, RotateCcw, Wallet, BookOpen, Users, Lock, MessageCircle, Landmark } from 'lucide-react'; 
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-// --- MAXFIY DARVOZA (MASTER GATE) KOMPONENTI ---
+// --- MAXFIY DARVOZA KOMPONENTI (O'ZGARMADI) ---
 const MasterGate = ({ onUnlock }) => {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [showPass, setShowPass] = useState(false); // Parolni ko'rish uchun
+  const [showPass, setShowPass] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    // Hamma harflarni kichik qilib tekshiramiz (katta-kichikligiga qaramaydi)
     const checkLogin = login.trim().toLowerCase();
     const checkPass = password.trim().toLowerCase();
-
-    // Loginda "w", parolda "v" borligiga e'tibor bering
     if (checkLogin === 'ayew_qur' && checkPass === 'ayev_ax') {
       onUnlock();
     } else {
@@ -48,73 +46,33 @@ const MasterGate = ({ onUnlock }) => {
         </div>
         <h2 style={{ margin: '0 0 10px 0', color: '#1e3a8a' }}>Maxfiy Ruxsat</h2>
         <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>Dasturdan foydalanish uchun maxsus login va parolni kiriting.</p>
-        
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '15px' }}>
-            <input 
-              className="form-control" 
-              placeholder="Dastur Loginini kiriting" 
-              value={login} 
-              onChange={e => {setLogin(e.target.value); setError('');}} 
-              required 
-              style={{ marginBottom: 0 }}
-            />
+            <input className="form-control" placeholder="Dastur Loginini kiriting" value={login} onChange={e => {setLogin(e.target.value); setError('');}} required />
           </div>
           <div style={{ position: 'relative', marginBottom: '20px' }}>
-            <input 
-              className="form-control" 
-              type={showPass ? "text" : "password"} 
-              placeholder="Dastur Parolini kiriting" 
-              value={password} 
-              onChange={e => {setPassword(e.target.value); setError('');}} 
-              required 
-              style={{ marginBottom: 0, paddingRight: '70px' }}
-            />
-            <button 
-              type="button" 
-              onClick={() => setShowPass(!showPass)} 
-              style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#1e3a8a', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
-            >
+            <input className="form-control" type={showPass ? "text" : "password"} placeholder="Dastur Parolini kiriting" value={password} onChange={e => {setPassword(e.target.value); setError('');}} required style={{ paddingRight: '70px' }} />
+            <button type="button" onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#1e3a8a', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
               {showPass ? "Yashirish" : "Ko'rish"}
             </button>
           </div>
-          
           {error && <p style={{ color: '#ef4444', fontSize: '13px', margin: '0 0 15px 0', fontWeight: 'bold' }}>{error}</p>}
-          
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '15px', fontSize: '16px', marginBottom: '25px' }}>
-            Tasdiqlash va Kirish
-          </button>
+          <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '15px', fontSize: '16px', marginBottom: '25px' }}>Tasdiqlash va Kirish</button>
         </form>
-
-        {/* YANGI QO'SHILGAN TELEGRAM MUROJAAT QISMI */}
         <div style={{ padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
-          <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#475569', lineHeight: '1.5' }}>
-            Dasturga kirish uchun maxfiy login va parolni bilmasangiz, admin bilan bog'laning:
-          </p>
-          <a 
-            href="https://t.me/xaamiitov" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#0088cc', fontWeight: 'bold', textDecoration: 'none', fontSize: '15px' }}
-          >
-            <MessageCircle size={18} /> @xaamiitov
-          </a>
+          <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#475569' }}>Dasturga kirish uchun maxfiy login va parolni bilmasangiz, admin bilan bog'laning:</p>
+          <a href="https://t.me/xaamiitov" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#0088cc', fontWeight: 'bold', textDecoration: 'none' }}><MessageCircle size={18} /> @xaamiitov</a>
         </div>
-
       </div>
     </div>
   );
 };
-// ---------------------------------------------------------
 
 function App() {
-  // Avvaldan ishlatib yurganlarni aniqlash
   const cachedAuth = localStorage.getItem('app_isAuth') === 'true';
   const cachedMaster = localStorage.getItem('app_master_unlocked') === 'true';
 
-  // ASOSIY MANTIQ: Agar oldin auth qilingan bo'lsa, avtomat master darvoza ham ochiq bo'ladi
   const [isMasterUnlocked, setIsMasterUnlocked] = useState(cachedMaster || cachedAuth);
-
   const [isAuth, setIsAuth] = useState(cachedAuth);
   const [dataLoaded, setDataLoaded] = useState(cachedAuth); 
   const [page, setPage] = useState('dashboard');
@@ -125,11 +83,13 @@ function App() {
   const [sales, setSales] = useState(() => JSON.parse(localStorage.getItem('app_sales') || '[]'));
   const [returns, setReturns] = useState(() => JSON.parse(localStorage.getItem('app_returns') || '[]'));
   const [customers, setCustomers] = useState(() => JSON.parse(localStorage.getItem('app_customers') || '[]'));
+  
+  // 2. ARENDA MA'LUMOTLARI UCHUN STATE QO'SHILDI
+  const [arenda, setArenda] = useState(() => JSON.parse(localStorage.getItem('app_arenda') || '[]'));
 
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
     if (hash && hash !== page) setPage(hash);
-    
     const handlePopState = () => {
       const currentHash = window.location.hash.replace('#', '');
       setPage(currentHash || 'dashboard');
@@ -148,11 +108,8 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         localStorage.setItem('app_isAuth', 'true');
-        
-        // Tizimga muvaffaqiyatli kirgandan keyin, ehtiyot shart master darvozani ochiq deb yozib qo'yamiz
         localStorage.setItem('app_master_unlocked', 'true'); 
         setIsMasterUnlocked(true);
-
         if (!isAuth) setIsAuth(true);
 
         try {
@@ -167,6 +124,8 @@ function App() {
             setCategories(data.categories || ["Umumiy"]);
             setStoreName(data.storeName || "Qurilish mollari do'koni");
             setCustomers(data.customers || []); 
+            // FIREBASE DAN ARENDANI YUKLASH
+            setArenda(data.arenda || []);
           }
         } catch (error) {
           console.log("Internet sekin. Oflayn rejimda ishlash davom etmoqda...");
@@ -188,37 +147,30 @@ function App() {
       localStorage.setItem('app_returns', JSON.stringify(returns));
       localStorage.setItem('app_categories', JSON.stringify(categories));
       localStorage.setItem('app_customers', JSON.stringify(customers));
+      // ARENDANI LOCALSTORAGEGA SAQLASH
+      localStorage.setItem('app_arenda', JSON.stringify(arenda));
       localStorage.setItem('app_storeName', storeName);
 
       if (isAuth && auth.currentUser) {
         const docRef = doc(db, "stores", auth.currentUser.uid);
-        setDoc(docRef, { products, sales, returns, categories, storeName, customers })
-          .catch(err => console.log("Hozircha oflayn. Internet kelganda yuboriladi."));
+        // FIREBASE GA ARENDANI YUBORISH
+        setDoc(docRef, { products, sales, returns, categories, storeName, customers, arenda })
+          .catch(err => console.log("Hozircha oflayn."));
       }
     }
-  }, [products, sales, returns, categories, storeName, customers, isAuth, dataLoaded]);
+  }, [products, sales, returns, categories, storeName, customers, arenda, isAuth, dataLoaded]);
 
   const handleLogout = async () => {
     if(window.confirm("Tizimdan chiqasizmi?")) {
       await signOut(auth);
       localStorage.setItem('app_isAuth', 'false');
-      // Diqqat: Dasturdan chiqqanda Master Gateni yopmaymiz, chunki u qurilma uchun bir marta ochilishi kerak.
       setIsAuth(false); 
       setPage('dashboard'); 
     }
   };
 
-  // --- MAXFIY DARVOZANI TEKSHIRISH ---
-  if (!isMasterUnlocked) {
-    return <MasterGate onUnlock={() => {
-      setIsMasterUnlocked(true);
-      localStorage.setItem('app_master_unlocked', 'true');
-    }} />;
-  }
-
   const renderBottomNav = () => {
     if (!isAuth || !dataLoaded || page === 'dashboard' || page === 'settings') return null;
-
     const navItems = [
       { id: 'dashboard', icon: <Home size={22} />, label: 'Asosiy' },
       { id: 'products', icon: <Package size={22} />, label: 'Ombor' },
@@ -227,9 +179,7 @@ function App() {
       { id: 'customers', icon: <Users size={22} />, label: 'Mijozlar' }, 
       { id: 'debts', icon: <BookOpen size={22} />, label: 'Qarz' },
     ];
-
     const visibleNavs = navItems.filter(item => item.id !== page);
-
     return (
       <div style={{
         position: 'fixed', bottom: '15px', left: '50%', transform: 'translateX(-50%)',
@@ -238,17 +188,8 @@ function App() {
         display: 'flex', gap: '15px', padding: '12px 25px', zIndex: 1000, border: '1px solid #e0e7ff'
       }}>
         {visibleNavs.map(item => (
-          <div
-            key={item.id} 
-            onClick={() => setPage(item.id)} 
-            title={item.label}
-            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-          >
-            <div style={{
-              width: '46px', height: '46px', borderRadius: '50%', backgroundColor: '#f1f5f9',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#1e3a8a', transition: 'all 0.3s ease', boxShadow: '0 4px 6px rgba(0,0,0,0.05)'
-            }}>
+          <div key={item.id} onClick={() => setPage(item.id)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <div style={{ width: '46px', height: '46px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1e3a8a' }}>
               {item.icon}
             </div>
             <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e3a8a' }}>{item.label}</span>
@@ -270,9 +211,15 @@ function App() {
       case 'customers': return <Customers customers={customers} setCustomers={setCustomers} sales={sales} setPage={setPage} />;
       case 'debts': return <Debts sales={sales} setSales={setSales} setPage={setPage} />;
       case 'settings': return <Settings storeName={storeName} setStoreName={setStoreName} setProducts={setProducts} setSales={setSales} setReturns={setReturns} setPage={setPage} />;
+      // 3. ARENDA SAHIFASI SWITCHGA QO'SHILDI
+      case 'arenda': return <Arenda arenda={arenda} setArenda={setArenda} setPage={setPage} />;
       default: return <Dashboard storeName={storeName} products={products} setPage={setPage} onLogout={handleLogout} />;
     }
   };
+
+  if (!isMasterUnlocked) {
+    return <MasterGate onUnlock={() => { setIsMasterUnlocked(true); localStorage.setItem('app_master_unlocked', 'true'); }} />;
+  }
 
   return (
     <div className="app-container" style={{ paddingBottom: page !== 'dashboard' && page !== 'settings' ? '110px' : '20px' }}>
