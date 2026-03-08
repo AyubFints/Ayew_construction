@@ -43,20 +43,32 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     return `${y}` === detailDate;
   };
 
-  // Bu yerda barcha savdolar chiqadi (Kutilayotganlar ham tarixda ko'rinishi uchun isReceived shartini olib tashladik yoki faqat ombordan chiqqanini ko'rsatamiz)
-  // Biz kassani emas, omborni ko'rayotganimiz uchun hamma savdo (qarz/naqd/kutilayotgan) chiqishi kerak.
+  // Tovar dollar($)da ekanligini aniqlash uchun yordamchi funksiya
+  const isUsdProduct = (productName) => typeof productName === 'string' && productName.includes('$');
+
   const tableData = useMemo(() => {
     return sales.filter(s => isMatchDate(s.id)).sort((a, b) => b.id - a.id);
   }, [sales, detailFilter, detailDate]);
 
-  const periodIncome = tableData.reduce((acc, curr) => acc + (Number(curr.totalSum) || Number(curr.total) || 0), 0);
+  // SO'M VA DOLLARNI ALOHIDA HISOBLASH
+  let periodIncomeSom = 0;
+  let periodIncomeUsd = 0;
+  tableData.forEach(curr => {
+    const amount = Number(curr.totalSum) || Number(curr.total) || 0;
+    if (isUsdProduct(curr.productName)) periodIncomeUsd += amount;
+    else periodIncomeSom += amount;
+  });
   
-  const periodExpense = useMemo(() => {
-    return returns.filter(r => isMatchDate(r.id)).reduce((acc, curr) => acc + (Number(curr.returnSum) || Number(curr.totalSum) || Number(curr.total) || Number(curr.price) || 0), 0);
-  }, [returns, detailFilter, detailDate]);
+  let periodExpenseSom = 0;
+  let periodExpenseUsd = 0;
+  returns.filter(r => isMatchDate(r.id)).forEach(curr => {
+    const amount = Number(curr.returnSum) || Number(curr.totalSum) || Number(curr.total) || Number(curr.price) || 0;
+    if (isUsdProduct(curr.productName)) periodExpenseUsd += amount;
+    else periodExpenseSom += amount;
+  });
 
-  const periodNetProfit = periodIncome - periodExpense;
-  const tableTotalSum = periodIncome; 
+  const periodNetProfitSom = periodIncomeSom - periodExpenseSom;
+  const periodNetProfitUsd = periodIncomeUsd - periodExpenseUsd;
 
   const aggregatedHistory = useMemo(() => {
     const map = {};
@@ -71,16 +83,22 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     };
 
     sales.forEach(s => {
-      const timeToUse = s.id; // Sotilgan vaqt
+      const timeToUse = s.id; 
       const { key, label } = getKeyAndLabel(timeToUse);
-      if (!map[key]) map[key] = { label, income: 0, expense: 0, timestamp: timeToUse };
-      map[key].income += (Number(s.totalSum) || Number(s.total) || 0);
+      if (!map[key]) map[key] = { label, incomeSom: 0, incomeUsd: 0, expenseSom: 0, expenseUsd: 0, timestamp: timeToUse };
+      
+      const amount = Number(s.totalSum) || Number(s.total) || 0;
+      if (isUsdProduct(s.productName)) map[key].incomeUsd += amount;
+      else map[key].incomeSom += amount;
     });
 
     returns.forEach(r => {
       const { key, label } = getKeyAndLabel(r.id);
-      if (!map[key]) map[key] = { label, income: 0, expense: 0, timestamp: r.id };
-      map[key].expense += (Number(r.returnSum) || Number(r.totalSum) || 0);
+      if (!map[key]) map[key] = { label, incomeSom: 0, incomeUsd: 0, expenseSom: 0, expenseUsd: 0, timestamp: r.id };
+      
+      const amount = Number(r.returnSum) || Number(r.totalSum) || 0;
+      if (isUsdProduct(r.productName)) map[key].expenseUsd += amount;
+      else map[key].expenseSom += amount;
     });
 
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
@@ -123,13 +141,24 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     setProducts(updatedProducts);
 
     const overallTotal = cart.reduce((sum, item) => sum + item.total, 0);
-    const combinedNames = cart.map(item => `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} so'm)`).join('\n');
+    
+    const combinedNames = cart.map(item => `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} ${item.product.unit === 'kv' ? '$' : "so'm"})`).join('\n');
 
     setSales([...sales, { id: Date.now(), productName: combinedNames, unit: 'xil tovar', quantity: cart.length, customer, totalSum: overallTotal, isReceived: false, cartItems: cart }]);
     
+    const overallSom = cart.filter(i => i.product.unit !== 'kv').reduce((sum, item) => sum + item.total, 0);
+    const overallUsd = cart.filter(i => i.product.unit === 'kv').reduce((sum, item) => sum + item.total, 0);
+    let alertMsg = `✅ Savdo yakunlandi! Jami summa: `;
+    if (overallSom > 0) alertMsg += `${overallSom.toLocaleString()} so'm `;
+    if (overallUsd > 0) alertMsg += `${overallSom > 0 ? 'va ' : ''}${overallUsd.toLocaleString()} $`;
+    alertMsg += `\n(Pulini qabul qilish uchun Kassa bo'limiga o'ting)`;
+
     setCart([]); setCustomer(''); setError('');
-    alert(`✅ Savdo yakunlandi! Jami summa: ${overallTotal.toLocaleString()} so'm\n(Pulini qabul qilish uchun Kassa bo'limiga o'ting)`);
+    alert(alertMsg);
   };
+
+  const cartTotalSom = cart.filter(i => i.product.unit !== 'kv').reduce((sum, item) => sum + item.total, 0);
+  const cartTotalUsd = cart.filter(i => i.product.unit === 'kv').reduce((sum, item) => sum + item.total, 0);
 
   return (
     <div className="fade-in app-container">
@@ -144,17 +173,29 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #1e3a8a', position: 'relative' }}>
           <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#e0e7ff', color: '#3730a3', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
           <p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: 'bold' }}>SOTILGAN TOVARLAR SUMMASI</p>
-          <h2 style={{ margin: '10px 0 0 0', color: '#1e3a8a', fontSize: '28px' }}>{periodIncome.toLocaleString()} so'm</h2>
+          <h2 style={{ margin: '10px 0 0 0', color: '#1e3a8a', fontSize: '24px' }}>
+            {periodIncomeSom > 0 || periodIncomeUsd === 0 ? `${periodIncomeSom.toLocaleString()} so'm` : ''}
+            {periodIncomeSom > 0 && periodIncomeUsd > 0 && <br/>}
+            {periodIncomeUsd > 0 ? `${periodIncomeUsd.toLocaleString()} $` : ''}
+          </h2>
         </div>
         <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #4b5563', position: 'relative' }}>
           <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#f3f4f6', color: '#4b5563', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
           <p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontWeight: 'bold' }}>QAYTGAN TOVARLAR SUMMASI</p>
-          <h2 style={{ margin: '10px 0 0 0', color: '#4b5563', fontSize: '28px' }}>{periodExpense.toLocaleString()} so'm</h2>
+          <h2 style={{ margin: '10px 0 0 0', color: '#4b5563', fontSize: '24px' }}>
+            {periodExpenseSom > 0 || periodExpenseUsd === 0 ? `${periodExpenseSom.toLocaleString()} so'm` : ''}
+            {periodExpenseSom > 0 && periodExpenseUsd > 0 && <br/>}
+            {periodExpenseUsd > 0 ? `${periodExpenseUsd.toLocaleString()} $` : ''}
+          </h2>
         </div>
         <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#1e3a8a', color: 'white', border: 'none', position: 'relative' }}>
           <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#3b82f6', color: '#ffffff', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
           <p style={{ margin: 0, color: '#d1d5db', fontSize: '14px', fontWeight: 'bold' }}>SOF SAVDO</p>
-          <h2 style={{ margin: '10px 0 0 0', color: '#ffffff', fontSize: '28px' }}>{periodNetProfit.toLocaleString()} so'm</h2>
+          <h2 style={{ margin: '10px 0 0 0', color: '#ffffff', fontSize: '24px' }}>
+            {periodNetProfitSom !== 0 || periodNetProfitUsd === 0 ? `${periodNetProfitSom.toLocaleString()} so'm` : ''}
+            {periodNetProfitSom !== 0 && periodNetProfitUsd !== 0 && <br/>}
+            {periodNetProfitUsd !== 0 ? `${periodNetProfitUsd.toLocaleString()} $` : ''}
+          </h2>
         </div>
       </div>
 
@@ -170,15 +211,30 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
             <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'yearly' ? '#1e3a8a' : '#e5e7eb', color: historyType === 'yearly' ? 'white' : '#1f2937' }} onClick={() => setHistoryType('yearly')}>Yillik</button>
           </div>
           {aggregatedHistory.length === 0 ? <p style={{ textAlign: 'center', color: '#6b7280' }}>Hozircha ma'lumot yo'q.</p> : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {aggregatedHistory.map((item, index) => (
-                <div key={index} style={{ padding: '15px', background: 'white', borderRadius: '8px', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                  <div style={{ fontWeight: 'bold', width: '100%', marginBottom: '8px', color: '#1f2937' }}>{item.label}</div>
-                  <div style={{ color: '#1e3a8a', fontSize: '14px', fontWeight: 'bold' }}>Sotuv: +{item.income.toLocaleString()}</div>
-                  <div style={{ color: '#4b5563', fontSize: '14px', fontWeight: 'bold' }}>Vozvrat: -{item.expense.toLocaleString()}</div>
-                  <div style={{ color: '#111827', fontSize: '14px', fontWeight: 'bold' }}>Sof: {(item.income - item.expense).toLocaleString()}</div>
-                </div>
-              ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {aggregatedHistory.map((item, index) => {
+                const netSom = item.incomeSom - item.expenseSom;
+                const netUsd = item.incomeUsd - item.expenseUsd;
+                return (
+                  <div key={index} style={{ padding: '15px', background: 'white', borderRadius: '8px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ fontWeight: 'bold', color: '#1f2937', borderBottom: '1px solid #eee', paddingBottom: '5px' }}>{item.label}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ color: '#10b981', fontSize: '14px', fontWeight: 'bold' }}>
+                        Sotuv: {item.incomeSom > 0 ? `+${item.incomeSom.toLocaleString()} so'm ` : ''} 
+                        {item.incomeUsd > 0 ? `+${item.incomeUsd.toLocaleString()} $` : ''}
+                      </div>
+                      <div style={{ color: '#ef4444', fontSize: '14px', fontWeight: 'bold' }}>
+                        Vozvrat: {item.expenseSom > 0 ? `-${item.expenseSom.toLocaleString()} so'm ` : ''}
+                        {item.expenseUsd > 0 ? `-${item.expenseUsd.toLocaleString()} $` : ''}
+                      </div>
+                      <div style={{ color: '#1e3a8a', fontSize: '14px', fontWeight: 'bold' }}>
+                        Sof: {netSom !== 0 || netUsd === 0 ? `${netSom.toLocaleString()} so'm ` : ''}
+                        {netUsd !== 0 ? `${netUsd.toLocaleString()} $` : ''}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -257,17 +313,26 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                 <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '10px 15px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
                   <div style={{ flex: 1 }}>
                     <p style={{ margin: 0, fontWeight: 'bold', color: '#111827' }}>{index + 1}. {item.product.name}</p>
-                    <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6b7280' }}>{item.qty} {item.product.unit} x {item.product.price.toLocaleString()} so'm</p>
+                    <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
+                      {item.qty} {item.product.unit} x {item.product.price.toLocaleString()} {item.product.unit === 'kv' ? '$' : "so'm"}
+                    </p>
                   </div>
-                  <div style={{ fontWeight: 'bold', color: '#1e3a8a', marginRight: '15px' }}>{item.total.toLocaleString()} so'm</div>
+                  <div style={{ fontWeight: 'bold', color: '#1e3a8a', marginRight: '15px' }}>
+                    {item.total.toLocaleString()} {item.product.unit === 'kv' ? '$' : "so'm"}
+                  </div>
                   <button onClick={() => handleRemoveFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '18px' }}>✖</button>
                 </div>
               ))}
             </div>
+            
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e5e7eb', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
               <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#374151' }}>Umumiy Summa:</span>
-              <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#1e3a8a' }}>{cart.reduce((sum, item) => sum + item.total, 0).toLocaleString()} so'm</span>
+              <div style={{ textAlign: 'right' }}>
+                {cartTotalSom > 0 && <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e3a8a' }}>{cartTotalSom.toLocaleString()} so'm</div>}
+                {cartTotalUsd > 0 && <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>{cartTotalUsd.toLocaleString()} $</div>}
+              </div>
             </div>
+
             <button onClick={handleFinalSell} className="btn btn-primary" style={{ fontSize: '18px', padding: '16px', display: 'flex', gap: '8px', justifyContent: 'center', width: '100%' }}>
               <CheckCircle size={22} /> Tasdiqlash va Sotish
             </button>
@@ -275,7 +340,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         )}
       </div>
 
-      {/* --- BATAFSIL JADVAL (O'ZGARISH MANA SHU YERDA QILINDI) --- */}
+      {/* --- BATAFSIL JADVAL --- */}
       <div className="card" style={{ maxWidth: '100%', marginTop: '40px', borderTop: '4px solid #4b5563' }}>
         <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1f2937', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <ClipboardList size={22} color="#4b5563" /> Batafsil savdolar jadvali
@@ -299,16 +364,18 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
           <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px dashed #d1d5db' }}>Tanlangan sana (<b>{detailDate}</b>) uchun hech qanday ma'lumot yo'q.</p>
         ) : (
           <div className="fade-in">
-            <div style={{ backgroundColor: '#f3f4f6', padding: '15px', borderRadius: '8px 8px 0 0', border: '1px solid #e5e7eb', borderBottom: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ backgroundColor: '#f3f4f6', padding: '15px', borderRadius: '8px 8px 0 0', border: '1px solid #e5e7eb', borderBottom: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 'bold', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '8px' }}><CalendarDays size={18} /> Sana: {detailDate}</span>
-              <span style={{ fontWeight: 'bold', color: '#111827', fontSize: '16px' }}>Shu kundagi jami tushum: {tableTotalSum.toLocaleString()} so'm</span>
+              <span style={{ fontWeight: 'bold', color: '#111827', fontSize: '16px' }}>
+                Jami tushum: {periodIncomeSom > 0 || periodIncomeUsd === 0 ? `${periodIncomeSom.toLocaleString()} so'm ` : ''}
+                {periodIncomeUsd > 0 ? `va ${periodIncomeUsd.toLocaleString()} $` : ''}
+              </span>
             </div>
             
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e5e7eb', backgroundColor: '#ffffff' }}>
                 <thead>
                   <tr>
-                    {/* USTUNLAR O'RNI ALMASHTIRILDI */}
                     <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Xaridor (Mijoz)</th>
                     <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Jami Summa</th>
                     <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Olingan tovarlar</th>
@@ -319,7 +386,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                   {tableData.map(item => (
                     <tr key={item.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
                       
-                      {/* MIJOZ ISMI BIRINCHI USTUNGA O'TDI */}
                       <td style={{ padding: '14px', color: '#1e3a8a', fontWeight: 'bold' }}>
                         {item.customer}
                         {!item.isReceived && !item.isDebt && (
@@ -335,12 +401,11 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                       </td>
 
                       <td style={{ padding: '14px', color: '#10b981', fontWeight: 'bold', fontSize: '16px' }}>
-                        +{(Number(item.totalSum) || Number(item.total) || 0).toLocaleString()} so'm
+                        +{(Number(item.totalSum) || Number(item.total) || 0).toLocaleString()} {item.productName.includes('$') ? '$' : "so'm"}
                       </td>
 
                       <td style={{ padding: '14px', color: '#4b5563', lineHeight: '1.6', fontSize: '14px', whiteSpace: 'pre-line' }}>{item.productName}</td>
                       
-                      {/* VAQT OXIRGI USTUNGA O'TDI */}
                       <td style={{ padding: '14px', color: '#6b7280', fontSize: '14px', textAlign: 'right' }}>
                         {new Date(item.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
                       </td>

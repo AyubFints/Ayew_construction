@@ -5,16 +5,24 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
   const [partialAmounts, setPartialAmounts] = useState({});
   const todayStr = new Date().toLocaleDateString('uz-UZ');
   
-  // Bugungi barcha pullarni yig'ib olish (Yangi savdolar + Qarzdan tushgan pullar)
-  let totalIncome = 0;
+  // Tovar dollar($)da sotilganligini aniqlash uchun yordamchi funksiya
+  const isUsdProduct = (productName) => typeof productName === 'string' && productName.includes('$');
+
+  // Bugungi barcha pullarni yig'ib olish (So'm va Dollar alohida)
+  let totalIncomeSom = 0;
+  let totalIncomeUsd = 0;
   const todaysPayments = [];
 
   sales.forEach(sale => {
+    const isUsd = isUsdProduct(sale.productName);
+
     // Agar to'lovlar tarixi bo'lsa (qarzdan yoki qisman to'lov qilingan bo'lsa)
     if (sale.paymentHistory && sale.paymentHistory.length > 0) {
       sale.paymentHistory.forEach(payment => {
         if (new Date(payment.date).toLocaleDateString('uz-UZ') === todayStr) {
-          totalIncome += payment.amount;
+          if (isUsd) totalIncomeUsd += payment.amount;
+          else totalIncomeSom += payment.amount;
+          
           todaysPayments.push({
             id: payment.date,
             saleId: sale.id,
@@ -25,14 +33,16 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
             totalSum: sale.totalSum,
             isDebt: sale.isDebt,
             currentPaidAmount: sale.paidAmount,
-            isDebtPayment: payment.date !== sale.id // Agar to'lov vaqti savdo vaqtidan farq qilsa, bu qarz to'lovi
+            isDebtPayment: payment.date !== sale.id 
           });
         }
       });
     } else {
       // Odatdagi to'liq to'langan savdolar
       if (sale.isReceived && new Date(sale.receivedAt || sale.id).toLocaleDateString('uz-UZ') === todayStr) {
-        totalIncome += sale.totalSum;
+        if (isUsd) totalIncomeUsd += sale.totalSum;
+        else totalIncomeSom += sale.totalSum;
+
         todaysPayments.push({
           id: sale.id,
           saleId: sale.id,
@@ -52,8 +62,16 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
   // Yangi to'lovlarni eng tepaga qo'yish
   todaysPayments.sort((a, b) => b.date - a.date);
 
-  const totalExpense = returns.filter(r => new Date(r.id).toLocaleDateString('uz-UZ') === todayStr).reduce((acc, curr) => acc + (curr.returnSum || 0), 0);
-  const netCash = totalIncome - totalExpense;
+  // Vozvratlarni ham So'm va Dollarga ajratamiz
+  let totalExpenseSom = 0;
+  let totalExpenseUsd = 0;
+  returns.filter(r => new Date(r.id).toLocaleDateString('uz-UZ') === todayStr).forEach(r => {
+    if (isUsdProduct(r.productName)) totalExpenseUsd += (r.returnSum || 0);
+    else totalExpenseSom += (r.returnSum || 0);
+  });
+
+  const netCashSom = totalIncomeSom - totalExpenseSom;
+  const netCashUsd = totalIncomeUsd - totalExpenseUsd;
 
   const handleReceive = (id, customer, sum) => {
     if (window.confirm(`${customer} hamma pulni to'liq to'ladimi?`)) {
@@ -70,11 +88,13 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
 
   const handlePartialPayment = (sale) => {
     const inputAmount = parseFloat(partialAmounts[sale.id]);
+    const currency = isUsdProduct(sale.productName) ? '$' : "so'm";
+
     if (isNaN(inputAmount) || inputAmount <= 0) return alert("Summani to'g'ri kiriting!");
     if (inputAmount >= sale.totalSum) return handleReceive(sale.id, sale.customer, sale.totalSum);
 
     const remaining = sale.totalSum - inputAmount;
-    if (window.confirm(`${sale.customer}dan ${inputAmount.toLocaleString()} so'm olindi.\nQolgan ${remaining.toLocaleString()} so'm qarzga yozilsinmi?`)) {
+    if (window.confirm(`${sale.customer}dan ${inputAmount.toLocaleString()} ${currency} olindi.\nQolgan ${remaining.toLocaleString()} ${currency} qarzga yozilsinmi?`)) {
       setSales(sales.map(s => s.id === sale.id ? { 
         ...s, 
         isReceived: true, 
@@ -118,52 +138,67 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '40px' }}>
         <div className="card" style={{ borderTop: '6px solid #10b981' }}>
           <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>JAMI KIRIM</p>
-          <h2 style={{ color: '#10b981' }}>+{totalIncome.toLocaleString()}</h2>
+          <h2 style={{ color: '#10b981', margin: '5px 0' }}>
+            {totalIncomeSom > 0 || totalIncomeUsd === 0 ? `+${totalIncomeSom.toLocaleString()} so'm` : ''}
+            {totalIncomeSom > 0 && totalIncomeUsd > 0 && <br/>}
+            {totalIncomeUsd > 0 ? `+${totalIncomeUsd.toLocaleString()} $` : ''}
+          </h2>
         </div>
         <div className="card" style={{ borderTop: '6px solid #4b5563' }}>
           <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>JAMI CHIQIM</p>
-          <h2 style={{ color: '#4b5563' }}>-{totalExpense.toLocaleString()}</h2>
+          <h2 style={{ color: '#4b5563', margin: '5px 0' }}>
+            {totalExpenseSom > 0 || totalExpenseUsd === 0 ? `-${totalExpenseSom.toLocaleString()} so'm` : ''}
+            {totalExpenseSom > 0 && totalExpenseUsd > 0 && <br/>}
+            {totalExpenseUsd > 0 ? `-${totalExpenseUsd.toLocaleString()} $` : ''}
+          </h2>
         </div>
         <div className="card" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)', color: 'white', border: 'none' }}>
           <p style={{ margin: 0, opacity: 0.8, fontSize: '13px', fontWeight: 'bold' }}>SOF KASSA</p>
-          <h2>{netCash.toLocaleString()}</h2>
+          <h2 style={{ margin: '5px 0' }}>
+            {netCashSom !== 0 || netCashUsd === 0 ? `${netCashSom.toLocaleString()} so'm` : ''}
+            {netCashSom !== 0 && netCashUsd !== 0 && <br/>}
+            {netCashUsd !== 0 ? `${netCashUsd.toLocaleString()} $` : ''}
+          </h2>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
         
         {/* KUTILAYOTGANLAR (Yangi tovar savdolari kutib turgan joy) */}
         <div className="card" style={{ borderTop: '4px solid #4b5563' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px' }}><Clock size={20} color="#4b5563" /> Kutilayotgan to'lovlar</h3>
           {pendingSales.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Kutilayotganlar yo'q.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              {pendingSales.map(sale => (
-                <div key={sale.id} className="card fade-in" style={{ padding: '15px', background: 'white', border: '1px solid #d1d5db' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    <span style={{ fontWeight: '800', color: '#1e3a8a' }}>{sale.customer}</span>
-                    <span style={{ fontWeight: '800' }}>{sale.totalSum.toLocaleString()} so'm</span>
-                  </div>
-                  <div style={{ color: '#4b5563', fontSize: '14px', marginBottom: '15px', whiteSpace: 'pre-line' }}>{sale.productName}</div>
-
-                  <div style={{ backgroundColor: '#f9fafb', padding: '12px', borderRadius: '8px', marginBottom: '15px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold' }}>Mijoz qancha pul berdi?</label>
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '5px' }}>
-                      <input 
-                        type="number" className="form-control" placeholder="Summa" 
-                        value={partialAmounts[sale.id] || ''} onChange={(e) => setPartialAmounts({...partialAmounts, [sale.id]: e.target.value})}
-                        style={{ marginBottom: 0 }}
-                      />
-                      <button onClick={() => handlePartialPayment(sale)} className="btn btn-primary" style={{ width: 'auto' }}>To'lash</button>
+              {pendingSales.map(sale => {
+                const currency = isUsdProduct(sale.productName) ? '$' : "so'm";
+                return (
+                  <div key={sale.id} className="card fade-in" style={{ padding: '15px', background: 'white', border: '1px solid #d1d5db' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <span style={{ fontWeight: '800', color: '#1e3a8a' }}>{sale.customer}</span>
+                      <span style={{ fontWeight: '800' }}>{sale.totalSum.toLocaleString()} {currency}</span>
                     </div>
-                  </div>
+                    <div style={{ color: '#4b5563', fontSize: '14px', marginBottom: '15px', whiteSpace: 'pre-line' }}>{sale.productName}</div>
 
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={() => handleReceive(sale.id, sale.customer, sale.totalSum)} className="btn btn-primary" style={{ flex: 1, background: '#10b981' }}>To'liq olindi</button>
-                    <button onClick={() => handleToDebt(sale.id)} className="btn" style={{ flex: 1, background: '#f59e0b', color: 'white' }}>Qarzga</button>
+                    <div style={{ backgroundColor: '#f9fafb', padding: '12px', borderRadius: '8px', marginBottom: '15px' }}>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold' }}>Mijoz qancha pul berdi? ({currency})</label>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '5px' }}>
+                        <input 
+                          type="number" className="form-control" placeholder={`Summa (${currency})`} 
+                          value={partialAmounts[sale.id] || ''} onChange={(e) => setPartialAmounts({...partialAmounts, [sale.id]: e.target.value})}
+                          style={{ marginBottom: 0 }}
+                        />
+                        <button onClick={() => handlePartialPayment(sale)} className="btn btn-primary" style={{ width: 'auto' }}>To'lash</button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button onClick={() => handleReceive(sale.id, sale.customer, sale.totalSum)} className="btn btn-primary" style={{ flex: 1, background: '#10b981' }}>To'liq olindi</button>
+                      <button onClick={() => handleToDebt(sale.id)} className="btn" style={{ flex: 1, background: '#f59e0b', color: 'white' }}>Qarzga</button>
+                    </div>
+                    <button onClick={() => handleCancelSale(sale)} className="btn btn-danger" style={{ width: '100%', marginTop: '10px' }}><XCircle size={18} /> Bekor qilish</button>
                   </div>
-                  <button onClick={() => handleCancelSale(sale)} className="btn btn-danger" style={{ width: '100%', marginTop: '10px' }}><XCircle size={18} /> Bekor qilish</button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -173,36 +208,39 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
           <h3 style={{ marginTop: 0, marginBottom: '20px' }}><CheckCircle size={20} color="#1e3a8a" /> Bugun kassaga tushgan pullar</h3>
           {todaysPayments.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Hali pul tushmadi.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              {todaysPayments.map((payment) => (
-                <div key={payment.id} className="fade-in" style={{ padding: '15px', backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderLeft: '4px solid #1e3a8a', borderRadius: '12px' }}>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ flex: '1' }}>
-                      <div style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase' }}>Olingan summa</div>
-                      <div style={{ fontWeight: 'bold', color: '#10b981', fontSize: '18px' }}>+{payment.amountPaid.toLocaleString()} so'm</div>
-                    </div>
-                    <div style={{ flex: '1', textAlign: 'right' }}>
-                      <div style={{ fontSize: '12px', color: '#6b7280' }}>Mijoz</div>
-                      <div style={{ fontWeight: 'bold', color: '#1e3a8a' }}>{payment.customer}</div>
-                      {payment.isDebtPayment && <span style={{ fontSize: '10px', backgroundColor: '#fef3c7', color: '#b45309', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold' }}>Qarzdan to'lov</span>}
-                    </div>
-                  </div>
-
-                  <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '10px', whiteSpace: 'pre-line' }}>{payment.productName}</div>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', borderTop: '1px solid #fafafa', paddingTop: '8px' }}>
-                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>Vaqti: {new Date(payment.date).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</div>
+              {todaysPayments.map((payment) => {
+                const currency = isUsdProduct(payment.productName) ? '$' : "so'm";
+                return (
+                  <div key={payment.id} className="fade-in" style={{ padding: '15px', backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderLeft: '4px solid #1e3a8a', borderRadius: '12px' }}>
                     
-                    {/* SIZ AYTGAN QOLDIQ QARZ SHU YERDA CHIQADI */}
-                    {payment.isDebt && (
-                      <div style={{ fontSize: '13px', color: '#ef4444', fontWeight: 'bold' }}>
-                        ⚠️ Yana {(payment.totalSum - payment.currentPaidAmount).toLocaleString()} so'm qarzi qoldi
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ flex: '1' }}>
+                        <div style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase' }}>Olingan summa</div>
+                        <div style={{ fontWeight: 'bold', color: '#10b981', fontSize: '18px' }}>+{payment.amountPaid.toLocaleString()} {currency}</div>
                       </div>
-                    )}
-                  </div>
+                      <div style={{ flex: '1', textAlign: 'right' }}>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Mijoz</div>
+                        <div style={{ fontWeight: 'bold', color: '#1e3a8a' }}>{payment.customer}</div>
+                        {payment.isDebtPayment && <span style={{ fontSize: '10px', backgroundColor: '#fef3c7', color: '#b45309', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold' }}>Qarzdan to'lov</span>}
+                      </div>
+                    </div>
 
-                </div>
-              ))}
+                    <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '10px', whiteSpace: 'pre-line' }}>{payment.productName}</div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', borderTop: '1px solid #fafafa', paddingTop: '8px' }}>
+                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>Vaqti: {new Date(payment.date).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</div>
+                      
+                      {/* QOLDIQ QARZ SHU YERDA CHIQADI */}
+                      {payment.isDebt && (
+                        <div style={{ fontSize: '13px', color: '#ef4444', fontWeight: 'bold' }}>
+                          ⚠️ Yana {(payment.totalSum - payment.currentPaidAmount).toLocaleString()} {currency} qarzi qoldi
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

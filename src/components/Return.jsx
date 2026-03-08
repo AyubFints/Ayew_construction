@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { RotateCcw, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, PackageMinus, Search, X, TrendingDown, Landmark } from 'lucide-react';
 
-// DIQQAT: Bu yerga 'customers' propini qo'shdik, App.jsx dan keladi
 const Return = ({ products, setProducts, returns, setReturns, setPage, customers = [] }) => {
   const [customer, setCustomer] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,8 +44,16 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
     return returns.filter(r => isMatchDate(r.id)).sort((a, b) => b.id - a.id);
   }, [returns, detailFilter, detailDate]);
 
-  const periodExpense = tableData.reduce((acc, curr) => acc + (Number(curr.returnSum) || Number(curr.totalSum) || 0), 0);
-  const tableTotalExpense = periodExpense;
+  // Jami chiqimni $ va so'mga ajratib hisoblash
+  const periodExpense = useMemo(() => {
+    let som = 0;
+    let usd = 0;
+    tableData.forEach(r => {
+      if (r.unit === 'kv' || (r.productName && r.productName.includes(' kv '))) usd += (Number(r.returnSum) || 0);
+      else som += (Number(r.returnSum) || 0);
+    });
+    return { som, usd };
+  }, [tableData]);
 
   const aggregatedHistory = useMemo(() => {
     const map = {};
@@ -62,8 +69,13 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
 
     returns.forEach(r => {
       const { key, label } = getKeyAndLabel(r.id);
-      if (!map[key]) map[key] = { label, expense: 0, timestamp: r.id };
-      map[key].expense += (Number(r.returnSum) || Number(r.totalSum) || 0);
+      if (!map[key]) map[key] = { label, expenseSom: 0, expenseUsd: 0, timestamp: r.id };
+      
+      if (r.unit === 'kv' || (r.productName && r.productName.includes(' kv '))) {
+        map[key].expenseUsd += (Number(r.returnSum) || 0);
+      } else {
+        map[key].expenseSom += (Number(r.returnSum) || 0);
+      }
     });
 
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
@@ -105,21 +117,27 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
     });
     setProducts(updatedProducts);
 
-    const overallTotal = cart.reduce((sum, item) => sum + item.total, 0);
-    const combinedNames = cart.map(item => `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} so'm)`).join('\n');
-
-    const newReturn = {
-      id: Date.now(),
-      productName: combinedNames,
-      unit: 'xil tovar',
-      quantity: cart.length,
+    // Tarixda $ va so'm to'g'ri chiqishi uchun har bir savat elementini alohida saqlaymiz
+    const newReturns = cart.map((item, index) => ({
+      id: Date.now() + index, // bir xil id bo'lib qolmasligi uchun
+      productName: `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} ${item.product.unit === 'kv' ? '$' : "so'm"})`,
+      unit: item.product.unit,
+      quantity: item.qty,
       customer: customer,
-      returnSum: overallTotal
-    };
+      returnSum: item.total
+    }));
 
-    setReturns([...returns, newReturn]);
+    setReturns([...returns, ...newReturns]);
+
+    const totalSom = cart.filter(item => item.product.unit !== 'kv').reduce((sum, item) => sum + item.total, 0);
+    const totalUsd = cart.filter(item => item.product.unit === 'kv').reduce((sum, item) => sum + item.total, 0);
+
     setCart([]); setCustomer(''); setError('');
-    alert(`↩️ Qaytish bajarildi! Jami chiqim: ${overallTotal.toLocaleString()} so'm`);
+    
+    let alertMsg = '↩️ Qaytish bajarildi!\nJami chiqim:\n';
+    if (totalSom > 0) alertMsg += `- ${totalSom.toLocaleString()} so'm\n`;
+    if (totalUsd > 0) alertMsg += `- ${totalUsd.toLocaleString()} $`;
+    alert(alertMsg);
   };
 
   return (
@@ -138,7 +156,11 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
         <div className="card" style={{ borderTop: '6px solid #4b5563', position: 'relative', overflow: 'hidden' }}>
           <TrendingDown size={60} style={{ position: 'absolute', right: '-10px', bottom: '-10px', opacity: 0.05 }} color="#4b5563" />
           <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Jami Chiqim (Vozvrat)</p>
-          <h2 style={{ margin: '10px 0 0 0', color: '#4b5563', fontSize: '28px', fontWeight: '800' }}>-{periodExpense.toLocaleString()} <span style={{fontSize: '14px'}}>so'm</span></h2>
+          <h2 style={{ margin: '10px 0 0 0', color: '#4b5563', fontSize: '24px', fontWeight: '800' }}>
+            {periodExpense.som > 0 && <div>-{periodExpense.som.toLocaleString()} <span style={{fontSize: '14px'}}>so'm</span></div>}
+            {periodExpense.usd > 0 && <div>-{periodExpense.usd.toLocaleString()} <span style={{fontSize: '14px'}}>$</span></div>}
+            {periodExpense.som === 0 && periodExpense.usd === 0 && "0 so'm"}
+          </h2>
         </div>
         
         <div className="card" style={{ background: 'linear-gradient(135deg, #374151 0%, #1f2937 100%)', color: 'white', border: 'none', position: 'relative' }}>
@@ -163,7 +185,11 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
             {aggregatedHistory.map((item, index) => (
               <div key={index} style={{ padding: '15px', background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 'bold', color: '#1f2937' }}>{item.label}</div>
-                <div style={{ color: '#ef4444', fontSize: '18px', fontWeight: 'bold' }}>-{item.expense.toLocaleString()} so'm</div>
+                <div style={{ color: '#ef4444', fontSize: '16px', fontWeight: 'bold', textAlign: 'right' }}>
+                  {item.expenseSom > 0 && <div>-{item.expenseSom.toLocaleString()} so'm</div>}
+                  {item.expenseUsd > 0 && <div>-{item.expenseUsd.toLocaleString()} $</div>}
+                  {item.expenseSom === 0 && item.expenseUsd === 0 && "0 so'm"}
+                </div>
               </div>
             ))}
           </div>
@@ -174,7 +200,6 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
         
         {/* --- QAYTARISH FORMASI --- */}
         <div className="card" style={{ borderTop: '5px solid #4b5563' }}>
-          {/* MIJOZNI TANLASH QISMI (YANGILANGAN!) */}
           <div style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '2px dashed #e5e7eb' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 'bold', color: '#111827' }}>
               <User size={20} color="#4b5563" /> Mijozni tanlang
@@ -217,19 +242,34 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
           {cart.length > 0 && (
             <div className="fade-in" style={{ marginTop: '30px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px' }}>
               <h4 style={{ margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}><PackageMinus size={20} color="#4b5563" /> Qaytarish savatchasi</h4>
-              {cart.map((item, index) => (
-                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '12px', borderRadius: '10px', border: '1px solid #e5e7eb', marginBottom: '10px' }}>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ margin: 0, fontWeight: 'bold' }}>{index + 1}. {item.product.name}</p>
-                    <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#6b7280' }}>{item.qty} {item.product.unit} x {item.product.price.toLocaleString()} so'm</p>
+              {cart.map((item, index) => {
+                const isKv = item.product.unit === 'kv';
+                return (
+                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '12px', borderRadius: '10px', border: '1px solid #e5e7eb', marginBottom: '10px' }}>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ margin: 0, fontWeight: 'bold' }}>{index + 1}. {item.product.name}</p>
+                      <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#6b7280' }}>
+                        {item.qty} {item.product.unit} x {item.product.price.toLocaleString()} {isKv ? '$' : "so'm"}
+                      </p>
+                    </div>
+                    <div style={{ fontWeight: 'bold', color: '#ef4444', marginRight: '15px' }}>
+                      {item.total.toLocaleString()} {isKv ? '$' : "so'm"}
+                    </div>
+                    <button onClick={() => handleRemoveFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>✖</button>
                   </div>
-                  <div style={{ fontWeight: 'bold', color: '#ef4444', marginRight: '15px' }}>{item.total.toLocaleString()} so'm</div>
-                  <button onClick={() => handleRemoveFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>✖</button>
+                );
+              })}
+              
+              <div style={{ backgroundColor: '#e5e7eb', padding: '15px', borderRadius: '10px', marginTop: '20px' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Jami Chiqim:</div>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#ef4444' }}>
+                  {cart.filter(i => i.product.unit !== 'kv').length > 0 && (
+                    <div>-{cart.filter(i => i.product.unit !== 'kv').reduce((s, i) => s + i.total, 0).toLocaleString()} so'm</div>
+                  )}
+                  {cart.filter(i => i.product.unit === 'kv').length > 0 && (
+                    <div>-{cart.filter(i => i.product.unit === 'kv').reduce((s, i) => s + i.total, 0).toLocaleString()} $</div>
+                  )}
                 </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e5e7eb', padding: '15px', borderRadius: '10px', marginTop: '20px' }}>
-                <span style={{ fontWeight: 'bold' }}>Jami Chiqim:</span>
-                <span style={{ fontSize: '20px', fontWeight: '800', color: '#ef4444' }}>-{cart.reduce((sum, item) => sum + item.total, 0).toLocaleString()} so'm</span>
               </div>
               <button onClick={handleFinalReturn} className="btn" style={{ width: '100%', marginTop: '15px', background: '#374151', color: 'white' }}>Tasdiqlash</button>
             </div>
@@ -243,16 +283,21 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {tableData.length === 0 ? <p style={{textAlign: 'center', color: '#94a3b8'}}>Ma'lumot yo'q</p> : 
-              tableData.map(r => (
-                <div key={r.id} style={{ padding: '15px', borderRadius: '15px', background: '#f8fafc', borderLeft: '5px solid #4b5563', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{r.customer}</div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(r.id).toLocaleTimeString()}</div>
-                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '5px', whiteSpace: 'pre-line' }}>{r.productName}</div>
+              tableData.map(r => {
+                const isKv = r.unit === 'kv' || (r.productName && r.productName.includes(' kv '));
+                return (
+                  <div key={r.id} style={{ padding: '15px', borderRadius: '15px', background: '#f8fafc', borderLeft: '5px solid #4b5563', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{r.customer}</div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(r.id).toLocaleTimeString()}</div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '5px', whiteSpace: 'pre-line' }}>{r.productName}</div>
+                    </div>
+                    <div style={{ fontWeight: '800', color: '#ef4444', fontSize: '16px' }}>
+                      -{r.returnSum.toLocaleString()} {isKv ? '$' : "so'm"}
+                    </div>
                   </div>
-                  <div style={{ fontWeight: '800', color: '#ef4444', fontSize: '16px' }}>-{r.returnSum.toLocaleString()}</div>
-                </div>
-              ))
+                );
+              })
             }
           </div>
         </div>

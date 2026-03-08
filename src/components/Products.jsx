@@ -24,11 +24,12 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
   const [editingProductId, setEditingProductId] = useState(null);
   const [editingName, setEditingName] = useState('');
 
-  // --- YANGI: Tovar narxini o'zgartirish ---
+  // Tovar narxini o'zgartirish
   const [changingPriceId, setChangingPriceId] = useState(null);
   const [newPriceAmount, setNewPriceAmount] = useState('');
 
-  // Jami hisob-kitob
+  // Jami hisob-kitob (DIQQAT: Bu yerda dollar va so'm raqamlari to'g'ridan-to'g'ri qo'shilmoqda, 
+  // agar kurs bo'yicha hisoblash kerak bo'lsa, alohida formula kerak bo'ladi)
   const totalWarehouseValue = products.reduce((acc, curr) => acc + (curr.quantity * curr.price), 0);
 
   const displayedProducts = activeFilter === 'Barchasi' 
@@ -94,7 +95,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     setEditingProductId(null);
   };
 
-  // --- YANGI: Narxni saqlash funksiyasi ---
   const handleConfirmChangePrice = (id) => {
     const parsedPrice = parseFloat(newPriceAmount);
     if (isNaN(parsedPrice) || parsedPrice < 0) return alert("Narxni to'g'ri kiriting!");
@@ -116,7 +116,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
 
       <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#1e3a8a', color: '#ffffff', marginBottom: '30px', textAlign: 'center', border: 'none' }}>
         <p style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: '#9ca3af', textTransform: 'uppercase' }}>Jami ombor qiymati</p>
-        <h2 style={{ margin: '10px 0 0 0', fontSize: '42px', fontWeight: 'bold' }}>{totalWarehouseValue.toLocaleString()} <span style={{ fontSize: '20px', color: '#d1d5db' }}>so'm</span></h2>
+        <h2 style={{ margin: '10px 0 0 0', fontSize: '42px', fontWeight: 'bold' }}>{totalWarehouseValue.toLocaleString()} <span style={{ fontSize: '20px', color: '#d1d5db' }}>so'm / $</span></h2>
       </div>
 
       <div className="card" style={{ padding: '20px', marginBottom: '30px', borderTop: '4px solid #4b5563', backgroundColor: '#ffffff' }}>
@@ -176,12 +176,23 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
             <div style={{ display: 'flex', gap: '10px' }}>
               <input type="number" className="form-control" placeholder="Miqdori" value={quantity} onChange={(e) => setQuantity(e.target.value)} required min="0.001" step="any" style={{ flex: 2 }} />
               <select className="form-control" value={unit} onChange={(e) => setUnit(e.target.value)} style={{ flex: 1 }}>
-                <option value="metr">Metr</option><option value="dona">Dona</option><option value="pachka">Pachka</option><option value="kg">KG</option><option value="qop">Qop</option>
+                <option value="metr">Metr</option>
+                {/* YANGA QO'SHILGAN QISM: KV */}
+                <option value="kv">KV</option> 
+                <option value="dona">Dona</option>
+                <option value="pachka">Pachka</option>
+                <option value="kg">KG</option>
+                <option value="qop">Qop</option>
               </select>
             </div>
             <input type="number" className="form-control" placeholder="1 dona narxi" value={price} onChange={(e) => setPrice(e.target.value)} required min="0" step="any" />
             
-            {quantity && price && <div style={{ padding: '15px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '20px', fontWeight: 'bold', color: '#1e3a8a' }}>Umumiy summa: {(parseFloat(quantity) * parseFloat(price)).toLocaleString()} so'm</div>}
+            {/* YANGA QO'SHILGAN QISM: KV bo'lsa $ belgisi */}
+            {quantity && price && (
+              <div style={{ padding: '15px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '20px', fontWeight: 'bold', color: '#1e3a8a' }}>
+                Umumiy qiymat: {(parseFloat(quantity) * parseFloat(price)).toLocaleString()} {unit === 'kv' ? '$' : "so'm"}
+              </div>
+            )}
             
             <button type="submit" className="btn btn-primary" style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '14px' }}>
               <PlusCircle size={20} /> Tovar qo'shish
@@ -242,13 +253,18 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <div style={{ color: '#6b7280', fontSize: '13px' }}>Qoldiq: <span style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '16px' }}>{p.quantity} {p.unit}</span></div>
-                      <div style={{ color: '#6b7280', fontSize: '13px' }}>Narxi: <span style={{ fontWeight: 'bold', color: '#111827', fontSize: '14px' }}>{p.price.toLocaleString()} so'm</span></div>
-                      <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px' }}>Jami qiymati: <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>{(p.quantity * p.price).toLocaleString()} so'm</span></div>
+                      
+                      {/* YANGA QO'SHILGAN QISM: KV bo'lsa ro'yxatda ham $ chiqadi */}
+                      <div style={{ color: '#6b7280', fontSize: '13px' }}>
+                        Narxi: <span style={{ fontWeight: 'bold', color: '#111827', fontSize: '14px' }}>{p.price.toLocaleString()} {p.unit === 'kv' ? '$' : "so'm"}</span>
+                      </div>
+                      <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px' }}>
+                        Jami qiymati: <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>{(p.quantity * p.price).toLocaleString()} {p.unit === 'kv' ? '$' : "so'm"}</span>
+                      </div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
                       
-                      {/* --- YANGI QO'SHILGAN NARXNI O'ZGARTIRISH TUGMASI --- */}
                       {changingPriceId === p.id ? (
                         <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#f0fdf4', padding: '6px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
                           <input 
@@ -268,7 +284,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                           <DollarSign size={16} /> Narxni o'zgartirish
                         </button>
                       )}
-                      {/* ---------------------------------------------------- */}
 
                       {addingStockId === p.id ? (
                         <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#eff6ff', padding: '6px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
