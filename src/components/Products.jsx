@@ -28,9 +28,14 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
   const [changingPriceId, setChangingPriceId] = useState(null);
   const [newPriceAmount, setNewPriceAmount] = useState('');
 
-  // Jami hisob-kitob (DIQQAT: Bu yerda dollar va so'm raqamlari to'g'ridan-to'g'ri qo'shilmoqda, 
-  // agar kurs bo'yicha hisoblash kerak bo'lsa, alohida formula kerak bo'ladi)
-  const totalWarehouseValue = products.reduce((acc, curr) => acc + (curr.quantity * curr.price), 0);
+  // Jami hisob-kitob (So'm va Dollarni alohida hisoblash)
+  const totalValueSom = products.reduce((acc, curr) => {
+    return curr.unit !== 'kv' ? acc + (curr.quantity * curr.price) : acc;
+  }, 0);
+
+  const totalValueUsd = products.reduce((acc, curr) => {
+    return curr.unit === 'kv' ? acc + (curr.quantity * curr.price) : acc;
+  }, 0);
 
   const displayedProducts = activeFilter === 'Barchasi' 
     ? products 
@@ -114,9 +119,28 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
         </h2>
       </div>
 
+      {/* Yangilangan jami hisob-kitob Card'i */}
       <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#1e3a8a', color: '#ffffff', marginBottom: '30px', textAlign: 'center', border: 'none' }}>
-        <p style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: '#9ca3af', textTransform: 'uppercase' }}>Jami ombor qiymati</p>
-        <h2 style={{ margin: '10px 0 0 0', fontSize: '42px', fontWeight: 'bold' }}>{totalWarehouseValue.toLocaleString()} <span style={{ fontSize: '20px', color: '#d1d5db' }}>so'm / $</span></h2>
+        <p style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '15px' }}>Jami ombor qiymati</p>
+        
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', flexWrap: 'wrap' }}>
+          {/* So'm qismi */}
+          <div>
+            <h2 style={{ margin: 0, fontSize: '38px', fontWeight: 'bold', color: '#ffffff' }}>
+              {totalValueSom.toLocaleString()} <span style={{ fontSize: '20px', color: '#9ca3af' }}>so'm</span>
+            </h2>
+          </div>
+          
+          {/* Ajratuvchi chiziq */}
+          <div style={{ width: '2px', height: '40px', backgroundColor: '#4b5563' }}></div>
+          
+          {/* Dollar qismi */}
+          <div>
+            <h2 style={{ margin: 0, fontSize: '38px', fontWeight: 'bold', color: '#10b981' }}>
+              {totalValueUsd.toLocaleString()} <span style={{ fontSize: '20px', color: '#9ca3af' }}>$</span>
+            </h2>
+          </div>
+        </div>
       </div>
 
       <div className="card" style={{ padding: '20px', marginBottom: '30px', borderTop: '4px solid #4b5563', backgroundColor: '#ffffff' }}>
@@ -177,7 +201,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
               <input type="number" className="form-control" placeholder="Miqdori" value={quantity} onChange={(e) => setQuantity(e.target.value)} required min="0.001" step="any" style={{ flex: 2 }} />
               <select className="form-control" value={unit} onChange={(e) => setUnit(e.target.value)} style={{ flex: 1 }}>
                 <option value="metr">Metr</option>
-                {/* YANGA QO'SHILGAN QISM: KV */}
                 <option value="kv">KV</option> 
                 <option value="dona">Dona</option>
                 <option value="pachka">Pachka</option>
