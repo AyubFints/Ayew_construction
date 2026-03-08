@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, FileText, Clock, Tag, XCircle, Banknote } from 'lucide-react';
 
 const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }) => {
   const [partialAmounts, setPartialAmounts] = useState({});
+  const [historyType, setHistoryType] = useState('daily'); // Tarix uchun state qo'shildi
   const todayStr = new Date().toLocaleDateString('uz-UZ');
   
   // Tovar dollar($)da sotilganligini aniqlash uchun yordamchi funksiya
@@ -73,6 +74,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
   const netCashSom = totalIncomeSom - totalExpenseSom;
   const netCashUsd = totalIncomeUsd - totalExpenseUsd;
 
+  // XATO SHU YERDA EDI: Date.now() o'rniga s.id qildim
   const handleReceive = (id, customer, sum) => {
     if (window.confirm(`${customer} hamma pulni to'liq to'ladimi?`)) {
       setSales(sales.map(s => s.id === id ? { 
@@ -80,12 +82,13 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
         isReceived: true, 
         paidAmount: s.totalSum, 
         isDebt: false, 
-        receivedAt: Date.now(),
-        paymentHistory: [{ amount: s.totalSum, date: Date.now() }] 
+        receivedAt: s.id, 
+        paymentHistory: [{ amount: s.totalSum, date: s.id }] 
       } : s));
     }
   };
 
+  // XATO SHU YERDA EDI: Date.now() o'rniga sale.id qildim
   const handlePartialPayment = (sale) => {
     const inputAmount = parseFloat(partialAmounts[sale.id]);
     const currency = isUsdProduct(sale.productName) ? '$' : "so'm";
@@ -100,8 +103,8 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
         isReceived: true, 
         paidAmount: inputAmount, 
         isDebt: true, 
-        receivedAt: Date.now(),
-        paymentHistory: [{ amount: inputAmount, date: Date.now() }]
+        receivedAt: sale.id, 
+        paymentHistory: [{ amount: inputAmount, date: sale.id }]
       } : s));
       setPartialAmounts({ ...partialAmounts, [sale.id]: '' });
     }
@@ -125,6 +128,34 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
       setSales(sales.filter(s => s.id !== saleToCancel.id));
     }
   };
+
+  // TARIX HISOBLASH LOGIKASI QO'SHILDI
+  const aggregatedHistory = useMemo(() => {
+    const map = {};
+    sales.forEach(sale => {
+      if (!sale.paymentHistory) return;
+      sale.paymentHistory.forEach(payment => {
+        const t = new Date(payment.date);
+        let key, label;
+        if (historyType === 'daily') {
+          key = t.toLocaleDateString('uz-UZ');
+          label = key;
+        } else if (historyType === 'monthly') {
+          const m = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"];
+          key = `${t.getFullYear()}-${t.getMonth()}`;
+          label = `${m[t.getMonth()]} ${t.getFullYear()}`;
+        } else {
+          key = t.getFullYear().toString();
+          label = `${key}-yil`;
+        }
+
+        if (!map[key]) map[key] = { label, som: 0, usd: 0, timestamp: payment.date };
+        if (isUsdProduct(sale.productName)) map[key].usd += payment.amount;
+        else map[key].som += payment.amount;
+      });
+    });
+    return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
+  }, [sales, historyType]);
 
   const pendingSales = sales.filter(s => !s.isReceived && !s.isDebt);
 
@@ -246,6 +277,31 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
         </div>
 
       </div>
+
+      {/* YANGI QO'SHILGAN KASSA TARIXI QISMI */}
+      <div className="card" style={{ marginTop: '30px', borderTop: '4px solid #1e3a8a' }}>
+        <h3 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+           Kassa Tarixi
+        </h3>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+          <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'daily' ? '#1e3a8a' : '#e5e7eb', color: historyType === 'daily' ? 'white' : '#1f2937' }} onClick={() => setHistoryType('daily')}>Kunlik</button>
+          <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'monthly' ? '#1e3a8a' : '#e5e7eb', color: historyType === 'monthly' ? 'white' : '#1f2937' }} onClick={() => setHistoryType('monthly')}>Oylik</button>
+          <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'yearly' ? '#1e3a8a' : '#e5e7eb', color: historyType === 'yearly' ? 'white' : '#1f2937' }} onClick={() => setHistoryType('yearly')}>Yillik</button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {aggregatedHistory.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Ma'lumot yo'q</p> : aggregatedHistory.map((item, index) => (
+            <div key={index} style={{ padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #d1d5db', display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ fontWeight: 'bold', color: '#1f2937' }}>{item.label}</div>
+              <div style={{ textAlign: 'right' }}>
+                {item.som > 0 && <div style={{ color: '#10b981', fontWeight: 'bold' }}>{item.som.toLocaleString()} so'm</div>}
+                {item.usd > 0 && <div style={{ color: '#2563eb', fontWeight: 'bold' }}>{item.usd.toLocaleString()} $</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      
     </div>
   );
 };
