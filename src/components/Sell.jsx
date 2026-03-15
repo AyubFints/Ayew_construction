@@ -4,6 +4,8 @@ import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, Clip
 const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, customers = [] }) => {
   const [customer, setCustomer] = useState('');
   
+  // YANGLIK: Bo'lim bo'yicha qidiruv uchun yangi state
+  const [categoryQuery, setCategoryQuery] = useState(''); 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [sellQty, setSellQty] = useState('');
@@ -43,14 +45,12 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     return `${y}` === detailDate;
   };
 
-  // Tovar dollar($)da ekanligini aniqlash uchun yordamchi funksiya
   const isUsdProduct = (productName) => typeof productName === 'string' && productName.includes('$');
 
   const tableData = useMemo(() => {
     return sales.filter(s => isMatchDate(s.id)).sort((a, b) => b.id - a.id);
   }, [sales, detailFilter, detailDate]);
 
-  // SO'M VA DOLLARNI ALOHIDA HISOBLASH
   let periodIncomeSom = 0;
   let periodIncomeUsd = 0;
   tableData.forEach(curr => {
@@ -104,13 +104,19 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
   }, [sales, returns, historyType]);
   
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // YANGLIK: Ham bo'lim, ham nom bo'yicha qidiradigan qilib o'zgartirildi
+  const filteredProducts = products.filter(p => {
+    const matchName = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchCategory = categoryQuery 
+      ? (p.category && p.category.toLowerCase().includes(categoryQuery.toLowerCase())) 
+      : true;
+    return matchName && matchCategory;
+  });
 
   const selectedProduct = products.find(p => p.id.toString() === selectedProductId);
 
   const handleClearSelection = () => {
+    setCategoryQuery(''); // YANGLIK: Tozalashda buni ham tozalaymiz
     setSearchQuery('');
     setSelectedProductId('');
     setSellQty('');
@@ -169,6 +175,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         <h2 style={{ fontSize: '24px', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>Sotish bo'limi <ShoppingCart size={28} /></h2>
       </div>
 
+      {/* Tepadagi statistika kartochkalari... (O'zgartirilmagan) */}
       <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
         <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #1e3a8a', position: 'relative' }}>
           <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#e0e7ff', color: '#3730a3', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
@@ -203,6 +210,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         <BarChart3 size={20} /> {showHistory ? "Qisqa tarixni yopish 🔼" : "Qisqa tarixga kirish 🔽"}
       </button>
 
+      {/* Qisqa tarix qismi... (O'zgartirilmagan) */}
       {showHistory && (
         <div className="fade-in card" style={{ padding: '20px', marginBottom: '30px', backgroundColor: '#f9fafb' }}>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
@@ -267,6 +275,17 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
             <div style={{ backgroundColor: '#f9fafb', padding: '15px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
               <label style={{ fontWeight: '600', display: 'block', marginBottom: '10px', color: '#374151' }}>Tovarni qidirish va tanlash</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                
+                {/* YANGLIK: Bo'limi bo'yicha qidiruv maydoni qo'shildi */}
+                <div style={{ position: 'relative' }}>
+                  <Filter size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
+                  <input 
+                    type="text" className="form-control" placeholder="Bo'limi bo'yicha qidirish (Masalan: Taxta)..." 
+                    value={categoryQuery} onChange={(e) => setCategoryQuery(e.target.value)} 
+                    style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
+                  />
+                </div>
+
                 <div style={{ position: 'relative' }}>
                   <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
                   <input 
@@ -275,6 +294,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                     style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
                   />
                 </div>
+
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0, flex: 1 }}>
                     <option value="">-- Ro'yxatdan tanlang --</option>
@@ -282,7 +302,8 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                       <option key={p.id} value={p.id}>{p.name} (Qoldi: {p.quantity} {p.unit})</option>
                     ))}
                   </select>
-                  {(selectedProductId || searchQuery) && (
+                  {/* YANGLIK: categoryQuery ham tozalanish shartiga qo'shildi */}
+                  {(selectedProductId || searchQuery || categoryQuery) && (
                     <button type="button" onClick={handleClearSelection} className="btn btn-danger" style={{ width: '46px', height: '46px', padding: '0', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
                       <X size={20} />
                     </button>
@@ -305,6 +326,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
         {error && <div style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '15px' }}>{error}</div>}
 
+        {/* Qolgan Savat va Tasdiqlash qismlari (O'zgartirilmagan)... */}
         {cart.length > 0 && (
           <div className="fade-in" style={{ marginTop: '30px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '20px' }}>
             <h3 style={{ margin: '0 0 15px 0', color: '#1f2937', borderBottom: '1px solid #d1d5db', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}><ShoppingCart size={20} color="#1e3a8a" /> Savatdagi tovarlar</h3>
@@ -340,7 +362,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         )}
       </div>
 
-      {/* --- BATAFSIL JADVAL --- */}
+      {/* --- BATAFSIL JADVAL --- (O'zgartirilmagan) */}
       <div className="card" style={{ maxWidth: '100%', marginTop: '40px', borderTop: '4px solid #4b5563' }}>
         <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1f2937', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <ClipboardList size={22} color="#4b5563" /> Batafsil savdolar jadvali

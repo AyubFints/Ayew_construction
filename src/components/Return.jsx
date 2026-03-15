@@ -49,8 +49,15 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
     let som = 0;
     let usd = 0;
     tableData.forEach(r => {
-      if (r.unit === 'kv' || (r.productName && r.productName.includes(' kv '))) usd += (Number(r.returnSum) || 0);
-      else som += (Number(r.returnSum) || 0);
+      // Yangi formatdagi obyektdan o'qiymiz
+      if (r.returnSumSom !== undefined || r.returnSumUsd !== undefined) {
+        som += (Number(r.returnSumSom) || 0);
+        usd += (Number(r.returnSumUsd) || 0);
+      } else {
+        // Eski saqlangan ma'lumotlar uchun
+        if (r.unit === 'kv' || (r.productName && r.productName.includes(' kv '))) usd += (Number(r.returnSum) || 0);
+        else som += (Number(r.returnSum) || 0);
+      }
     });
     return { som, usd };
   }, [tableData]);
@@ -71,10 +78,16 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
       const { key, label } = getKeyAndLabel(r.id);
       if (!map[key]) map[key] = { label, expenseSom: 0, expenseUsd: 0, timestamp: r.id };
       
-      if (r.unit === 'kv' || (r.productName && r.productName.includes(' kv '))) {
-        map[key].expenseUsd += (Number(r.returnSum) || 0);
+      // Yangi format yoki eski formatga qarab ishlaymiz
+      if (r.returnSumSom !== undefined || r.returnSumUsd !== undefined) {
+        map[key].expenseSom += (Number(r.returnSumSom) || 0);
+        map[key].expenseUsd += (Number(r.returnSumUsd) || 0);
       } else {
-        map[key].expenseSom += (Number(r.returnSum) || 0);
+        if (r.unit === 'kv' || (r.productName && r.productName.includes(' kv '))) {
+          map[key].expenseUsd += (Number(r.returnSum) || 0);
+        } else {
+          map[key].expenseSom += (Number(r.returnSum) || 0);
+        }
       }
     });
 
@@ -117,20 +130,28 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
     });
     setProducts(updatedProducts);
 
-    // Tarixda $ va so'm to'g'ri chiqishi uchun har bir savat elementini alohida saqlaymiz
-    const newReturns = cart.map((item, index) => ({
-      id: Date.now() + index, // bir xil id bo'lib qolmasligi uchun
-      productName: `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} ${item.product.unit === 'kv' ? '$' : "so'm"})`,
-      unit: item.product.unit,
-      quantity: item.qty,
-      customer: customer,
-      returnSum: item.total
-    }));
-
-    setReturns([...returns, ...newReturns]);
-
+    // Summalarni alohida hisoblaymiz
     const totalSom = cart.filter(item => item.product.unit !== 'kv').reduce((sum, item) => sum + item.total, 0);
     const totalUsd = cart.filter(item => item.product.unit === 'kv').reduce((sum, item) => sum + item.total, 0);
+
+    // Hamma tovarlarni bitta matnga aylantiramiz
+    const combinedProductNames = cart.map(item => 
+      `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} ${item.product.unit === 'kv' ? '$' : "so'm"})`
+    ).join('\n');
+
+    // Bitta umumiy obyekt qilib saqlaymiz
+    const newReturnData = {
+      id: Date.now(),
+      productName: combinedProductNames,
+      customer: customer,
+      returnSumSom: totalSom,
+      returnSumUsd: totalUsd,
+      // Eski format ishlamay qolmasligi uchun zaxira maydon:
+      unit: cart.length === 1 ? cart[0].product.unit : 'mixed', 
+      returnSum: totalSom > 0 ? totalSom : totalUsd 
+    };
+
+    setReturns([...returns, newReturnData]);
 
     setCart([]); setCustomer(''); setError('');
     
@@ -226,6 +247,7 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
               </div>
               <select className="form-control" value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}>
                 <option value="">-- Tovarni tanlang --</option>
+                <option value="">-- Tanlang --</option>
                 {filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name} ({p.quantity} {p.unit})</option>)}
               </select>
               {selectedProduct && (
@@ -284,16 +306,25 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {tableData.length === 0 ? <p style={{textAlign: 'center', color: '#94a3b8'}}>Ma'lumot yo'q</p> : 
               tableData.map(r => {
-                const isKv = r.unit === 'kv' || (r.productName && r.productName.includes(' kv '));
+                // Yangi obyekt ichidagi qadriyatlar
                 return (
                   <div key={r.id} style={{ padding: '15px', borderRadius: '15px', background: '#f8fafc', borderLeft: '5px solid #4b5563', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{r.customer}</div>
                       <div style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(r.id).toLocaleTimeString()}</div>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '5px', whiteSpace: 'pre-line' }}>{r.productName}</div>
+                      <div style={{ fontSize: '13px', color: '#475569', marginTop: '8px', whiteSpace: 'pre-line', lineHeight: '1.5' }}>
+                        {r.productName}
+                      </div>
                     </div>
-                    <div style={{ fontWeight: '800', color: '#ef4444', fontSize: '16px' }}>
-                      -{r.returnSum.toLocaleString()} {isKv ? '$' : "so'm"}
+                    <div style={{ fontWeight: '800', color: '#ef4444', fontSize: '16px', textAlign: 'right', minWidth: '100px' }}>
+                      {/* Yangi formatdagi summalarni ko'rsatish */}
+                      {r.returnSumSom > 0 && <div>-{r.returnSumSom.toLocaleString()} so'm</div>}
+                      {r.returnSumUsd > 0 && <div>-{r.returnSumUsd.toLocaleString()} $</div>}
+                      
+                      {/* Eski qo'shilgan eski format ma'lumotlar uchun */}
+                      {r.returnSumSom === undefined && r.returnSumUsd === undefined && r.returnSum !== undefined && (
+                        <div>-{r.returnSum.toLocaleString()} {r.unit === 'kv' || (r.productName && r.productName.includes(' kv ')) ? '$' : "so'm"}</div>
+                      )}
                     </div>
                   </div>
                 );
