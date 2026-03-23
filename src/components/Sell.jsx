@@ -24,6 +24,13 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
   const [detailFilter, setDetailFilter] = useState('daily');
   const [detailDate, setDetailDate] = useState(currentDayStr);
 
+  // --- MUHIM O'ZGARTIRISH 1: Dollar birligini aniqlash ---
+  const isUsdUnit = (unit) => {
+    if (!unit) return false;
+    // Birlik 'kv' yoki ichida '$' belgisi bo'lsa (Dona/$ kabi), bu dollarli tovar
+    return unit.toLowerCase() === 'kv' || unit.includes('$');
+  };
+
   const handleDetailFilterChange = (type) => {
     setDetailFilter(type);
     if (type === 'daily') setDetailDate(currentDayStr);
@@ -104,7 +111,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
   }, [sales, returns, historyType]);
   
-  // YANGLIK: Ham bo'lim, ham nom bo'yicha qidiradigan qilib o'zgartirildi
   const filteredProducts = products.filter(p => {
     const matchName = p.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchCategory = categoryQuery 
@@ -116,7 +122,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
   const selectedProduct = products.find(p => p.id.toString() === selectedProductId);
 
   const handleClearSelection = () => {
-    setCategoryQuery(''); // YANGLIK: Tozalashda buni ham tozalaymiz
+    setCategoryQuery(''); 
     setSearchQuery('');
     setSelectedProductId('');
     setSellQty('');
@@ -148,12 +154,18 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
     const overallTotal = cart.reduce((sum, item) => sum + item.total, 0);
     
-    const combinedNames = cart.map(item => `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} ${item.product.unit === 'kv' ? '$' : "so'm"})`).join('\n');
+    // --- MUHIM O'ZGARTIRISH 2: Tarixda dollar belgisini to'g'ri saqlash ---
+    const combinedNames = cart.map(item => {
+        const isDollar = isUsdUnit(item.product.unit);
+        return `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} ${isDollar ? '$' : "so'm"})`;
+    }).join('\n');
 
     setSales([...sales, { id: Date.now(), productName: combinedNames, unit: 'xil tovar', quantity: cart.length, customer, totalSum: overallTotal, isReceived: false, cartItems: cart }]);
     
-    const overallSom = cart.filter(i => i.product.unit !== 'kv').reduce((sum, item) => sum + item.total, 0);
-    const overallUsd = cart.filter(i => i.product.unit === 'kv').reduce((sum, item) => sum + item.total, 0);
+    // --- MUHIM O'ZGARTIRISH 3: Hisoblashda yangi dollar birligini inobatga olish ---
+    const overallSom = cart.filter(i => !isUsdUnit(i.product.unit)).reduce((sum, item) => sum + item.total, 0);
+    const overallUsd = cart.filter(i => isUsdUnit(i.product.unit)).reduce((sum, item) => sum + item.total, 0);
+    
     let alertMsg = `✅ Savdo yakunlandi! Jami summa: `;
     if (overallSom > 0) alertMsg += `${overallSom.toLocaleString()} so'm `;
     if (overallUsd > 0) alertMsg += `${overallSom > 0 ? 'va ' : ''}${overallUsd.toLocaleString()} $`;
@@ -163,8 +175,9 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     alert(alertMsg);
   };
 
-  const cartTotalSom = cart.filter(i => i.product.unit !== 'kv').reduce((sum, item) => sum + item.total, 0);
-  const cartTotalUsd = cart.filter(i => i.product.unit === 'kv').reduce((sum, item) => sum + item.total, 0);
+  // Savatdagi jami summani hisoblash (Dona/$ ni ham dollar deb oladi)
+  const cartTotalSom = cart.filter(i => !isUsdUnit(i.product.unit)).reduce((sum, item) => sum + item.total, 0);
+  const cartTotalUsd = cart.filter(i => isUsdUnit(i.product.unit)).reduce((sum, item) => sum + item.total, 0);
 
   return (
     <div className="fade-in app-container">
@@ -175,7 +188,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         <h2 style={{ fontSize: '24px', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>Sotish bo'limi <ShoppingCart size={28} /></h2>
       </div>
 
-      {/* Tepadagi statistika kartochkalari... (O'zgartirilmagan) */}
       <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
         <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #1e3a8a', position: 'relative' }}>
           <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#e0e7ff', color: '#3730a3', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
@@ -210,7 +222,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         <BarChart3 size={20} /> {showHistory ? "Qisqa tarixni yopish 🔼" : "Qisqa tarixga kirish 🔽"}
       </button>
 
-      {/* Qisqa tarix qismi... (O'zgartirilmagan) */}
       {showHistory && (
         <div className="fade-in card" style={{ padding: '20px', marginBottom: '30px', backgroundColor: '#f9fafb' }}>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
@@ -248,10 +259,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         </div>
       )}
 
-      {/* --- SOTISH FORMASI --- */}
       <div className="card" style={{ maxWidth: '700px', margin: '0 auto', borderTop: '4px solid #1e3a8a' }}>
-        
-        {/* MIJOZNI TANLASH */}
         <div style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '2px dashed #e5e7eb' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 'bold', color: '#111827', fontSize: '16px' }}>
             <User size={20} color="#1e3a8a" /> Mijozni tanlang
@@ -275,17 +283,14 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
             <div style={{ backgroundColor: '#f9fafb', padding: '15px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
               <label style={{ fontWeight: '600', display: 'block', marginBottom: '10px', color: '#374151' }}>Tovarni qidirish va tanlash</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                
-                {/* YANGLIK: Bo'limi bo'yicha qidiruv maydoni qo'shildi */}
                 <div style={{ position: 'relative' }}>
                   <Filter size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
                   <input 
-                    type="text" className="form-control" placeholder="Bo'limi bo'yicha qidirish (Masalan: Taxta)..." 
+                    type="text" className="form-control" placeholder="Bo'limi bo'yicha qidirish..." 
                     value={categoryQuery} onChange={(e) => setCategoryQuery(e.target.value)} 
                     style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
                   />
                 </div>
-
                 <div style={{ position: 'relative' }}>
                   <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
                   <input 
@@ -294,7 +299,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                     style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
                   />
                 </div>
-
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0, flex: 1 }}>
                     <option value="">-- Ro'yxatdan tanlang --</option>
@@ -302,7 +306,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                       <option key={p.id} value={p.id}>{p.name} (Qoldi: {p.quantity} {p.unit})</option>
                     ))}
                   </select>
-                  {/* YANGLIK: categoryQuery ham tozalanish shartiga qo'shildi */}
                   {(selectedProductId || searchQuery || categoryQuery) && (
                     <button type="button" onClick={handleClearSelection} className="btn btn-danger" style={{ width: '46px', height: '46px', padding: '0', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
                       <X size={20} />
@@ -326,7 +329,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
         {error && <div style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '15px' }}>{error}</div>}
 
-        {/* Qolgan Savat va Tasdiqlash qismlari (O'zgartirilmagan)... */}
         {cart.length > 0 && (
           <div className="fade-in" style={{ marginTop: '30px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '20px' }}>
             <h3 style={{ margin: '0 0 15px 0', color: '#1f2937', borderBottom: '1px solid #d1d5db', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}><ShoppingCart size={20} color="#1e3a8a" /> Savatdagi tovarlar</h3>
@@ -336,11 +338,11 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                   <div style={{ flex: 1 }}>
                     <p style={{ margin: 0, fontWeight: 'bold', color: '#111827' }}>{index + 1}. {item.product.name}</p>
                     <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
-                      {item.qty} {item.product.unit} x {item.product.price.toLocaleString()} {item.product.unit === 'kv' ? '$' : "so'm"}
+                      {item.qty} {item.product.unit} x {item.product.price.toLocaleString()} {isUsdUnit(item.product.unit) ? '$' : "so'm"}
                     </p>
                   </div>
-                  <div style={{ fontWeight: 'bold', color: '#1e3a8a', marginRight: '15px' }}>
-                    {item.total.toLocaleString()} {item.product.unit === 'kv' ? '$' : "so'm"}
+                  <div style={{ fontWeight: 'bold', color: isUsdUnit(item.product.unit) ? '#10b981' : '#1e3a8a', marginRight: '15px' }}>
+                    {item.total.toLocaleString()} {isUsdUnit(item.product.unit) ? '$' : "so'm"}
                   </div>
                   <button onClick={() => handleRemoveFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '18px' }}>✖</button>
                 </div>
@@ -362,7 +364,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         )}
       </div>
 
-      {/* --- BATAFSIL JADVAL --- (O'zgartirilmagan) */}
       <div className="card" style={{ maxWidth: '100%', marginTop: '40px', borderTop: '4px solid #4b5563' }}>
         <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1f2937', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <ClipboardList size={22} color="#4b5563" /> Batafsil savdolar jadvali
@@ -407,7 +408,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                 <tbody>
                   {tableData.map(item => (
                     <tr key={item.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      
                       <td style={{ padding: '14px', color: '#1e3a8a', fontWeight: 'bold' }}>
                         {item.customer}
                         {!item.isReceived && !item.isDebt && (
@@ -422,8 +422,8 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                         )}
                       </td>
 
-                      <td style={{ padding: '14px', color: '#10b981', fontWeight: 'bold', fontSize: '16px' }}>
-                        +{(Number(item.totalSum) || Number(item.total) || 0).toLocaleString()} {item.productName.includes('$') ? '$' : "so'm"}
+                      <td style={{ padding: '14px', color: isUsdProduct(item.productName) ? '#10b981' : '#1e3a8a', fontWeight: 'bold', fontSize: '16px' }}>
+                        +{(Number(item.totalSum) || Number(item.total) || 0).toLocaleString()} {isUsdProduct(item.productName) ? '$' : "so'm"}
                       </td>
 
                       <td style={{ padding: '14px', color: '#4b5563', lineHeight: '1.6', fontSize: '14px', whiteSpace: 'pre-line' }}>{item.productName}</td>
@@ -431,7 +431,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                       <td style={{ padding: '14px', color: '#6b7280', fontSize: '14px', textAlign: 'right' }}>
                         {new Date(item.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
                       </td>
-
                     </tr>
                   ))}
                 </tbody>
