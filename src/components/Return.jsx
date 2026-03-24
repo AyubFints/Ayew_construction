@@ -20,6 +20,19 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
   const [detailFilter, setDetailFilter] = useState('daily');
   const [detailDate, setDetailDate] = useState(currentDayStr);
 
+  // --- YANGI: Dollar birligini aniqlash (Dona/$ yoki kv uchun) ---
+  const isUsdUnit = (unit) => {
+    if (!unit) return false;
+    return unit.toLowerCase() === 'kv' || unit.includes('$');
+  };
+
+  const isUsdProduct = (productName, unit) => {
+    if (isUsdUnit(unit)) return true;
+    if (typeof productName === 'string' && (productName.includes(' kv ') || productName.includes('$'))) return true;
+    return false;
+  };
+  // ---------------------------------------------------------------
+
   const handleDetailFilterChange = (type) => {
     setDetailFilter(type);
     if (type === 'daily') setDetailDate(currentDayStr);
@@ -54,8 +67,8 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
         som += (Number(r.returnSumSom) || 0);
         usd += (Number(r.returnSumUsd) || 0);
       } else {
-        // Eski saqlangan ma'lumotlar uchun
-        if (r.unit === 'kv' || (r.productName && r.productName.includes(' kv '))) usd += (Number(r.returnSum) || 0);
+        // Eski saqlangan ma'lumotlar uchun (yangi mantiq bilan tekshiramiz)
+        if (isUsdProduct(r.productName, r.unit)) usd += (Number(r.returnSum) || 0);
         else som += (Number(r.returnSum) || 0);
       }
     });
@@ -83,7 +96,7 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
         map[key].expenseSom += (Number(r.returnSumSom) || 0);
         map[key].expenseUsd += (Number(r.returnSumUsd) || 0);
       } else {
-        if (r.unit === 'kv' || (r.productName && r.productName.includes(' kv '))) {
+        if (isUsdProduct(r.productName, r.unit)) {
           map[key].expenseUsd += (Number(r.returnSum) || 0);
         } else {
           map[key].expenseSom += (Number(r.returnSum) || 0);
@@ -130,13 +143,13 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
     });
     setProducts(updatedProducts);
 
-    // Summalarni alohida hisoblaymiz
-    const totalSom = cart.filter(item => item.product.unit !== 'kv').reduce((sum, item) => sum + item.total, 0);
-    const totalUsd = cart.filter(item => item.product.unit === 'kv').reduce((sum, item) => sum + item.total, 0);
+    // Summalarni alohida hisoblaymiz (Yangi mantiq bilan)
+    const totalSom = cart.filter(item => !isUsdUnit(item.product.unit)).reduce((sum, item) => sum + item.total, 0);
+    const totalUsd = cart.filter(item => isUsdUnit(item.product.unit)).reduce((sum, item) => sum + item.total, 0);
 
     // Hamma tovarlarni bitta matnga aylantiramiz
     const combinedProductNames = cart.map(item => 
-      `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} ${item.product.unit === 'kv' ? '$' : "so'm"})`
+      `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} ${isUsdUnit(item.product.unit) ? '$' : "so'm"})`
     ).join('\n');
 
     // Bitta umumiy obyekt qilib saqlaymiz
@@ -265,17 +278,17 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
             <div className="fade-in" style={{ marginTop: '30px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px' }}>
               <h4 style={{ margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}><PackageMinus size={20} color="#4b5563" /> Qaytarish savatchasi</h4>
               {cart.map((item, index) => {
-                const isKv = item.product.unit === 'kv';
+                const isUsd = isUsdUnit(item.product.unit);
                 return (
                   <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '12px', borderRadius: '10px', border: '1px solid #e5e7eb', marginBottom: '10px' }}>
                     <div style={{ flex: 1 }}>
                       <p style={{ margin: 0, fontWeight: 'bold' }}>{index + 1}. {item.product.name}</p>
                       <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#6b7280' }}>
-                        {item.qty} {item.product.unit} x {item.product.price.toLocaleString()} {isKv ? '$' : "so'm"}
+                        {item.qty} {item.product.unit} x {item.product.price.toLocaleString()} {isUsd ? '$' : "so'm"}
                       </p>
                     </div>
                     <div style={{ fontWeight: 'bold', color: '#ef4444', marginRight: '15px' }}>
-                      {item.total.toLocaleString()} {isKv ? '$' : "so'm"}
+                      {item.total.toLocaleString()} {isUsd ? '$' : "so'm"}
                     </div>
                     <button onClick={() => handleRemoveFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>✖</button>
                   </div>
@@ -285,11 +298,11 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
               <div style={{ backgroundColor: '#e5e7eb', padding: '15px', borderRadius: '10px', marginTop: '20px' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Jami Chiqim:</div>
                 <div style={{ fontSize: '18px', fontWeight: '800', color: '#ef4444' }}>
-                  {cart.filter(i => i.product.unit !== 'kv').length > 0 && (
-                    <div>-{cart.filter(i => i.product.unit !== 'kv').reduce((s, i) => s + i.total, 0).toLocaleString()} so'm</div>
+                  {cart.filter(i => !isUsdUnit(i.product.unit)).length > 0 && (
+                    <div>-{cart.filter(i => !isUsdUnit(i.product.unit)).reduce((s, i) => s + i.total, 0).toLocaleString()} so'm</div>
                   )}
-                  {cart.filter(i => i.product.unit === 'kv').length > 0 && (
-                    <div>-{cart.filter(i => i.product.unit === 'kv').reduce((s, i) => s + i.total, 0).toLocaleString()} $</div>
+                  {cart.filter(i => isUsdUnit(i.product.unit)).length > 0 && (
+                    <div>-{cart.filter(i => isUsdUnit(i.product.unit)).reduce((s, i) => s + i.total, 0).toLocaleString()} $</div>
                   )}
                 </div>
               </div>
@@ -306,7 +319,6 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {tableData.length === 0 ? <p style={{textAlign: 'center', color: '#94a3b8'}}>Ma'lumot yo'q</p> : 
               tableData.map(r => {
-                // Yangi obyekt ichidagi qadriyatlar
                 return (
                   <div key={r.id} style={{ padding: '15px', borderRadius: '15px', background: '#f8fafc', borderLeft: '5px solid #4b5563', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
@@ -321,9 +333,9 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
                       {r.returnSumSom > 0 && <div>-{r.returnSumSom.toLocaleString()} so'm</div>}
                       {r.returnSumUsd > 0 && <div>-{r.returnSumUsd.toLocaleString()} $</div>}
                       
-                      {/* Eski qo'shilgan eski format ma'lumotlar uchun */}
+                      {/* Eski qo'shilgan eski format ma'lumotlar uchun (yangi logic bilan) */}
                       {r.returnSumSom === undefined && r.returnSumUsd === undefined && r.returnSum !== undefined && (
-                        <div>-{r.returnSum.toLocaleString()} {r.unit === 'kv' || (r.productName && r.productName.includes(' kv ')) ? '$' : "so'm"}</div>
+                        <div>-{r.returnSum.toLocaleString()} {isUsdProduct(r.productName, r.unit) ? '$' : "so'm"}</div>
                       )}
                     </div>
                   </div>

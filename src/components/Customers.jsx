@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, ArrowLeft, UserPlus, History, User as UserIcon, Phone, TrendingUp, Wallet, Calendar, ShoppingBag, MessageSquare, Banknote, BarChart3, CheckCircle } from 'lucide-react';
+import { Users, ArrowLeft, UserPlus, History, User as UserIcon, Phone, TrendingUp, Wallet, Calendar, ShoppingBag, MessageSquare, Banknote, BarChart3, CheckCircle, Trash2 } from 'lucide-react';
 
 const Customers = ({ customers = [], setCustomers, sales = [], setPage }) => {
   const [newCustomerName, setNewCustomerName] = useState('');
@@ -18,9 +18,26 @@ const Customers = ({ customers = [], setCustomers, sales = [], setPage }) => {
     setNewCustomerName(''); setNewCustomerPhone('');
   };
 
-  const isUsdProduct = (productName, unit) => {
-    return unit === 'kv' || (typeof productName === 'string' && (productName.includes('$') || productName.includes(' kv ')));
+  const handleDeleteCustomer = (id, name, e) => {
+    e.stopPropagation(); // Profilga kirib ketmasligi uchun
+    const confirmDelete = window.confirm(`"${name}" ismli mijozni o'chirmoqchimisiz?`);
+    if (confirmDelete) {
+      setCustomers(customers.filter(c => c.id !== id));
+    }
   };
+
+  // --- YANGI: Dollar birligini aniqlash (Dona/$ yoki kv uchun) ---
+  const isUsdUnit = (unit) => {
+    if (!unit) return false;
+    return unit.toLowerCase() === 'kv' || unit.includes('$');
+  };
+
+  const isUsdProduct = (productName, unit) => {
+    if (isUsdUnit(unit)) return true;
+    if (typeof productName === 'string' && (productName.includes('$') || productName.includes(' kv '))) return true;
+    return false;
+  };
+  // ---------------------------------------------------------------
 
   const getCustomerStats = (customerName) => {
     const mySales = sales.filter(s => s.customer === customerName);
@@ -245,28 +262,41 @@ const Customers = ({ customers = [], setCustomers, sales = [], setPage }) => {
           {customers.map(c => {
             const stat = getCustomerStats(c.name);
             return (
-              <div key={c.id} onClick={() => setSelectedCustomer(c)} className="menu-card" style={{ padding: '15px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', marginBottom: '10px', border: '1px solid #f1f5f9', cursor: 'pointer' }}>
+              <div key={c.id} onClick={() => setSelectedCustomer(c)} className="menu-card" style={{ padding: '15px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', border: '1px solid #f1f5f9', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                   <div style={{ background: '#eff6ff', color: '#2563eb', width: '40px', height: '40px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
                     {c.name.charAt(0).toUpperCase()}
                   </div>
                   <b>{c.name}</b>
                 </div>
-                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <div style={{ fontSize: '12px', color: '#10b981', fontWeight: 'bold' }}>
-                    {stat.totalBoughtSom > 0 && <span>{stat.totalBoughtSom.toLocaleString()} so'm</span>}
-                    {stat.totalBoughtSom > 0 && stat.totalBoughtUsd > 0 && <span style={{color: '#9ca3af', margin: '0 4px'}}>|</span>}
-                    {stat.totalBoughtUsd > 0 && <span>{stat.totalBoughtUsd.toLocaleString()} $</span>}
-                    {stat.totalBoughtSom === 0 && stat.totalBoughtUsd === 0 && <span>0 so'm</span>}
-                  </div>
-                  {stat.hasDebt && (
-                    <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 'bold' }}>
-                      Qarz: 
-                      {stat.totalDebtSom > 0 && <span> {stat.totalDebtSom.toLocaleString()} so'm</span>}
-                      {stat.totalDebtSom > 0 && stat.totalDebtUsd > 0 && <span style={{color: '#fca5a5', margin: '0 3px'}}>+</span>}
-                      {stat.totalDebtUsd > 0 && <span> {stat.totalDebtUsd.toLocaleString()} $</span>}
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <div style={{ fontSize: '12px', color: '#10b981', fontWeight: 'bold' }}>
+                      {stat.totalBoughtSom > 0 && <span>{stat.totalBoughtSom.toLocaleString()} so'm</span>}
+                      {stat.totalBoughtSom > 0 && stat.totalBoughtUsd > 0 && <span style={{color: '#9ca3af', margin: '0 4px'}}>|</span>}
+                      {stat.totalBoughtUsd > 0 && <span>{stat.totalBoughtUsd.toLocaleString()} $</span>}
+                      {stat.totalBoughtSom === 0 && stat.totalBoughtUsd === 0 && <span>0 so'm</span>}
                     </div>
-                  )}
+                    {stat.hasDebt && (
+                      <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 'bold' }}>
+                        Qarz: 
+                        {stat.totalDebtSom > 0 && <span> {stat.totalDebtSom.toLocaleString()} so'm</span>}
+                        {stat.totalDebtSom > 0 && stat.totalDebtUsd > 0 && <span style={{color: '#fca5a5', margin: '0 3px'}}>+</span>}
+                        {stat.totalDebtUsd > 0 && <span> {stat.totalDebtUsd.toLocaleString()} $</span>}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* O'CHIRISH TUGMASI */}
+                  <button 
+                    onClick={(e) => handleDeleteCustomer(c.id, c.name, e)} 
+                    style={{ background: '#fee2e2', border: 'none', color: '#ef4444', padding: '8px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    title="Mijozni o'chirish"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+
                 </div>
               </div>
             );
