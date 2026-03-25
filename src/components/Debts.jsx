@@ -8,23 +8,38 @@ const Debts = ({ sales, setSales, setPage }) => {
   const debtSales = sales.filter(s => s.isDebt === true);
 
   const filteredDebts = debtSales.filter(s => 
-    s.customer.toLowerCase().includes(searchQuery.toLowerCase())
+    s.customer?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const totalDebtSum = debtSales.reduce((acc, s) => acc + (s.totalSum - (s.paidAmount || 0)), 0);
+  // 1. Valyutani aniqlash funksiyasi (Dona $ va Kv $ larni ham o'z ichiga oladi)
+  const getIsDollar = (sale) => {
+    const unit = sale.unit?.toLowerCase() || '';
+    return sale.currency === '$' || unit.includes('$') || unit.includes('dona($)') || unit.includes('kv($)');
+  };
+
+  // 2. Umumiy qarzlar statistikasi (Valyuta bo'yicha ajratilgan)
+  const totalDebtSumSom = debtSales
+    .filter(s => !getIsDollar(s))
+    .reduce((acc, s) => acc + (s.totalSum - (s.paidAmount || 0)), 0);
+
+  const totalDebtSumDollar = debtSales
+    .filter(s => getIsDollar(s))
+    .reduce((acc, s) => acc + (s.totalSum - (s.paidAmount || 0)), 0);
 
   const handleRepay = (sale, isFull) => {
     const remainingDebt = sale.totalSum - (sale.paidAmount || 0);
+    const isDollar = getIsDollar(sale);
+    const currencyStr = isDollar ? '$' : "so'm";
     
-    // Agar "Hammasini to'lash" bosilsa summani o'zi topadi, aks holda inputdan oladi
+    // "Hammasini to'lash" bo'lsa qolgan 100$ ni oladi, bo'lmasa yozilgan qismni
     const amount = isFull ? remainingDebt : parseFloat(repayAmounts[sale.id]);
 
     if (isNaN(amount) || amount <= 0) return alert("Summani to'g'ri kiriting!");
-    if (amount > remainingDebt) return alert(`Xato! Mijozning qarzi faqatgina ${remainingDebt.toLocaleString()} so'm.`);
+    if (amount > remainingDebt) return alert(`Xato! Qoldiq qarz: ${remainingDebt.toLocaleString()} ${currencyStr}`);
 
-    if (window.confirm(`${sale.customer}dan ${amount.toLocaleString()} so'm qarzni qabul qilasizmi?`)) {
+    if (window.confirm(`${sale.customer}dan ${amount.toLocaleString()} ${currencyStr} qabul qilasizmi?`)) {
       const newPaidAmount = (sale.paidAmount || 0) + amount;
-      const isFullyPaid = newPaidAmount >= sale.totalSum;
+      const isFullyPaid = Math.abs(newPaidAmount - sale.totalSum) < 0.01; // Aniq hisob-kitob uchun
       
       setSales(sales.map(s => {
         if (s.id === sale.id) {
@@ -32,7 +47,10 @@ const Debts = ({ sales, setSales, setPage }) => {
             ...s, 
             paidAmount: newPaidAmount, 
             isDebt: !isFullyPaid, 
-            wasDebt: true, 
+            wasDebt: true,
+            // DIQQAT: Kassaga faqat shu `amount` (ya'ni 100$) borishi uchun ushbu maydon muhim:
+            lastPaymentAmount: amount, 
+            lastPaymentDate: Date.now(),
             paymentHistory: [...(s.paymentHistory || []), { amount: amount, date: Date.now() }]
           };
         }
@@ -55,8 +73,11 @@ const Debts = ({ sales, setSales, setPage }) => {
       </div>
 
       <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#ef4444', color: '#ffffff', marginBottom: '30px', textAlign: 'center', border: 'none' }}>
-        <p style={{ margin: 0, fontSize: '16px', color: '#fee2e2', textTransform: 'uppercase', fontWeight: 'bold' }}>Umumiy Berilgan Qarzlar</p>
-        <h2 style={{ margin: '10px 0 0 0', fontSize: '36px' }}>{totalDebtSum.toLocaleString()} so'm</h2>
+        <p style={{ margin: 0, fontSize: '16px', color: '#fee2e2', textTransform: 'uppercase', fontWeight: 'bold' }}>Umumiy Qarzlar</p>
+        <h2 style={{ margin: '10px 0 0 0', fontSize: '32px' }}>
+          {totalDebtSumSom > 0 && <div>{totalDebtSumSom.toLocaleString()} so'm</div>}
+          {totalDebtSumDollar > 0 && <div>{totalDebtSumDollar.toLocaleString()} $</div>}
+        </h2>
       </div>
 
       <div className="card" style={{ marginBottom: '30px', borderTop: '4px solid #ef4444' }}>
@@ -65,88 +86,62 @@ const Debts = ({ sales, setSales, setPage }) => {
           <input 
             type="text" 
             className="form-control" 
-            placeholder="Mijoz ismi bo'yicha qidirish..." 
+            placeholder="Mijoz ismi..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ paddingLeft: '38px', marginBottom: 0 }}
+            style={{ paddingLeft: '38px' }}
           />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          {filteredDebts.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px' }}>Hozircha hech qanday qarz yo'q. Ishlar ajoyib!</p>
-          ) : (
-            filteredDebts.map(sale => {
-              const remaining = sale.totalSum - (sale.paidAmount || 0);
-              return (
-                <div key={sale.id} className="fade-in" style={{ padding: '20px', backgroundColor: '#f9fafb', border: '1px solid #d1d5db', borderLeft: '5px solid #ef4444', borderRadius: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
-                    
-                    <div style={{ flex: '1 1 200px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
-                        <User size={18} color="#1e3a8a" />
-                        <span style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '18px' }}>{sale.customer}</span>
-                      </div>
-                      <div style={{ color: '#6b7280', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-                        <Calendar size={14} /> Olingan sana: {new Date(sale.id).toLocaleDateString('uz-UZ')}
-                      </div>
-                      <div style={{ fontSize: '14px', color: '#4b5563', whiteSpace: 'pre-line', backgroundColor: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                        {sale.productName}
-                      </div>
-                    </div>
+          {filteredDebts.map(sale => {
+            const remaining = sale.totalSum - (sale.paidAmount || 0);
+            const isDollar = getIsDollar(sale);
+            const currencyStr = isDollar ? '$' : "so'm";
 
-                    <div style={{ textAlign: 'right', flex: '1 1 150px' }}>
-                      <div style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase', marginBottom: '4px' }}>Qolgan Qarz:</div>
-                      <div style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '24px' }}>{remaining.toLocaleString()} so'm</div>
-                      <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '5px' }}>
-                        Umumiy savdo: {sale.totalSum.toLocaleString()}
-                      </div>
+            return (
+              <div key={sale.id} className="fade-in" style={{ padding: '20px', backgroundColor: '#f9fafb', border: '1px solid #d1d5db', borderLeft: '5px solid #ef4444', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <User size={18} color="#1e3a8a" />
+                      <span style={{ fontWeight: 'bold', fontSize: '18px' }}>{sale.customer}</span>
                     </div>
-
+                    <div style={{ color: '#6b7280', fontSize: '13px' }}>
+                      Sana: {new Date(sale.id).toLocaleDateString()}
+                    </div>
                   </div>
-
-                  {/* KATTA VA UZUN INPUT HAMDA TUGMALAR */}
-                  <div style={{ marginTop: '20px', borderTop: '1px dashed #d1d5db', paddingTop: '15px' }}>
-                    
-                    <div style={{ position: 'relative', marginBottom: '12px' }}>
-                      <Banknote size={22} style={{ position: 'absolute', left: '15px', top: '14px', color: '#6b7280' }} />
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        placeholder="Mijoz berayotgan summani yozing (Masalan: 200000)" 
-                        value={repayAmounts[sale.id] || ''}
-                        onChange={(e) => setRepayAmounts({...repayAmounts, [sale.id]: e.target.value})}
-                        style={{ 
-                          marginBottom: 0, width: '100%', height: '50px', 
-                          paddingLeft: '45px', fontSize: '16px', fontWeight: 'bold',
-                          backgroundColor: '#ffffff', border: '2px solid #e5e7eb'
-                        }}
-                      />
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>Qolgan qarz:</div>
+                    <div style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '24px' }}>
+                      {remaining.toLocaleString()} {currencyStr}
                     </div>
-
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button 
-                        onClick={() => handleRepay(sale, false)} 
-                        className="btn" 
-                        style={{ backgroundColor: '#f59e0b', color: 'white', border: 'none', height: '45px', flex: 1, fontWeight: 'bold', borderRadius: '8px' }}
-                      >
-                        Qismini to'lash
-                      </button>
-                      <button 
-                        onClick={() => handleRepay(sale, true)} 
-                        className="btn" 
-                        style={{ backgroundColor: '#10b981', color: 'white', border: 'none', height: '45px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold', borderRadius: '8px' }}
-                      >
-                        <CheckCircle size={18} /> Hammasini to'lash
-                      </button>
-                    </div>
-
                   </div>
-                  
                 </div>
-              );
-            })
-          )}
+
+                <div style={{ marginTop: '15px' }}>
+                  <div style={{ position: 'relative', marginBottom: '10px' }}>
+                    <input 
+                      type="number" 
+                      className="form-control" 
+                      placeholder="Summani kiriting..." 
+                      value={repayAmounts[sale.id] || ''}
+                      onChange={(e) => setRepayAmounts({...repayAmounts, [sale.id]: e.target.value})}
+                      style={{ paddingLeft: '15px', height: '45px' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => handleRepay(sale, false)} className="btn" style={{ backgroundColor: '#f59e0b', color: 'white', flex: 1 }}>
+                      Qismini to'lash
+                    </button>
+                    <button onClick={() => handleRepay(sale, true)} className="btn" style={{ backgroundColor: '#10b981', color: 'white', flex: 1 }}>
+                      Hammasini to'lash
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
