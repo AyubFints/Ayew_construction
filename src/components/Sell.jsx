@@ -152,23 +152,55 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     cart.forEach(cartItem => { updatedProducts = updatedProducts.map(p => p.id === cartItem.product.id ? { ...p, quantity: p.quantity - cartItem.qty } : p); });
     setProducts(updatedProducts);
 
-    const overallTotal = cart.reduce((sum, item) => sum + item.total, 0);
-    
-    // --- MUHIM O'ZGARTIRISH 2: Tarixda dollar belgisini to'g'ri saqlash ---
-    const combinedNames = cart.map(item => {
-        const isDollar = isUsdUnit(item.product.unit);
-        return `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} ${isDollar ? '$' : "so'm"})`;
-    }).join('\n');
+    // --- MUHIM O'ZGARTIRISH: Dollar va So'mlik xaridlarni 2 ta alohida ro'yxatga ajratamiz ---
+    const cartSom = cart.filter(i => !isUsdUnit(i.product.unit));
+    const cartUsd = cart.filter(i => isUsdUnit(i.product.unit));
 
-    setSales([...sales, { id: Date.now(), productName: combinedNames, unit: 'xil tovar', quantity: cart.length, customer, totalSum: overallTotal, isReceived: false, cartItems: cart }]);
+    const newSales = [];
+    const now = Date.now();
+
+    // 1. Agar so'mlik tovarlar bo'lsa, ularni bitta chek qilamiz
+    if (cartSom.length > 0) {
+      const overallSom = cartSom.reduce((sum, item) => sum + item.total, 0);
+      const namesSom = cartSom.map(item => `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} so'm)`).join('\n');
+      newSales.push({ 
+        id: now, 
+        productName: namesSom, 
+        unit: 'xil tovar', 
+        quantity: cartSom.length, 
+        customer, 
+        totalSum: overallSom, 
+        isReceived: false, 
+        cartItems: cartSom 
+      });
+    }
+
+    // 2. Agar dollarlik tovarlar bo'lsa, ularni alohida ikkinchi chek qilamiz
+    if (cartUsd.length > 0) {
+      const overallUsd = cartUsd.reduce((sum, item) => sum + item.total, 0);
+      const namesUsd = cartUsd.map(item => `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} $)`).join('\n');
+      newSales.push({ 
+        id: now + 1, // ID bir xil bo'lib qolmasligi uchun +1 qo'shamiz
+        productName: namesUsd, 
+        unit: 'xil tovar ($)', 
+        quantity: cartUsd.length, 
+        customer, 
+        totalSum: overallUsd, 
+        isReceived: false, 
+        cartItems: cartUsd 
+      });
+    }
+
+    // Yaratilgan ikkala (yoki bitta) chekni bazaga qo'shamiz
+    setSales([...sales, ...newSales]);
     
-    // --- MUHIM O'ZGARTIRISH 3: Hisoblashda yangi dollar birligini inobatga olish ---
-    const overallSom = cart.filter(i => !isUsdUnit(i.product.unit)).reduce((sum, item) => sum + item.total, 0);
-    const overallUsd = cart.filter(i => isUsdUnit(i.product.unit)).reduce((sum, item) => sum + item.total, 0);
+    // Alert oynasi uchun summalar
+    const overallSomAlert = cartSom.reduce((sum, item) => sum + item.total, 0);
+    const overallUsdAlert = cartUsd.reduce((sum, item) => sum + item.total, 0);
     
     let alertMsg = `✅ Savdo yakunlandi! Jami summa: `;
-    if (overallSom > 0) alertMsg += `${overallSom.toLocaleString()} so'm `;
-    if (overallUsd > 0) alertMsg += `${overallSom > 0 ? 'va ' : ''}${overallUsd.toLocaleString()} $`;
+    if (overallSomAlert > 0) alertMsg += `${overallSomAlert.toLocaleString()} so'm `;
+    if (overallUsdAlert > 0) alertMsg += `${overallSomAlert > 0 ? 'va ' : ''}${overallUsdAlert.toLocaleString()} $`;
     alertMsg += `\n(Pulini qabul qilish uchun Kassa bo'limiga o'ting)`;
 
     setCart([]); setCustomer(''); setError('');
@@ -302,6 +334,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0, flex: 1 }}>
                     <option value="">-- Ro'yxatdan tanlang --</option>
+                    <option value="" disabled style={{color: 'gray'}}>Mavjud tovarlar</option>
                     {filteredProducts.map(p => (
                       <option key={p.id} value={p.id}>{p.name} (Qoldi: {p.quantity} {p.unit})</option>
                     ))}
