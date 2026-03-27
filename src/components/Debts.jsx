@@ -11,13 +11,11 @@ const Debts = ({ sales, setSales, setPage }) => {
     s.customer?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // 1. Valyutani aniqlash funksiyasi (Dona $ va Kv $ larni ham o'z ichiga oladi)
   const getIsDollar = (sale) => {
     const unit = sale.unit?.toLowerCase() || '';
     return sale.currency === '$' || unit.includes('$') || unit.includes('dona($)') || unit.includes('kv($)');
   };
 
-  // 2. Umumiy qarzlar statistikasi (Valyuta bo'yicha ajratilgan)
   const totalDebtSumSom = debtSales
     .filter(s => !getIsDollar(s))
     .reduce((acc, s) => acc + (s.totalSum - (s.paidAmount || 0)), 0);
@@ -26,20 +24,21 @@ const Debts = ({ sales, setSales, setPage }) => {
     .filter(s => getIsDollar(s))
     .reduce((acc, s) => acc + (s.totalSum - (s.paidAmount || 0)), 0);
 
+  // MANA SHU FUNKSIYA TUZATILDI
   const handleRepay = (sale, isFull) => {
     const remainingDebt = sale.totalSum - (sale.paidAmount || 0);
     const isDollar = getIsDollar(sale);
     const currencyStr = isDollar ? '$' : "so'm";
     
-    // "Hammasini to'lash" bo'lsa qolgan 100$ ni oladi, bo'lmasa yozilgan qismni
     const amount = isFull ? remainingDebt : parseFloat(repayAmounts[sale.id]);
 
     if (isNaN(amount) || amount <= 0) return alert("Summani to'g'ri kiriting!");
     if (amount > remainingDebt) return alert(`Xato! Qoldiq qarz: ${remainingDebt.toLocaleString()} ${currencyStr}`);
 
     if (window.confirm(`${sale.customer}dan ${amount.toLocaleString()} ${currencyStr} qabul qilasizmi?`)) {
+      const now = Date.now(); // TO'LOV QILINGAN HOZIRGI VAQT (masalan, 15-mart)
       const newPaidAmount = (sale.paidAmount || 0) + amount;
-      const isFullyPaid = Math.abs(newPaidAmount - sale.totalSum) < 0.01; // Aniq hisob-kitob uchun
+      const isFullyPaid = Math.abs(newPaidAmount - sale.totalSum) < 0.01;
       
       setSales(sales.map(s => {
         if (s.id === sale.id) {
@@ -48,10 +47,9 @@ const Debts = ({ sales, setSales, setPage }) => {
             paidAmount: newPaidAmount, 
             isDebt: !isFullyPaid, 
             wasDebt: true,
-            // DIQQAT: Kassaga faqat shu `amount` (ya'ni 100$) borishi uchun ushbu maydon muhim:
             lastPaymentAmount: amount, 
-            lastPaymentDate: Date.now(),
-            paymentHistory: [...(s.paymentHistory || []), { amount: amount, date: Date.now() }]
+            lastPaymentDate: now, // Savdo 10-mart bo'lsa ham, kassa uchun 15-mart deb saqlanadi
+            paymentHistory: [...(s.paymentHistory || []), { amount: amount, date: now }]
           };
         }
         return s;
