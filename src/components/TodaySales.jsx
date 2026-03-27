@@ -3,21 +3,28 @@ import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, Fil
 
 const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }) => {
   const [partialAmounts, setPartialAmounts] = useState({});
-  const [historyType, setHistoryType] = useState('daily'); // Tarix uchun state qo'shildi
+  const [historyType, setHistoryType] = useState('daily'); 
   const todayStr = new Date().toLocaleDateString('uz-UZ');
   
-  // Tovar dollar($)da sotilganligini aniqlash uchun yordamchi funksiya
   const isUsdProduct = (productName) => typeof productName === 'string' && productName.includes('$');
 
-  // Bugungi barcha pullarni yig'ib olish (So'm va Dollar alohida)
   let totalIncomeSom = 0;
   let totalIncomeUsd = 0;
+  
+  let todayNewDebtsSom = 0;
+  let todayNewDebtsUsd = 0;
+  
   const todaysPayments = [];
 
   sales.forEach(sale => {
     const isUsd = isUsdProduct(sale.productName);
 
-    // Agar to'lovlar tarixi bo'lsa (qarzdan yoki qisman to'lov qilingan bo'lsa)
+    if (new Date(sale.id).toLocaleDateString('uz-UZ') === todayStr && sale.isDebt) {
+      const remainingDebt = sale.totalSum - (sale.paidAmount || 0);
+      if (isUsd) todayNewDebtsUsd += remainingDebt;
+      else todayNewDebtsSom += remainingDebt;
+    }
+
     if (sale.paymentHistory && sale.paymentHistory.length > 0) {
       sale.paymentHistory.forEach(payment => {
         if (new Date(payment.date).toLocaleDateString('uz-UZ') === todayStr) {
@@ -39,7 +46,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
         }
       });
     } else {
-      // Odatdagi to'liq to'langan savdolar
       if (sale.isReceived && new Date(sale.receivedAt || sale.id).toLocaleDateString('uz-UZ') === todayStr) {
         if (isUsd) totalIncomeUsd += sale.totalSum;
         else totalIncomeSom += sale.totalSum;
@@ -60,10 +66,8 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     }
   });
 
-  // Yangi to'lovlarni eng tepaga qo'yish
   todaysPayments.sort((a, b) => b.date - a.date);
 
-  // Vozvratlarni ham So'm va Dollarga ajratamiz
   let totalExpenseSom = 0;
   let totalExpenseUsd = 0;
   returns.filter(r => new Date(r.id).toLocaleDateString('uz-UZ') === todayStr).forEach(r => {
@@ -74,21 +78,20 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
   const netCashSom = totalIncomeSom - totalExpenseSom;
   const netCashUsd = totalIncomeUsd - totalExpenseUsd;
 
-  // XATO SHU YERDA EDI: Date.now() o'rniga s.id qildim
   const handleReceive = (id, customer, sum) => {
     if (window.confirm(`${customer} hamma pulni to'liq to'ladimi?`)) {
+      const now = Date.now();
       setSales(sales.map(s => s.id === id ? { 
         ...s, 
         isReceived: true, 
         paidAmount: s.totalSum, 
         isDebt: false, 
-        receivedAt: s.id, 
-        paymentHistory: [{ amount: s.totalSum, date: s.id }] 
+        receivedAt: now, 
+        paymentHistory: [{ amount: s.totalSum, date: now }] 
       } : s));
     }
   };
 
-  // XATO SHU YERDA EDI: Date.now() o'rniga sale.id qildim
   const handlePartialPayment = (sale) => {
     const inputAmount = parseFloat(partialAmounts[sale.id]);
     const currency = isUsdProduct(sale.productName) ? '$' : "so'm";
@@ -97,14 +100,15 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     if (inputAmount >= sale.totalSum) return handleReceive(sale.id, sale.customer, sale.totalSum);
 
     const remaining = sale.totalSum - inputAmount;
+    const now = Date.now();
     if (window.confirm(`${sale.customer}dan ${inputAmount.toLocaleString()} ${currency} olindi.\nQolgan ${remaining.toLocaleString()} ${currency} qarzga yozilsinmi?`)) {
       setSales(sales.map(s => s.id === sale.id ? { 
         ...s, 
         isReceived: true, 
         paidAmount: inputAmount, 
         isDebt: true, 
-        receivedAt: sale.id, 
-        paymentHistory: [{ amount: inputAmount, date: sale.id }]
+        receivedAt: now, 
+        paymentHistory: [{ amount: inputAmount, date: now }]
       } : s));
       setPartialAmounts({ ...partialAmounts, [sale.id]: '' });
     }
@@ -129,7 +133,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     }
   };
 
-  // TARIX HISOBLASH LOGIKASI QO'SHILDI
   const aggregatedHistory = useMemo(() => {
     const map = {};
     sales.forEach(sale => {
@@ -175,6 +178,10 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
             {totalIncomeUsd > 0 ? `+${totalIncomeUsd.toLocaleString()} $` : ''}
           </h2>
         </div>
+        
+        {/* SOF KASSA qarz bilan joyi almashdi */}
+
+
         <div className="card" style={{ borderTop: '6px solid #4b5563' }}>
           <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>JAMI CHIQIM</p>
           <h2 style={{ color: '#4b5563', margin: '5px 0' }}>
@@ -183,6 +190,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
             {totalExpenseUsd > 0 ? `-${totalExpenseUsd.toLocaleString()} $` : ''}
           </h2>
         </div>
+
         <div className="card" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)', color: 'white', border: 'none' }}>
           <p style={{ margin: 0, opacity: 0.8, fontSize: '13px', fontWeight: 'bold' }}>SOF KASSA</p>
           <h2 style={{ margin: '5px 0' }}>
@@ -191,11 +199,20 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
             {netCashUsd !== 0 ? `${netCashUsd.toLocaleString()} $` : ''}
           </h2>
         </div>
+        
+        {/* BUGUNGI QARZLAR eng oxiriga o'tdi */}
+        <div className="card" style={{ borderTop: '6px solid #ef4444' }}>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>BUGUNGI QARZLAR</p>
+          <h2 style={{ color: '#ef4444', margin: '5px 0' }}>
+            {todayNewDebtsSom > 0 || todayNewDebtsUsd === 0 ? `${todayNewDebtsSom.toLocaleString()} so'm` : ''}
+            {todayNewDebtsSom > 0 && todayNewDebtsUsd > 0 && <br/>}
+            {todayNewDebtsUsd > 0 ? `${todayNewDebtsUsd.toLocaleString()} $` : ''}
+          </h2>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
         
-        {/* KUTILAYOTGANLAR (Yangi tovar savdolari kutib turgan joy) */}
         <div className="card" style={{ borderTop: '4px solid #4b5563' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px' }}><Clock size={20} color="#4b5563" /> Kutilayotgan to'lovlar</h3>
           {pendingSales.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Kutilayotganlar yo'q.</p> : (
@@ -234,7 +251,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
           )}
         </div>
 
-        {/* BUGUNGI TASDIQLANGAN (KIRIM) PULLAR RO'YXATI */}
         <div className="card" style={{ borderTop: '4px solid #1e3a8a' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px' }}><CheckCircle size={20} color="#1e3a8a" /> Bugun kassaga tushgan pullar</h3>
           {todaysPayments.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Hali pul tushmadi.</p> : (
@@ -261,7 +277,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', borderTop: '1px solid #fafafa', paddingTop: '8px' }}>
                       <div style={{ fontSize: '12px', color: '#94a3b8' }}>Vaqti: {new Date(payment.date).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</div>
                       
-                      {/* QOLDIQ QARZ SHU YERDA CHIQADI */}
                       {payment.isDebt && (
                         <div style={{ fontSize: '13px', color: '#ef4444', fontWeight: 'bold' }}>
                           ⚠️ Yana {(payment.totalSum - payment.currentPaidAmount).toLocaleString()} {currency} qarzi qoldi
@@ -278,7 +293,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
 
       </div>
 
-      {/* YANGI QO'SHILGAN KASSA TARIXI QISMI */}
       <div className="card" style={{ marginTop: '30px', borderTop: '4px solid #1e3a8a' }}>
         <h3 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
            Kassa Tarixi
