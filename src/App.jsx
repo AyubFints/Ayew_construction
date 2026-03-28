@@ -209,7 +209,10 @@ function App() {
       case 'return': return <Return products={products} setProducts={setProducts} returns={returns} setReturns={setReturns} setPage={setPage} customers={customers} />;
       case 'todaysales': return <TodaySales products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} />;
       case 'customers': return <Customers customers={customers} setCustomers={setCustomers} sales={sales} setPage={setPage} />;
-      case 'debts': return <Debts sales={sales} setSales={setSales} setPage={setPage} />;
+      
+      // DEBTS QISMIGA CUSTOMERS QO'SHILDI
+      case 'debts': return <Debts sales={sales} setSales={setSales} setPage={setPage} customers={customers} />;
+      
       case 'settings': return <Settings storeName={storeName} setStoreName={setStoreName} setProducts={setProducts} setSales={setSales} setReturns={setReturns} setPage={setPage} />;
       // 3. ARENDA SAHIFASI SWITCHGA QO'SHILDI
       case 'arenda': return <Arenda arenda={arenda} setArenda={setArenda} setPage={setPage} />;
