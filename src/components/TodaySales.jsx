@@ -1,9 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, FileText, Clock, Tag, XCircle, Banknote } from 'lucide-react';
+import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, FileText, Clock, Tag, XCircle, Banknote, ChevronRight } from 'lucide-react';
 
 const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }) => {
   const [partialAmounts, setPartialAmounts] = useState({});
   const [historyType, setHistoryType] = useState('daily'); 
+  // YANGI QO'SHILGAN: Tarixdan tanlangan kunni ushlab turish uchun
+  const [selectedHistory, setSelectedHistory] = useState(null); 
+  
   const todayStr = new Date().toLocaleDateString('uz-UZ');
   
   const isUsdProduct = (productName) => typeof productName === 'string' && productName.includes('$');
@@ -133,6 +136,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     }
   };
 
+  // YANGILANGAN: Tarixni hisoblaganda o'sha kunning tranzaksiyalarini (transactions) ham saqlab qo'yamiz
   const aggregatedHistory = useMemo(() => {
     const map = {};
     sales.forEach(sale => {
@@ -152,11 +156,30 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
           label = `${key}-yil`;
         }
 
-        if (!map[key]) map[key] = { label, som: 0, usd: 0, timestamp: payment.date };
-        if (isUsdProduct(sale.productName)) map[key].usd += payment.amount;
+        if (!map[key]) map[key] = { label, key, som: 0, usd: 0, timestamp: payment.date, transactions: [] };
+        
+        const isUsd = isUsdProduct(sale.productName);
+        if (isUsd) map[key].usd += payment.amount;
         else map[key].som += payment.amount;
+
+        // Har bir kun ichiga nima sotilganini saqlaymiz
+        map[key].transactions.push({
+          saleId: sale.id,
+          customer: sale.customer,
+          productName: sale.productName,
+          amount: payment.amount,
+          date: payment.date,
+          isUsd: isUsd,
+          isDebtPayment: payment.date !== sale.id 
+        });
       });
     });
+
+    // Tranzaksiyalarni vaqt bo'yicha tartiblash
+    Object.values(map).forEach(group => {
+      group.transactions.sort((a, b) => b.date - a.date);
+    });
+
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
   }, [sales, historyType]);
 
@@ -179,9 +202,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
           </h2>
         </div>
         
-        {/* SOF KASSA qarz bilan joyi almashdi */}
-
-
         <div className="card" style={{ borderTop: '6px solid #4b5563' }}>
           <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>JAMI CHIQIM</p>
           <h2 style={{ color: '#4b5563', margin: '5px 0' }}>
@@ -200,7 +220,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
           </h2>
         </div>
         
-        {/* BUGUNGI QARZLAR eng oxiriga o'tdi */}
         <div className="card" style={{ borderTop: '6px solid #ef4444' }}>
           <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>BUGUNGI QARZLAR</p>
           <h2 style={{ color: '#ef4444', margin: '5px 0' }}>
@@ -226,7 +245,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                       <span style={{ fontWeight: '800' }}>{sale.totalSum.toLocaleString()} {currency}</span>
                     </div>
                     <div style={{ color: '#4b5563', fontSize: '14px', marginBottom: '15px', whiteSpace: 'pre-line' }}>{sale.productName}</div>
-
                     <div style={{ backgroundColor: '#f9fafb', padding: '12px', borderRadius: '8px', marginBottom: '15px' }}>
                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold' }}>Mijoz qancha pul berdi? ({currency})</label>
                       <div style={{ display: 'flex', gap: '8px', marginTop: '5px' }}>
@@ -238,7 +256,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                         <button onClick={() => handlePartialPayment(sale)} className="btn btn-primary" style={{ width: 'auto' }}>To'lash</button>
                       </div>
                     </div>
-
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <button onClick={() => handleReceive(sale.id, sale.customer, sale.totalSum)} className="btn btn-primary" style={{ flex: 1, background: '#10b981' }}>To'liq olindi</button>
                       <button onClick={() => handleToDebt(sale.id)} className="btn" style={{ flex: 1, background: '#f59e0b', color: 'white' }}>Qarzga</button>
@@ -259,7 +276,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                 const currency = isUsdProduct(payment.productName) ? '$' : "so'm";
                 return (
                   <div key={payment.id} className="fade-in" style={{ padding: '15px', backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderLeft: '4px solid #1e3a8a', borderRadius: '12px' }}>
-                    
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ flex: '1' }}>
                         <div style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase' }}>Olingan summa</div>
@@ -271,19 +287,10 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                         {payment.isDebtPayment && <span style={{ fontSize: '10px', backgroundColor: '#fef3c7', color: '#b45309', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold' }}>Qarzdan to'lov</span>}
                       </div>
                     </div>
-
                     <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '10px', whiteSpace: 'pre-line' }}>{payment.productName}</div>
-                    
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', borderTop: '1px solid #fafafa', paddingTop: '8px' }}>
                       <div style={{ fontSize: '12px', color: '#94a3b8' }}>Vaqti: {new Date(payment.date).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</div>
-                      
-                      {payment.isDebt && (
-                        <div style={{ fontSize: '13px', color: '#ef4444', fontWeight: 'bold' }}>
-                          ⚠️ Yana {(payment.totalSum - payment.currentPaidAmount).toLocaleString()} {currency} qarzi qoldi
-                        </div>
-                      )}
                     </div>
-
                   </div>
                 );
               })}
@@ -294,26 +301,71 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
       </div>
 
       <div className="card" style={{ marginTop: '30px', borderTop: '4px solid #1e3a8a' }}>
-        <h3 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-           Kassa Tarixi
-        </h3>
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-          <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'daily' ? '#1e3a8a' : '#e5e7eb', color: historyType === 'daily' ? 'white' : '#1f2937' }} onClick={() => setHistoryType('daily')}>Kunlik</button>
-          <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'monthly' ? '#1e3a8a' : '#e5e7eb', color: historyType === 'monthly' ? 'white' : '#1f2937' }} onClick={() => setHistoryType('monthly')}>Oylik</button>
-          <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'yearly' ? '#1e3a8a' : '#e5e7eb', color: historyType === 'yearly' ? 'white' : '#1f2937' }} onClick={() => setHistoryType('yearly')}>Yillik</button>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {aggregatedHistory.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Ma'lumot yo'q</p> : aggregatedHistory.map((item, index) => (
-            <div key={index} style={{ padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #d1d5db', display: 'flex', justifyContent: 'space-between' }}>
-              <div style={{ fontWeight: 'bold', color: '#1f2937' }}>{item.label}</div>
-              <div style={{ textAlign: 'right' }}>
-                {item.som > 0 && <div style={{ color: '#10b981', fontWeight: 'bold' }}>{item.som.toLocaleString()} so'm</div>}
-                {item.usd > 0 && <div style={{ color: '#2563eb', fontWeight: 'bold' }}>{item.usd.toLocaleString()} $</div>}
-              </div>
+        
+        {/* YANGILANGAN: Agar biror kun tanlanmagan bo'lsa umumiy ro'yxat chiqadi */}
+        {!selectedHistory ? (
+          <>
+            <h3 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              Kassa Tarixi
+            </h3>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+              <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'daily' ? '#1e3a8a' : '#e5e7eb', color: historyType === 'daily' ? 'white' : '#1f2937' }} onClick={() => {setHistoryType('daily'); setSelectedHistory(null);}}>Kunlik</button>
+              <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'monthly' ? '#1e3a8a' : '#e5e7eb', color: historyType === 'monthly' ? 'white' : '#1f2937' }} onClick={() => {setHistoryType('monthly'); setSelectedHistory(null);}}>Oylik</button>
+              <button className="btn" style={{ padding: '8px', flex: 1, backgroundColor: historyType === 'yearly' ? '#1e3a8a' : '#e5e7eb', color: historyType === 'yearly' ? 'white' : '#1f2937' }} onClick={() => {setHistoryType('yearly'); setSelectedHistory(null);}}>Yillik</button>
             </div>
-          ))}
-        </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {aggregatedHistory.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Ma'lumot yo'q</p> : aggregatedHistory.map((item, index) => (
+                <div 
+                  key={index} 
+                  onClick={() => setSelectedHistory(item)} 
+                  className="fade-in"
+                  style={{ padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #d1d5db', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: '0.2s' }}
+                >
+                  <div style={{ fontWeight: 'bold', color: '#1f2937' }}>{item.label}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      {item.som > 0 && <div style={{ color: '#10b981', fontWeight: 'bold' }}>{item.som.toLocaleString()} so'm</div>}
+                      {item.usd > 0 && <div style={{ color: '#2563eb', fontWeight: 'bold' }}>{item.usd.toLocaleString()} $</div>}
+                    </div>
+                    <ChevronRight size={20} color="#9ca3af" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          /* YANGILANGAN: Agar kun tanlansa, o'sha kunning ichidagi batafsil ro'yxat chiqadi */
+          <div className="fade-in">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid #e5e7eb' }}>
+              <button onClick={() => setSelectedHistory(null)} className="btn btn-danger" style={{ width: 'auto', padding: '8px 12px' }}>
+                <ArrowLeft size={16} /> Ortga
+              </button>
+              <h3 style={{ margin: 0, color: '#1e3a8a' }}>{selectedHistory.label} tafsilotlari</h3>
+            </div>
+            
+            {selectedHistory.transactions.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Bu sanada savdo bo'lmagan.</p> : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {selectedHistory.transactions.map((tr, idx) => (
+                  <div key={idx} style={{ padding: '15px', backgroundColor: 'white', border: '1px solid #e5e7eb', borderLeft: '4px solid #10b981', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                      <strong style={{ color: '#1e3a8a', fontSize: '16px' }}>{tr.customer}</strong>
+                      <strong style={{ color: tr.isUsd ? '#2563eb' : '#10b981', fontSize: '16px' }}>
+                        +{tr.amount.toLocaleString()} {tr.isUsd ? '$' : "so'm"}
+                      </strong>
+                    </div>
+                    <div style={{ color: '#4b5563', fontSize: '13px', whiteSpace: 'pre-line', marginBottom: '10px' }}>{tr.productName}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#9ca3af', borderTop: '1px solid #f3f4f6', paddingTop: '8px' }}>
+                      <span>Vaqti: {new Date(tr.date).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</span>
+                      {tr.isDebtPayment && <span style={{ backgroundColor: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>Qarz to'lovi</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
       
     </div>
