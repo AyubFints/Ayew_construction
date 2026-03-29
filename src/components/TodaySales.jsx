@@ -253,7 +253,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
             </div>
           )}
         </div>
-        
+
         {/* Payments Received Today */}
         <div className="card" style={{ borderTop: '4px solid #1e3a8a' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px' }}><CheckCircle size={20} color="#1e3a8a" /> Bugun kassaga tushgan pullar</h3>

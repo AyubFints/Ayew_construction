@@ -1,15 +1,23 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, Search, X } from 'lucide-react';
+import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, Search, X, PackageOpen, Tag } from 'lucide-react';
 
 const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, customers = [] }) => {
   const [customer, setCustomer] = useState('');
   
-  // YANGLIK: Bo'lim bo'yicha qidiruv uchun yangi state
+  // YANGLIK: Rejimni tanlash (Ombor yoki Erkin)
+  const [sellMode, setSellMode] = useState('inventory'); // 'inventory' yoki 'custom'
+  
+  // Ombordan tanlash uchun statelar
   const [categoryQuery, setCategoryQuery] = useState(''); 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [sellQty, setSellQty] = useState('');
   
+  // Erkin savdo uchun statelar
+  const [customName, setCustomName] = useState('');
+  const [customPrice, setCustomPrice] = useState('');
+  const [customCurrency, setCustomCurrency] = useState('som'); // 'som' yoki 'usd'
+
+  const [sellQty, setSellQty] = useState('');
   const [cart, setCart] = useState([]); 
   const [error, setError] = useState('');
   
@@ -24,10 +32,8 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
   const [detailFilter, setDetailFilter] = useState('daily');
   const [detailDate, setDetailDate] = useState(currentDayStr);
 
-  // --- MUHIM O'ZGARTIRISH 1: Dollar birligini aniqlash ---
   const isUsdUnit = (unit) => {
     if (!unit) return false;
-    // Birlik 'kv' yoki ichida '$' belgisi bo'lsa (Dona/$ kabi), bu dollarli tovar
     return unit.toLowerCase() === 'kv' || unit.includes('$');
   };
 
@@ -127,19 +133,62 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     setSelectedProductId('');
     setSellQty('');
     setError('');
+    // Erkin savdo uchun tozalash
+    setCustomName('');
+    setCustomPrice('');
   };
 
   const handleAddToCart = (e) => {
     e.preventDefault();
     setError('');
-    if (!selectedProduct) return setError("Iltimos, avval tovarni tanlang!");
-    const qty = parseFloat(sellQty);
-    if (qty <= 0 || isNaN(qty)) return setError("Miqdorni to'g'ri kiriting!");
-    const alreadyInCart = cart.filter(item => item.product.id === selectedProduct.id).reduce((sum, item) => sum + item.qty, 0);
-    if (qty + alreadyInCart > selectedProduct.quantity) return setError(`Omborda yetarli emas! Qoldiq: ${selectedProduct.quantity} ${selectedProduct.unit}`);
 
-    setCart([...cart, { id: Date.now(), product: selectedProduct, qty: qty, total: qty * selectedProduct.price }]);
-    handleClearSelection();
+    // 1. OMBORDAN SOTISH REJIMI
+    if (sellMode === 'inventory') {
+      if (!selectedProduct) return setError("Iltimos, avval tovarni tanlang!");
+      const qty = parseFloat(sellQty);
+      if (qty <= 0 || isNaN(qty)) return setError("Miqdorni to'g'ri kiriting!");
+      const alreadyInCart = cart.filter(item => !item.isCustom && item.product.id === selectedProduct.id).reduce((sum, item) => sum + item.qty, 0);
+      if (qty + alreadyInCart > selectedProduct.quantity) return setError(`Omborda yetarli emas! Qoldiq: ${selectedProduct.quantity} ${selectedProduct.unit}`);
+
+      setCart([...cart, { 
+        id: Date.now(), 
+        isCustom: false, // Ombordan ekanligini bildiradi
+        product: selectedProduct, 
+        qty: qty, 
+        total: qty * selectedProduct.price 
+      }]);
+      handleClearSelection();
+    } 
+    // 2. ERKIN SAVDO (OMBORDA YO'Q) REJIMI
+    else {
+      if (!customName.trim()) return setError("Tovar nomini kiriting!");
+      const price = parseFloat(customPrice);
+      if (price <= 0 || isNaN(price)) return setError("Narxni to'g'ri kiriting!");
+      const qty = parseFloat(sellQty);
+      if (qty <= 0 || isNaN(qty)) return setError("Miqdorni to'g'ri kiriting!");
+
+      // Dollar yoki so'm ekanligiga qarab birlik va nomni to'g'rilaymiz
+      const isUsd = customCurrency === 'usd';
+      const unit = isUsd ? 'dona/$' : 'dona';
+      const name = isUsd ? `${customName} $ (Erkin)` : `${customName} (Erkin)`;
+
+      const newCustomProduct = {
+        id: `custom_${Date.now()}`,
+        name: name,
+        price: price,
+        unit: unit,
+        quantity: '∞' // Cheksiz miqdor belgisi
+      };
+
+      setCart([...cart, { 
+        id: Date.now(), 
+        isCustom: true, // Erkin tavar ekanligini bildiradi
+        product: newCustomProduct, 
+        qty: qty, 
+        total: qty * price 
+      }]);
+      handleClearSelection();
+    }
   };
 
   const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
@@ -148,18 +197,23 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     if (!customer) return setError("Mijozni tanlang!");
     if (cart.length === 0) return setError("Savat bo'sh! Tovar qo'shing.");
 
+    // YANGLIK: Faqatgina ombordan olingan (isCustom: false) tovarlarnigina ayiramiz
     let updatedProducts = [...products];
-    cart.forEach(cartItem => { updatedProducts = updatedProducts.map(p => p.id === cartItem.product.id ? { ...p, quantity: p.quantity - cartItem.qty } : p); });
+    cart.forEach(cartItem => { 
+      if (!cartItem.isCustom) {
+        updatedProducts = updatedProducts.map(p => 
+          p.id === cartItem.product.id ? { ...p, quantity: p.quantity - cartItem.qty } : p
+        ); 
+      }
+    });
     setProducts(updatedProducts);
 
-    // --- MUHIM O'ZGARTIRISH: Dollar va So'mlik xaridlarni 2 ta alohida ro'yxatga ajratamiz ---
     const cartSom = cart.filter(i => !isUsdUnit(i.product.unit));
     const cartUsd = cart.filter(i => isUsdUnit(i.product.unit));
 
     const newSales = [];
     const now = Date.now();
 
-    // 1. Agar so'mlik tovarlar bo'lsa, ularni bitta chek qilamiz
     if (cartSom.length > 0) {
       const overallSom = cartSom.reduce((sum, item) => sum + item.total, 0);
       const namesSom = cartSom.map(item => `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} so'm)`).join('\n');
@@ -175,12 +229,11 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
       });
     }
 
-    // 2. Agar dollarlik tovarlar bo'lsa, ularni alohida ikkinchi chek qilamiz
     if (cartUsd.length > 0) {
       const overallUsd = cartUsd.reduce((sum, item) => sum + item.total, 0);
       const namesUsd = cartUsd.map(item => `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} $)`).join('\n');
       newSales.push({ 
-        id: now + 1, // ID bir xil bo'lib qolmasligi uchun +1 qo'shamiz
+        id: now + 1, 
         productName: namesUsd, 
         unit: 'xil tovar ($)', 
         quantity: cartUsd.length, 
@@ -191,10 +244,8 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
       });
     }
 
-    // Yaratilgan ikkala (yoki bitta) chekni bazaga qo'shamiz
     setSales([...sales, ...newSales]);
     
-    // Alert oynasi uchun summalar
     const overallSomAlert = cartSom.reduce((sum, item) => sum + item.total, 0);
     const overallUsdAlert = cartUsd.reduce((sum, item) => sum + item.total, 0);
     
@@ -207,7 +258,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     alert(alertMsg);
   };
 
-  // Savatdagi jami summani hisoblash (Dona/$ ni ham dollar deb oladi)
   const cartTotalSom = cart.filter(i => !isUsdUnit(i.product.unit)).reduce((sum, item) => sum + item.total, 0);
   const cartTotalUsd = cart.filter(i => isUsdUnit(i.product.unit)).reduce((sum, item) => sum + item.total, 0);
 
@@ -312,48 +362,116 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
         <form onSubmit={handleAddToCart}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '15px' }}>
-            <div style={{ backgroundColor: '#f9fafb', padding: '15px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-              <label style={{ fontWeight: '600', display: 'block', marginBottom: '10px', color: '#374151' }}>Tovarni qidirish va tanlash</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ position: 'relative' }}>
-                  <Filter size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
-                  <input 
-                    type="text" className="form-control" placeholder="Bo'limi bo'yicha qidirish..." 
-                    value={categoryQuery} onChange={(e) => setCategoryQuery(e.target.value)} 
-                    style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
-                  />
-                </div>
-                <div style={{ position: 'relative' }}>
-                  <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
-                  <input 
-                    type="text" className="form-control" placeholder="Nomi bo'yicha qidirish..." 
-                    value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} 
-                    style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
-                  />
-                </div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0, flex: 1 }}>
-                    <option value="">-- Ro'yxatdan tanlang --</option>
-                    <option value="" disabled style={{color: 'gray'}}>Mavjud tovarlar</option>
-                    {filteredProducts.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} (Qoldi: {p.quantity} {p.unit})</option>
-                    ))}
-                  </select>
-                  {(selectedProductId || searchQuery || categoryQuery) && (
-                    <button type="button" onClick={handleClearSelection} className="btn btn-danger" style={{ width: '46px', height: '46px', padding: '0', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
-                      <X size={20} />
-                    </button>
-                  )}
-                </div>
-              </div>
+            
+            {/* REJIM TANLASH TUGMALARI */}
+            <div style={{ display: 'flex', gap: '10px', backgroundColor: '#f3f4f6', padding: '5px', borderRadius: '12px' }}>
+              <button 
+                type="button"
+                className="btn" 
+                style={{ flex: 1, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', backgroundColor: sellMode === 'inventory' ? '#1e3a8a' : 'transparent', color: sellMode === 'inventory' ? 'white' : '#4b5563', border: 'none', boxShadow: sellMode === 'inventory' ? '0 4px 6px -1px rgba(0, 0, 0, 0.1)' : 'none' }}
+                onClick={() => setSellMode('inventory')}
+              >
+                <PackageOpen size={18} /> Ombordan tanlash
+              </button>
+              <button 
+                type="button"
+                className="btn" 
+                style={{ flex: 1, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', backgroundColor: sellMode === 'custom' ? '#10b981' : 'transparent', color: sellMode === 'custom' ? 'white' : '#4b5563', border: 'none', boxShadow: sellMode === 'custom' ? '0 4px 6px -1px rgba(0, 0, 0, 0.1)' : 'none' }}
+                onClick={() => setSellMode('custom')}
+              >
+                <Tag size={18} /> Erkin savdo (Omborda yo'q)
+              </button>
             </div>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
-              {selectedProduct && (
-                <div className="fade-in" style={{ flex: '1' }}>
-                  <input type="number" className="form-control" placeholder={`Miqdor (${selectedProduct.unit})`} value={sellQty} onChange={(e) => { setSellQty(e.target.value); setError(''); }} min="0.1" step="any" style={{ marginBottom: 0, height: '46px' }} />
+
+            <div style={{ backgroundColor: '#f9fafb', padding: '15px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+              
+              {/* 1. OMBORDAN TANLASH REJIMI */}
+              {sellMode === 'inventory' ? (
+                <>
+                  <label style={{ fontWeight: '600', display: 'block', marginBottom: '10px', color: '#374151' }}>Tovarni qidirish va tanlash</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ position: 'relative' }}>
+                      <Filter size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
+                      <input 
+                        type="text" className="form-control" placeholder="Bo'limi bo'yicha qidirish..." 
+                        value={categoryQuery} onChange={(e) => setCategoryQuery(e.target.value)} 
+                        style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
+                      />
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                      <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
+                      <input 
+                        type="text" className="form-control" placeholder="Nomi bo'yicha qidirish..." 
+                        value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} 
+                        style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0, flex: 1 }}>
+                        <option value="">-- Ro'yxatdan tanlang --</option>
+                        <option value="" disabled style={{color: 'gray'}}>Mavjud tovarlar</option>
+                        {filteredProducts.map(p => (
+                          <option key={p.id} value={p.id}>{p.name} (Qoldi: {p.quantity} {p.unit})</option>
+                        ))}
+                      </select>
+                      {(selectedProductId || searchQuery || categoryQuery) && (
+                        <button type="button" onClick={handleClearSelection} className="btn btn-danger" style={{ width: '46px', height: '46px', padding: '0', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
+                          <X size={20} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* 2. ERKIN SAVDO REJIMI */
+                <div className="fade-in">
+                  <label style={{ fontWeight: '600', display: 'block', marginBottom: '10px', color: '#10b981' }}>Tavar ma'lumotlarini qo'lda kiriting</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <input 
+                      type="text" className="form-control" placeholder="Tavar nomi (Masalan: Bolt, Sement...)" 
+                      value={customName} onChange={(e) => { setCustomName(e.target.value); setError(''); }} 
+                      style={{ marginBottom: 0, backgroundColor: '#ffffff', width: '100%' }} 
+                    />
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <input 
+                        type="number" className="form-control" placeholder="Narxi" 
+                        value={customPrice} onChange={(e) => { setCustomPrice(e.target.value); setError(''); }} 
+                        style={{ marginBottom: 0, flex: 2 }} min="0" step="any"
+                      />
+                      <select 
+                        className="form-control" 
+                        value={customCurrency} onChange={(e) => setCustomCurrency(e.target.value)} 
+                        style={{ marginBottom: 0, flex: 1, backgroundColor: '#f3f4f6' }}
+                      >
+                        <option value="som">so'm</option>
+                        <option value="usd">USD ($)</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               )}
-              <button type="submit" className="btn btn-primary" style={{ flex: selectedProduct ? '1' : '100%', height: '46px' }} disabled={!selectedProduct && products.length > 0}>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
+              {((sellMode === 'inventory' && selectedProduct) || sellMode === 'custom') && (
+                <div className="fade-in" style={{ flex: '1' }}>
+                  <input 
+                    type="number" 
+                    className="form-control" 
+                    placeholder={`Miqdor`} 
+                    value={sellQty} 
+                    onChange={(e) => { setSellQty(e.target.value); setError(''); }} 
+                    min="0.1" step="any" 
+                    style={{ marginBottom: 0, height: '46px' }} 
+                  />
+                </div>
+              )}
+              <button 
+                type="submit" 
+                className="btn btn-primary" 
+                style={{ flex: ((sellMode === 'inventory' && selectedProduct) || sellMode === 'custom') ? '1' : '100%', height: '46px', backgroundColor: sellMode === 'custom' ? '#10b981' : '#1e3a8a' }} 
+                disabled={sellMode === 'inventory' && !selectedProduct && products.length > 0}
+              >
                 <PlusCircle size={20} /> Savatga qo'shish
               </button>
             </div>
@@ -369,7 +487,10 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
               {cart.map((item, index) => (
                 <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '10px 15px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
                   <div style={{ flex: 1 }}>
-                    <p style={{ margin: 0, fontWeight: 'bold', color: '#111827' }}>{index + 1}. {item.product.name}</p>
+                    <p style={{ margin: 0, fontWeight: 'bold', color: '#111827' }}>
+                      {index + 1}. {item.product.name}
+                      {item.isCustom && <span style={{ marginLeft: '8px', fontSize: '11px', backgroundColor: '#d1fae5', color: '#065f46', padding: '2px 6px', borderRadius: '4px' }}>Erkin savdo</span>}
+                    </p>
                     <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
                       {item.qty} {item.product.unit} x {item.product.price.toLocaleString()} {isUsdUnit(item.product.unit) ? '$' : "so'm"}
                     </p>
