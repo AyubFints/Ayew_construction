@@ -4,20 +4,20 @@ import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, Clip
 const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, customers = [] }) => {
   const [customer, setCustomer] = useState('');
   
-  // YANGLIK: Rejimni tanlash (Ombor yoki Erkin)
   const [sellMode, setSellMode] = useState('inventory'); // 'inventory' yoki 'custom'
   
-  // Ombordan tanlash uchun statelar
   const [categoryQuery, setCategoryQuery] = useState(''); 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   
-  // Erkin savdo uchun statelar
   const [customName, setCustomName] = useState('');
   const [customPrice, setCustomPrice] = useState('');
   const [customCurrency, setCustomCurrency] = useState('som'); // 'som' yoki 'usd'
 
   const [sellQty, setSellQty] = useState('');
+  // YANGLIK: O'lchov birligini ushlab turuvchi state
+  const [sellUnit, setSellUnit] = useState('dona'); 
+  
   const [cart, setCart] = useState([]); 
   const [error, setError] = useState('');
   
@@ -32,9 +32,11 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
   const [detailFilter, setDetailFilter] = useState('daily');
   const [detailDate, setDetailDate] = useState(currentDayStr);
 
+  // YANGLIK: Endi 'kv' ni faqat dollar deb o'ylamasligi uchun uni olib tashladik. 
+  // Tizim dollarni faqat $ belgisidan taniydi (Bu aralashib ketishni oldini oladi).
   const isUsdUnit = (unit) => {
     if (!unit) return false;
-    return unit.toLowerCase() === 'kv' || unit.includes('$');
+    return unit.includes('$');
   };
 
   const handleDetailFilterChange = (type) => {
@@ -132,8 +134,8 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     setSearchQuery('');
     setSelectedProductId('');
     setSellQty('');
+    setSellUnit('dona'); // Tozalanganda birlikni qaytarish
     setError('');
-    // Erkin savdo uchun tozalash
     setCustomName('');
     setCustomPrice('');
   };
@@ -142,24 +144,24 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     e.preventDefault();
     setError('');
 
-    // 1. OMBORDAN SOTISH REJIMI
     if (sellMode === 'inventory') {
       if (!selectedProduct) return setError("Iltimos, avval tovarni tanlang!");
       const qty = parseFloat(sellQty);
       if (qty <= 0 || isNaN(qty)) return setError("Miqdorni to'g'ri kiriting!");
+      
       const alreadyInCart = cart.filter(item => !item.isCustom && item.product.id === selectedProduct.id).reduce((sum, item) => sum + item.qty, 0);
       if (qty + alreadyInCart > selectedProduct.quantity) return setError(`Omborda yetarli emas! Qoldiq: ${selectedProduct.quantity} ${selectedProduct.unit}`);
 
       setCart([...cart, { 
         id: Date.now(), 
-        isCustom: false, // Ombordan ekanligini bildiradi
-        product: selectedProduct, 
+        isCustom: false, 
+        // YANGLIK: Ombordagi asl birlikni emaa, sotuvchi tanlagan birlikni saqlaymiz
+        product: { ...selectedProduct, unit: sellUnit }, 
         qty: qty, 
         total: qty * selectedProduct.price 
       }]);
       handleClearSelection();
     } 
-    // 2. ERKIN SAVDO (OMBORDA YO'Q) REJIMI
     else {
       if (!customName.trim()) return setError("Tovar nomini kiriting!");
       const price = parseFloat(customPrice);
@@ -167,22 +169,22 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
       const qty = parseFloat(sellQty);
       if (qty <= 0 || isNaN(qty)) return setError("Miqdorni to'g'ri kiriting!");
 
-      // Dollar yoki so'm ekanligiga qarab birlik va nomni to'g'rilaymiz
       const isUsd = customCurrency === 'usd';
-      const unit = isUsd ? 'dona/$' : 'dona';
+      // Tanlangan birlikka $ belgisini qo'shamiz (kassa adashmasligi uchun)
+      const finalUnit = isUsd ? (sellUnit.includes('$') ? sellUnit : `${sellUnit}/$`) : sellUnit;
       const name = isUsd ? `${customName} $ (Erkin)` : `${customName} (Erkin)`;
 
       const newCustomProduct = {
         id: `custom_${Date.now()}`,
         name: name,
         price: price,
-        unit: unit,
-        quantity: '∞' // Cheksiz miqdor belgisi
+        unit: finalUnit,
+        quantity: '∞' 
       };
 
       setCart([...cart, { 
         id: Date.now(), 
-        isCustom: true, // Erkin tavar ekanligini bildiradi
+        isCustom: true, 
         product: newCustomProduct, 
         qty: qty, 
         total: qty * price 
@@ -197,7 +199,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     if (!customer) return setError("Mijozni tanlang!");
     if (cart.length === 0) return setError("Savat bo'sh! Tovar qo'shing.");
 
-    // YANGLIK: Faqatgina ombordan olingan (isCustom: false) tovarlarnigina ayiramiz
     let updatedProducts = [...products];
     cart.forEach(cartItem => { 
       if (!cartItem.isCustom) {
@@ -270,6 +271,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         <h2 style={{ fontSize: '24px', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>Sotish bo'limi <ShoppingCart size={28} /></h2>
       </div>
 
+      {/* Tepadagi karta bloklari o'zgarishsiz qoldi */}
       <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
         <div className="card" style={{ flex: '1 1 250px', padding: '25px', backgroundColor: '#ffffff', borderTop: '4px solid #1e3a8a', position: 'relative' }}>
           <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '12px', backgroundColor: '#e0e7ff', color: '#3730a3', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>{detailDate}</span>
@@ -363,7 +365,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         <form onSubmit={handleAddToCart}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '15px' }}>
             
-            {/* REJIM TANLASH TUGMALARI */}
             <div style={{ display: 'flex', gap: '10px', backgroundColor: '#f3f4f6', padding: '5px', borderRadius: '12px' }}>
               <button 
                 type="button"
@@ -385,7 +386,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
             <div style={{ backgroundColor: '#f9fafb', padding: '15px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
               
-              {/* 1. OMBORDAN TANLASH REJIMI */}
               {sellMode === 'inventory' ? (
                 <>
                   <label style={{ fontWeight: '600', display: 'block', marginBottom: '10px', color: '#374151' }}>Tovarni qidirish va tanlash</label>
@@ -407,7 +407,17 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                       />
                     </div>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                      <select className="form-control" value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 0, flex: 1 }}>
+                      <select 
+                        className="form-control" 
+                        value={selectedProductId} 
+                        onChange={(e) => {
+                          setSelectedProductId(e.target.value);
+                          // Tovarni tanlaganda uning original birligini avtomatik set qilamiz
+                          const p = products.find(prod => prod.id.toString() === e.target.value);
+                          if (p) setSellUnit(p.unit); 
+                        }} 
+                        style={{ marginBottom: 0, flex: 1 }}
+                      >
                         <option value="">-- Ro'yxatdan tanlang --</option>
                         <option value="" disabled style={{color: 'gray'}}>Mavjud tovarlar</option>
                         {filteredProducts.map(p => (
@@ -423,7 +433,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                   </div>
                 </>
               ) : (
-                /* 2. ERKIN SAVDO REJIMI */
                 <div className="fade-in">
                   <label style={{ fontWeight: '600', display: 'block', marginBottom: '10px', color: '#10b981' }}>Tavar ma'lumotlarini qo'lda kiriting</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -452,9 +461,9 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch', flexWrap: 'wrap' }}>
               {((sellMode === 'inventory' && selectedProduct) || sellMode === 'custom') && (
-                <div className="fade-in" style={{ flex: '1' }}>
+                <div className="fade-in" style={{ flex: '1 1 200px', display: 'flex', gap: '8px' }}>
                   <input 
                     type="number" 
                     className="form-control" 
@@ -462,14 +471,34 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                     value={sellQty} 
                     onChange={(e) => { setSellQty(e.target.value); setError(''); }} 
                     min="0.1" step="any" 
-                    style={{ marginBottom: 0, height: '46px' }} 
+                    style={{ marginBottom: 0, height: '46px', flex: '2' }} 
                   />
+                  {/* YANGLIK: O'lchov birligini tanlash darchasi */}
+                  <select 
+                    className="form-control"
+                    value={sellUnit}
+                    onChange={(e) => setSellUnit(e.target.value)}
+                    style={{ marginBottom: 0, height: '46px', flex: '1.2', backgroundColor: '#f3f4f6', padding: '0 8px' }}
+                  >
+                    <option value="dona">dona</option>
+                    <option value="kv">kv</option>
+                    <option value="metr">metr</option>
+                    <option value="pachka">pachka</option>
+                    <option value="kg">kg</option>
+                    <option value="qop">qop</option>
+                    <option value="litr">litr</option>
+                    <option value="komplekt">komplekt</option>
+                    {/* Ombordagi original birlik ro'yxatda yo'q bo'lsa uni qo'shib qo'yamiz */}
+                    {sellMode === 'inventory' && selectedProduct && !['dona', 'kv', 'metr', 'pachka', 'kg', 'qop', 'litr', 'komplekt'].includes(selectedProduct.unit?.toLowerCase()) && (
+                      <option value={selectedProduct.unit}>{selectedProduct.unit}</option>
+                    )}
+                  </select>
                 </div>
               )}
               <button 
                 type="submit" 
                 className="btn btn-primary" 
-                style={{ flex: ((sellMode === 'inventory' && selectedProduct) || sellMode === 'custom') ? '1' : '100%', height: '46px', backgroundColor: sellMode === 'custom' ? '#10b981' : '#1e3a8a' }} 
+                style={{ flex: ((sellMode === 'inventory' && selectedProduct) || sellMode === 'custom') ? '1 1 150px' : '100%', height: '46px', backgroundColor: sellMode === 'custom' ? '#10b981' : '#1e3a8a' }} 
                 disabled={sellMode === 'inventory' && !selectedProduct && products.length > 0}
               >
                 <PlusCircle size={20} /> Savatga qo'shish
