@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { ArrowLeft, BookOpen, Search, User, CheckCircle, ChevronDown, ChevronUp, Clock, History } from 'lucide-react';
+import { ArrowLeft, BookOpen, Search, User, CheckCircle, ChevronDown, ChevronUp, Clock, History, Calendar, DollarSign } from 'lucide-react';
 
 const Debts = ({ sales, setSales, setPage, customers = [] }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [repayAmounts, setRepayAmounts] = useState({});
   const [expandedCustomer, setExpandedCustomer] = useState(null);
 
-  // --- DOLLAR YOKI SO'MLIGINI ANIQLASH (Customers.jsx bilan bir xil) ---
+  // --- DOLLAR YOKI SO'MLIGINI ANIQLASH ---
   const isUsdUnit = (unit) => {
     if (!unit) return false;
     return unit.toLowerCase() === 'kv' || unit.includes('$');
@@ -20,7 +20,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
 
   const debtSales = sales.filter(s => s.isDebt === true);
 
-  // Qidiruv mantiqi
   const filteredDebts = debtSales.filter(s => 
     s.customer?.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -37,13 +36,20 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
     const amount = isFull ? remainingDebt : parseFloat(repayAmounts[sale.id]);
 
     if (isNaN(amount) || amount <= 0) return alert("Summani to'g'ri kiriting!");
-    if (amount > remainingDebt) return alert(`Xato! Qoldiq qarz: ${remainingDebt.toLocaleString()} ${currencyStr}`);
+    if (amount > remainingDebt + 0.01) return alert(`Xato! Qoldiq qarz: ${remainingDebt.toLocaleString()} ${currencyStr}`);
 
     if (window.confirm(`${sale.customer}dan ${amount.toLocaleString()} ${currencyStr} qabul qilasizmi?`)) {
       const now = Date.now(); 
       const newPaidAmount = (sale.paidAmount || 0) + amount;
-      const isFullyPaid = Math.abs(newPaidAmount - sale.totalSum) < 0.01;
+      const isFullyPaid = Math.abs(newPaidAmount - sale.totalSum) < 0.1;
       
+      // Yangi to'lov ob'ekti
+      const newPaymentEntry = {
+        id: Date.now(),
+        amount: amount,
+        date: now
+      };
+
       setSales(sales.map(s => {
         if (s.id === sale.id) {
           return { 
@@ -51,9 +57,9 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
             paidAmount: newPaidAmount, 
             isDebt: !isFullyPaid, 
             wasDebt: true,
-            lastPaymentAmount: amount, 
             lastPaymentDate: now, 
-            paymentHistory: [...(s.paymentHistory || []), { amount: amount, date: now }]
+            // To'lovlar tarixini massivga yig'ib boramiz
+            paymentHistory: [...(s.paymentHistory || []), newPaymentEntry]
           };
         }
         return s;
@@ -77,7 +83,8 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
         </h2>
       </div>
 
-      <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#ef4444', color: '#ffffff', marginBottom: '30px', textAlign: 'center', border: 'none' }}>
+      {/* UMUMIY QARZ KARTASI */}
+      <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#ef4444', color: '#ffffff', marginBottom: '30px', textAlign: 'center', border: 'none', borderRadius: '15px' }}>
         <p style={{ margin: 0, fontSize: '16px', color: '#fee2e2', textTransform: 'uppercase', fontWeight: 'bold' }}>Umumiy Qarzlar</p>
         <h2 style={{ margin: '10px 0 0 0', fontSize: '32px' }}>
           {totalDebtSumSom > 0 && <div>{totalDebtSumSom.toLocaleString()} so'm</div>}
@@ -94,40 +101,49 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
           <input 
             type="text" 
             className="form-control" 
-            placeholder="Mijoz ismi..." 
+            placeholder="Mijoz ismi bo'yicha qidiruv..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{ paddingLeft: '38px' }}
           />
         </div>
 
-        {/* 1. TEPADAGI AKTIV QARZLAR (RASMDAGI DIZAYN) */}
+        {/* 1. AKTIV QARZLAR RO'YXATI */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '40px' }}>
           {filteredDebts.map(sale => {
             const isKv = isUsdProduct(sale.productName, sale.unit);
             const remaining = sale.totalSum - (sale.paidAmount || 0);
             return (
-              <div key={sale.id} className="fade-in" style={{ padding: '20px', backgroundColor: '#f9fafb', border: '1px solid #d1d5db', borderLeft: '5px solid #ef4444', borderRadius: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div key={sale.id} className="fade-in" style={{ padding: '20px', backgroundColor: '#fff', border: '1px solid #d1d5db', borderLeft: '5px solid #ef4444', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <User size={18} color="#1e3a8a" />
                       <span style={{ fontWeight: 'bold', fontSize: '18px' }}>{sale.customer}</span>
                     </div>
-                    <div style={{ color: '#6b7280', fontSize: '13px' }}>Sana: {new Date(sale.id).toLocaleDateString()}</div>
+                    <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px' }}>Mahsulot: {sale.productName}</div>
+                    <div style={{ color: '#9ca3af', fontSize: '12px' }}>Sana: {new Date(sale.id).toLocaleDateString()}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '12px', color: '#6b7280' }}>Qolgan qarz:</div>
-                    <div style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '24px' }}>
+                    <div style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '22px' }}>
                       {remaining.toLocaleString()} {isKv ? '$' : "so'm"}
                     </div>
                   </div>
                 </div>
-                <div style={{ marginTop: '15px' }}>
-                  <input type="number" className="form-control" placeholder="Summani kiriting..." value={repayAmounts[sale.id] || ''} onChange={(e) => setRepayAmounts({...repayAmounts, [sale.id]: e.target.value})} style={{ marginBottom: '10px' }} />
+
+                <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #f3f4f6' }}>
+                  <input 
+                    type="number" 
+                    className="form-control" 
+                    placeholder="To'lov summasi..." 
+                    value={repayAmounts[sale.id] || ''} 
+                    onChange={(e) => setRepayAmounts({...repayAmounts, [sale.id]: e.target.value})} 
+                    style={{ marginBottom: '10px' }} 
+                  />
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={() => handleRepay(sale, false)} className="btn" style={{ backgroundColor: '#f59e0b', color: 'white', flex: 1 }}>Qismini to'lash</button>
-                    <button onClick={() => handleRepay(sale, true)} className="btn" style={{ backgroundColor: '#10b981', color: 'white', flex: 1 }}>Hammasini to'lash</button>
+                    <button onClick={() => handleRepay(sale, false)} className="btn" style={{ backgroundColor: '#f59e0b', color: 'white', flex: 1, fontSize: '14px' }}>Qism to'lov</button>
+                    <button onClick={() => handleRepay(sale, true)} className="btn" style={{ backgroundColor: '#10b981', color: 'white', flex: 1, fontSize: '14px' }}>To'liq yopish</button>
                   </div>
                 </div>
               </div>
@@ -135,58 +151,83 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
           })}
         </div>
 
-        {/* 2. PASTDAGI BARCHA MIJOZLAR (YANGI QO'SHILGAN) */}
+        {/* 2. MIJOZLAR TARIXI VA TO'LOVLAR DETALIZATSIYASI */}
         <div style={{ borderTop: '2px dashed #d1d5db', paddingTop: '20px' }}>
-          <h3 style={{ fontSize: '18px', color: '#4b5563', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-             Mijozlar ro'yxati va tarixi
+          <h3 style={{ fontSize: '18px', color: '#1e3a8a', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+             <History size={20} /> Mijozlar qarzi va to'lovlar tarixi
           </h3>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {filteredCustomers.map(customer => {
               const customerHistory = sales.filter(s => 
                 s.customer?.toLowerCase() === customer.name?.toLowerCase() && (s.isDebt || s.wasDebt)
               );
               
-              const sortedHistory = [...customerHistory].sort((a, b) => Number(b.isDebt || 0) - Number(a.isDebt || 0));
+              if (customerHistory.length === 0) return null;
 
               return (
-                <div key={customer.id || customer.name} style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
+                <div key={customer.id || customer.name} style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                   <div 
                     onClick={() => setExpandedCustomer(expandedCustomer === customer.name ? null : customer.name)}
-                    style={{ padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                    style={{ padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: expandedCustomer === customer.name ? '#f8fafc' : '#fff' }}
                   >
-                    <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ background: '#eff6ff', color: '#2563eb', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ background: '#1e3a8a', color: '#fff', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>
                         {customer.name.charAt(0).toUpperCase()}
                       </div>
-                      {customer.name}
+                      <span style={{ fontSize: '16px' }}>{customer.name}</span>
                     </div>
-                    {expandedCustomer === customer.name ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                       {expandedCustomer === customer.name ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                    </div>
                   </div>
 
                   {expandedCustomer === customer.name && (
                     <div style={{ padding: '15px', backgroundColor: '#f9fafb', borderTop: '1px solid #e5e7eb' }}>
-                      {sortedHistory.length === 0 ? (
-                        <div style={{ color: '#9ca3af', fontSize: '13px', textAlign: 'center' }}>Ma'lumot topilmadi.</div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          {sortedHistory.map(h => {
-                            const isKv = isUsdProduct(h.productName, h.unit);
-                            return (
-                              <div key={h.id} style={{ padding: '10px', border: '1px solid #d1d5db', borderRadius: '8px', backgroundColor: '#fff', borderLeft: h.isDebt ? '4px solid #ef4444' : '4px solid #10b981' }}>
-                                <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{h.productName}</div>
-                                <div style={{ fontSize: '12px', color: '#6b7280' }}>Sana: {new Date(h.id).toLocaleDateString()}</div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px' }}>
-                                  <span style={{ fontSize: '13px' }}>Jami: {h.totalSum.toLocaleString()} {isKv ? '$' : "so'm"}</span>
-                                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: h.isDebt ? '#ef4444' : '#10b981' }}>
-                                    {h.isDebt ? `Qolgan: ${(h.totalSum - (h.paidAmount || 0)).toLocaleString()}` : 'To\'langan'}
-                                  </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {customerHistory.sort((a,b) => b.id - a.id).map(h => {
+                          const isKv = isUsdProduct(h.productName, h.unit);
+                          const currency = isKv ? '$' : "so'm";
+                          const rem = h.totalSum - (h.paidAmount || 0);
+
+                          return (
+                            <div key={h.id} style={{ padding: '12px', border: '1px solid #d1d5db', borderRadius: '8px', backgroundColor: '#fff' }}>
+                              {/* Xarid haqida qisqacha */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f3f4f6', paddingBottom: '8px', marginBottom: '8px' }}>
+                                <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{h.productName}</span>
+                                <span style={{ fontSize: '12px', color: '#6b7280' }}>{new Date(h.id).toLocaleDateString()}</span>
+                              </div>
+
+                              {/* To'lovlar tarixi - ENGI QISMI */}
+                              <div style={{ marginBottom: '10px' }}>
+                                <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                   <Clock size={12} /> To'lovlar xronologiyasi:
+                                </div>
+                                {h.paymentHistory && h.paymentHistory.length > 0 ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '10px', borderLeft: '2px solid #e5e7eb' }}>
+                                    {h.paymentHistory.map((pay, idx) => (
+                                      <div key={pay.id} style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between' }}>
+                                        <span style={{ color: '#6b7280' }}>{idx + 1}. {new Date(pay.date).toLocaleDateString()} {new Date(pay.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                        <span style={{ color: '#059669', fontWeight: '500' }}>+{pay.amount.toLocaleString()} {currency}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>Hali to'lov qilinmagan (faqat qarz)</div>
+                                )}
+                              </div>
+
+                              {/* Yakuniy qoldiq */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb' }}>
+                                <div style={{ fontSize: '13px' }}>Jami: <b>{h.totalSum.toLocaleString()}</b></div>
+                                <div style={{ fontSize: '13px', color: h.isDebt ? '#ef4444' : '#10b981', fontWeight: 'bold' }}>
+                                  {h.isDebt ? `Qolgan: ${rem.toLocaleString()} ${currency}` : '✅ To\'liq to\'langan'}
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -195,6 +236,13 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
           </div>
         </div>
       </div>
+      
+      {/* QO'SHIMCHA ELEMENT: Agar hech narsa chiqmasa */}
+      {filteredDebts.length === 0 && searchQuery && (
+        <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+           Mijoz topilmadi...
+        </div>
+      )}
     </div>
   );
 };
