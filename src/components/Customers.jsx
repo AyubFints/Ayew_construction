@@ -1,6 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Users, ArrowLeft, UserPlus, History, User as UserIcon, Phone, TrendingUp, Wallet, Calendar, ShoppingBag, MessageSquare, Banknote, BarChart3, CheckCircle, Trash2 } from 'lucide-react';
 
+// --- FIREBASE IMPORTLARI QO'SHILDI ---
+import { auth, db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
+
 const Customers = ({ customers = [], setCustomers, sales = [], setPage }) => {
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
@@ -9,24 +13,52 @@ const Customers = ({ customers = [], setCustomers, sales = [], setPage }) => {
   // Tarix turi uchun state (kunlik, oylik, yillik)
   const [historyType, setHistoryType] = useState('daily');
 
-  const handleAddCustomer = (e) => {
+  // --- FIREBASE'GA QO'SHISH ULANGAN FUNKSIYA ---
+  const handleAddCustomer = async (e) => {
     e.preventDefault();
     if (!newCustomerName.trim()) return;
     const isExist = customers.find(c => c.name.toLowerCase() === newCustomerName.trim().toLowerCase());
     if (isExist) return alert("Bu ismli mijoz bazada bor!");
-    setCustomers([...customers, { id: Date.now(), name: newCustomerName.trim(), phone: newCustomerPhone.trim() }]);
-    setNewCustomerName(''); setNewCustomerPhone('');
-  };
+    
+    const newCustomer = { id: Date.now(), name: newCustomerName.trim(), phone: newCustomerPhone.trim() };
+    const yangiMijozlar = [...customers, newCustomer];
+    
+    setCustomers(yangiMijozlar); // Ekranda ko'rsatish
+    setNewCustomerName(''); 
+    setNewCustomerPhone('');
 
-  const handleDeleteCustomer = (id, name, e) => {
-    e.stopPropagation(); // Profilga kirib ketmasligi uchun
-    const confirmDelete = window.confirm(`"${name}" ismli mijozni o'chirmoqchimisiz?`);
-    if (confirmDelete) {
-      setCustomers(customers.filter(c => c.id !== id));
+    // Bulutga (Firebase) yozish
+    if (auth.currentUser) {
+      try {
+        const docRef = doc(db, "stores", auth.currentUser.uid);
+        await setDoc(docRef, { customers: yangiMijozlar }, { merge: true });
+      } catch (error) {
+        console.error("Mijozni bulutga saqlashda xato:", error);
+      }
     }
   };
 
-  // --- YANGI: Dollar birligini aniqlash (Dona/$ yoki kv uchun) ---
+  // --- FIREBASE'DAN O'CHIRISH ULANGAN FUNKSIYA ---
+  const handleDeleteCustomer = async (id, name, e) => {
+    e.stopPropagation(); // Profilga kirib ketmasligi uchun
+    const confirmDelete = window.confirm(`"${name}" ismli mijozni o'chirmoqchimisiz?`);
+    if (confirmDelete) {
+      const qolganMijozlar = customers.filter(c => c.id !== id);
+      setCustomers(qolganMijozlar); // Ekranda o'chirish
+
+      // Bulutdan ham o'chirish
+      if (auth.currentUser) {
+        try {
+          const docRef = doc(db, "stores", auth.currentUser.uid);
+          await setDoc(docRef, { customers: qolganMijozlar }, { merge: true });
+        } catch (error) {
+          console.error("Mijozni bulutdan o'chirishda xato:", error);
+        }
+      }
+    }
+  };
+
+  // --- MANTIQ: Dollar birligini aniqlash (Dona/$ yoki kv uchun) ---
   const isUsdUnit = (unit) => {
     if (!unit) return false;
     return unit.toLowerCase() === 'kv' || unit.includes('$');

@@ -9,16 +9,17 @@ import TodaySales from './components/TodaySales';
 import Debts from './components/Debts';
 import Settings from './components/Settings';
 import Customers from './components/Customers'; 
-// 1. ARENDA KOMPONENTINI IMPORT QILAMIZ
 import Arenda from './components/Arenda'; 
+import Profit from './components/Profit'; // YANGI: Foyda sahifasi ulandi
 
-import { Home, Package, ShoppingCart, RotateCcw, Wallet, BookOpen, Users, Lock, MessageCircle, Landmark } from 'lucide-react'; 
+// YANGI: TrendingUp ikonkasini qo'shdik
+import { Home, Package, ShoppingCart, RotateCcw, Wallet, BookOpen, Users, Lock, MessageCircle, Landmark, TrendingUp } from 'lucide-react'; 
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 
-// --- MAXFIY DARVOZA KOMPONENTI (O'ZGARMADI) ---
+// --- MAXFIY DARVOZA KOMPONENTI ---
 const MasterGate = ({ onUnlock }) => {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
@@ -68,13 +69,15 @@ const MasterGate = ({ onUnlock }) => {
   );
 };
 
+// --- ASOSIY APP KOMPONENTI ---
 function App() {
   const cachedAuth = localStorage.getItem('app_isAuth') === 'true';
   const cachedMaster = localStorage.getItem('app_master_unlocked') === 'true';
 
   const [isMasterUnlocked, setIsMasterUnlocked] = useState(cachedMaster || cachedAuth);
   const [isAuth, setIsAuth] = useState(cachedAuth);
-  const [dataLoaded, setDataLoaded] = useState(cachedAuth); 
+  
+  const [dataLoaded, setDataLoaded] = useState(true); 
   const [page, setPage] = useState('dashboard');
 
   const [storeName, setStoreName] = useState(() => localStorage.getItem('app_storeName') || "Qurilish mollari do'koni");
@@ -83,8 +86,6 @@ function App() {
   const [sales, setSales] = useState(() => JSON.parse(localStorage.getItem('app_sales') || '[]'));
   const [returns, setReturns] = useState(() => JSON.parse(localStorage.getItem('app_returns') || '[]'));
   const [customers, setCustomers] = useState(() => JSON.parse(localStorage.getItem('app_customers') || '[]'));
-  
-  // 2. ARENDA MA'LUMOTLARI UCHUN STATE QO'SHILDI
   const [arenda, setArenda] = useState(() => JSON.parse(localStorage.getItem('app_arenda') || '[]'));
 
   useEffect(() => {
@@ -105,64 +106,78 @@ function App() {
   }, [page]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    let unsubscribeDoc = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         localStorage.setItem('app_isAuth', 'true');
         localStorage.setItem('app_master_unlocked', 'true'); 
         setIsMasterUnlocked(true);
-        if (!isAuth) setIsAuth(true);
+        setIsAuth(true);
 
-        try {
-          const docRef = doc(db, "stores", currentUser.uid);
-          const docSnap = await getDoc(docRef);
+        const docRef = doc(db, "stores", currentUser.uid);
 
+        unsubscribeDoc = onSnapshot(docRef, (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
-            setProducts(data.products || []);
-            setSales(data.sales || []);
-            setReturns(data.returns || []);
-            setCategories(data.categories || ["Umumiy"]);
-            setStoreName(data.storeName || "Qurilish mollari do'koni");
-            setCustomers(data.customers || []); 
-            // FIREBASE DAN ARENDANI YUKLASH
-            setArenda(data.arenda || []);
+            if(data.products) setProducts(data.products);
+            if(data.sales) setSales(data.sales);
+            if(data.returns) setReturns(data.returns);
+            if(data.categories) setCategories(data.categories);
+            if(data.storeName) setStoreName(data.storeName);
+            if(data.customers) setCustomers(data.customers);
+            if(data.arenda) setArenda(data.arenda);
+          } else {
+            setDoc(docRef, {
+              storeName, categories, products, sales, returns, customers, arenda
+            }).catch(e => console.log("Yozishda xato: ", e));
           }
-        } catch (error) {
-          console.log("Internet sekin. Oflayn rejimda ishlash davom etmoqda...");
-        }
-        setDataLoaded(true);
+        }, (error) => {
+          console.error("Firebase xatosi:", error);
+        });
+
       } else {
         setIsAuth(false);
-        setDataLoaded(false);
         localStorage.setItem('app_isAuth', 'false');
       }
     });
-    return () => unsubscribe();
-  }, []);
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeDoc) unsubscribeDoc();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (dataLoaded) {
-      localStorage.setItem('app_products', JSON.stringify(products));
-      localStorage.setItem('app_sales', JSON.stringify(sales));
-      localStorage.setItem('app_returns', JSON.stringify(returns));
-      localStorage.setItem('app_categories', JSON.stringify(categories));
-      localStorage.setItem('app_customers', JSON.stringify(customers));
-      // ARENDANI LOCALSTORAGEGA SAQLASH
-      localStorage.setItem('app_arenda', JSON.stringify(arenda));
-      localStorage.setItem('app_storeName', storeName);
+    localStorage.setItem('app_products', JSON.stringify(products));
+    localStorage.setItem('app_sales', JSON.stringify(sales));
+    localStorage.setItem('app_returns', JSON.stringify(returns));
+    localStorage.setItem('app_categories', JSON.stringify(categories));
+    localStorage.setItem('app_customers', JSON.stringify(customers));
+    localStorage.setItem('app_arenda', JSON.stringify(arenda));
+    localStorage.setItem('app_storeName', storeName);
+  }, [products, sales, returns, categories, storeName, customers, arenda]);
 
-      if (isAuth && auth.currentUser) {
+  const saveToFirebase = async (newData) => {
+    if (isAuth && auth.currentUser) {
         const docRef = doc(db, "stores", auth.currentUser.uid);
-        // FIREBASE GA ARENDANI YUBORISH
-        setDoc(docRef, { products, sales, returns, categories, storeName, customers, arenda })
-          .catch(err => console.log("Hozircha oflayn."));
-      }
+        try {
+            await setDoc(docRef, newData, { merge: true });
+        } catch (error) {
+            console.error("Bulutga saqlashda xatolik:", error);
+        }
     }
-  }, [products, sales, returns, categories, storeName, customers, arenda, isAuth, dataLoaded]);
+  };
 
   const handleLogout = async () => {
     if(window.confirm("Tizimdan chiqasizmi?")) {
       await signOut(auth);
+      
+      ['app_products', 'app_sales', 'app_returns', 'app_categories', 'app_customers', 'app_arenda', 'app_storeName'].forEach(k => localStorage.removeItem(k));
+      
+      setProducts([]); setSales([]); setReturns([]); setCustomers([]); setArenda([]);
+      setCategories(["Umumiy"]); setStoreName("Qurilish mollari do'koni");
+
       localStorage.setItem('app_isAuth', 'false');
       setIsAuth(false); 
       setPage('dashboard'); 
@@ -178,6 +193,7 @@ function App() {
       { id: 'todaysales', icon: <Wallet size={22} />, label: 'Kassa' },
       { id: 'customers', icon: <Users size={22} />, label: 'Mijozlar' }, 
       { id: 'debts', icon: <BookOpen size={22} />, label: 'Qarz' },
+      { id: 'profit', icon: <TrendingUp size={22} />, label: 'Foyda' }, // YANGI: Pastki menyuga qo'shildi
     ];
     const visibleNavs = navItems.filter(item => item.id !== page);
     return (
@@ -185,10 +201,11 @@ function App() {
         position: 'fixed', bottom: '15px', left: '50%', transform: 'translateX(-50%)',
         backgroundColor: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)',
         boxShadow: '0 10px 30px rgba(30, 58, 138, 0.2)', borderRadius: '30px',
-        display: 'flex', gap: '15px', padding: '12px 25px', zIndex: 1000, border: '1px solid #e0e7ff'
+        display: 'flex', gap: '15px', padding: '12px 25px', zIndex: 1000, border: '1px solid #e0e7ff',
+        overflowX: 'auto', maxWidth: '95vw' // Menyuga ko'p narsa qo'shilsa sig'ishi uchun
       }}>
         {visibleNavs.map(item => (
-          <div key={item.id} onClick={() => setPage(item.id)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+          <div key={item.id} onClick={() => setPage(item.id)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', minWidth: '46px' }}>
             <div style={{ width: '46px', height: '46px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1e3a8a' }}>
               {item.icon}
             </div>
@@ -204,18 +221,15 @@ function App() {
     
     switch (page) {
       case 'dashboard': return <Dashboard storeName={storeName} products={products} setPage={setPage} onLogout={handleLogout} />;
-      case 'products': return <Products products={products} setProducts={setProducts} categories={categories} setCategories={setCategories} setPage={setPage} />;
+      case 'products': return <Products products={products} setProducts={setProducts} categories={categories} setCategories={setCategories} setPage={setPage} saveToFirebase={saveToFirebase} />;
       case 'sell': return <Sell products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} customers={customers} />;
       case 'return': return <Return products={products} setProducts={setProducts} returns={returns} setReturns={setReturns} setPage={setPage} customers={customers} />;
       case 'todaysales': return <TodaySales products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} />;
       case 'customers': return <Customers customers={customers} setCustomers={setCustomers} sales={sales} setPage={setPage} />;
-      
-      // DEBTS QISMIGA CUSTOMERS QO'SHILDI
       case 'debts': return <Debts sales={sales} setSales={setSales} setPage={setPage} customers={customers} />;
-      
       case 'settings': return <Settings storeName={storeName} setStoreName={setStoreName} setProducts={setProducts} setSales={setSales} setReturns={setReturns} setPage={setPage} />;
-      // 3. ARENDA SAHIFASI SWITCHGA QO'SHILDI
       case 'arenda': return <Arenda arenda={arenda} setArenda={setArenda} setPage={setPage} />;
+      case 'profit': return <Profit sales={sales} setPage={setPage} />; // YANGI: Foyda sahifasi ulandi
       default: return <Dashboard storeName={storeName} products={products} setPage={setPage} onLogout={handleLogout} />;
     }
   };

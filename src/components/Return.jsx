@@ -1,6 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { RotateCcw, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, PackageMinus, Search, X, TrendingDown, Landmark } from 'lucide-react';
 
+// --- FIREBASE IMPORTLARI QO'SHILDI ---
+import { auth, db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
+
 const Return = ({ products, setProducts, returns, setReturns, setPage, customers = [] }) => {
   const [customer, setCustomer] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -133,7 +137,8 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
 
   const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
 
-  const handleFinalReturn = () => {
+  // --- FIREBASE'GA ULANGAN VOZVRAT FUNKSIYASI ---
+  const handleFinalReturn = async () => {
     if (!customer) return setError("Mijozni tanlang!");
     if (cart.length === 0) return setError("Savat bo'sh! Tovar qo'shing.");
 
@@ -141,7 +146,6 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
     cart.forEach(cartItem => {
       updatedProducts = updatedProducts.map(p => p.id === cartItem.product.id ? { ...p, quantity: p.quantity + cartItem.qty } : p);
     });
-    setProducts(updatedProducts);
 
     // Summalarni alohida hisoblaymiz (Yangi mantiq bilan)
     const totalSom = cart.filter(item => !isUsdUnit(item.product.unit)).reduce((sum, item) => sum + item.total, 0);
@@ -164,9 +168,26 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
       returnSum: totalSom > 0 ? totalSom : totalUsd 
     };
 
-    setReturns([...returns, newReturnData]);
+    const yangiReturns = [...returns, newReturnData];
 
-    setCart([]); setCustomer(''); setError('');
+    setProducts(updatedProducts); // Ekranda mahsulotlarni ko'paytirish
+    setReturns(yangiReturns); // Ekranda qaytish tarixini yangilash
+    setCart([]); 
+    setCustomer(''); 
+    setError('');
+
+    // Bulutga (Firebase) yozish (Ikkala ma'lumotni ham bitta urinishda yuboramiz)
+    if (auth.currentUser) {
+      try {
+        const docRef = doc(db, "stores", auth.currentUser.uid);
+        await setDoc(docRef, { 
+          products: updatedProducts,
+          returns: yangiReturns
+        }, { merge: true });
+      } catch (error) {
+        console.error("Vozvratni bulutga saqlashda xato:", error);
+      }
+    }
     
     let alertMsg = '↩️ Qaytish bajarildi!\nJami chiqim:\n';
     if (totalSom > 0) alertMsg += `- ${totalSom.toLocaleString()} so'm\n`;

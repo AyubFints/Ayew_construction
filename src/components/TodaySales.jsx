@@ -1,6 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, FileText, Clock, Tag, XCircle, Banknote, ChevronRight } from 'lucide-react';
 
+// --- FIREBASE IMPORTLARI ---
+import { auth, db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
+
 const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }) => {
   const [partialAmounts, setPartialAmounts] = useState({});
   const [historyType, setHistoryType] = useState('daily'); 
@@ -41,7 +45,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
             productName: sale.productName,
             totalSum: sale.totalSum,
             isDebt: sale.isDebt,
-            // TUZATILGAN: Faqatgina savdo qarz bo'lsa va bu birinchi to'lov bo'lmasa qarz to'lovi deyiladi
+            // Faqatgina savdo qarz bo'lsa va bu birinchi to'lov bo'lmasa qarz to'lovi deyiladi
             isDebtPayment: sale.isDebt && payment.date !== sale.id 
           });
         }
@@ -76,21 +80,35 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
   const netCashSom = totalIncomeSom - totalExpenseSom;
   const netCashUsd = totalIncomeUsd - totalExpenseUsd;
 
-  const handleReceive = (id, customer) => {
+  // --- FIREBASE'GA ULANGAN "TO'LIQ OLINDI" FUNKSIYASI ---
+  const handleReceive = async (id, customer) => {
     if (window.confirm(`${customer} hamma pulni to'liq to'ladimi?`)) {
       const now = Date.now();
-      setSales(sales.map(s => s.id === id ? { 
+      const yangiSales = sales.map(s => s.id === id ? { 
         ...s, 
         isReceived: true, 
         paidAmount: s.totalSum, 
         isDebt: false, 
         receivedAt: now, 
         paymentHistory: [{ amount: s.totalSum, date: now }] 
-      } : s));
+      } : s);
+
+      setSales(yangiSales); // Ekranni yangilash
+
+      // Bulutga yozish
+      if (auth.currentUser) {
+        try {
+          const docRef = doc(db, "stores", auth.currentUser.uid);
+          await setDoc(docRef, { sales: yangiSales }, { merge: true });
+        } catch (error) {
+          console.error("Kassani bulutga saqlashda xato:", error);
+        }
+      }
     }
   };
 
-  const handlePartialPayment = (sale) => {
+  // --- FIREBASE'GA ULANGAN "QISMAN TO'LASH" FUNKSIYASI ---
+  const handlePartialPayment = async (sale) => {
     const inputAmount = parseFloat(partialAmounts[sale.id]);
     const currency = isUsdProduct(sale.productName) ? '$' : "so'm";
     if (isNaN(inputAmount) || inputAmount <= 0) return alert("Summani to'g'ri kiriting!");
@@ -99,34 +117,75 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     const remaining = sale.totalSum - inputAmount;
     const now = Date.now();
     if (window.confirm(`${sale.customer}dan ${inputAmount.toLocaleString()} ${currency} olindi.\nQolgan ${remaining.toLocaleString()} ${currency} qarzga yozilsinmi?`)) {
-      setSales(sales.map(s => s.id === sale.id ? { 
+      const yangiSales = sales.map(s => s.id === sale.id ? { 
         ...s, 
         isReceived: true, 
         paidAmount: inputAmount, 
         isDebt: true, 
         receivedAt: now, 
         paymentHistory: [{ amount: inputAmount, date: now }]
-      } : s));
+      } : s);
+
+      setSales(yangiSales); // Ekranni yangilash
       setPartialAmounts({ ...partialAmounts, [sale.id]: '' });
+
+      // Bulutga yozish
+      if (auth.currentUser) {
+        try {
+          const docRef = doc(db, "stores", auth.currentUser.uid);
+          await setDoc(docRef, { sales: yangiSales }, { merge: true });
+        } catch (error) {
+          console.error("Qism to'lovni bulutga saqlashda xato:", error);
+        }
+      }
     }
   };
 
-  const handleToDebt = (id) => {
+  // --- FIREBASE'GA ULANGAN "QARZGA Yozish" FUNKSIYASI ---
+  const handleToDebt = async (id) => {
     if (window.confirm("Hamma pulni qarzga yozamizmi?")) {
-      setSales(sales.map(s => s.id === id ? { ...s, isDebt: true, paidAmount: 0 } : s));
+      const yangiSales = sales.map(s => s.id === id ? { ...s, isDebt: true, paidAmount: 0 } : s);
+      setSales(yangiSales); // Ekranni yangilash
+
+      // Bulutga yozish
+      if (auth.currentUser) {
+        try {
+          const docRef = doc(db, "stores", auth.currentUser.uid);
+          await setDoc(docRef, { sales: yangiSales }, { merge: true });
+        } catch (error) {
+          console.error("Qarzni bulutga saqlashda xato:", error);
+        }
+      }
     }
   };
 
-  const handleCancelSale = (saleToCancel) => {
+  // --- FIREBASE'GA ULANGAN "BEKOR QILISH" FUNKSIYASI ---
+  const handleCancelSale = async (saleToCancel) => {
     if (window.confirm(`ROSTDAN HAM BEKOR QILASIZMI?\nMijoz: ${saleToCancel.customer}`)) {
+      let updatedProducts = [...products];
       if (saleToCancel.cartItems) {
-        let updatedProducts = [...products];
         saleToCancel.cartItems.forEach(item => {
           updatedProducts = updatedProducts.map(p => p.id === item.product.id ? { ...p, quantity: p.quantity + item.qty } : p);
         });
-        setProducts(updatedProducts);
       }
-      setSales(sales.filter(s => s.id !== saleToCancel.id));
+      
+      const yangiSales = sales.filter(s => s.id !== saleToCancel.id);
+      
+      setProducts(updatedProducts); // Omborni tiklash ekranda
+      setSales(yangiSales); // Savdoni o'chirish ekranda
+
+      // Bulutga yozish (Ombor va Savdolarni birdaniga yangilash)
+      if (auth.currentUser) {
+        try {
+          const docRef = doc(db, "stores", auth.currentUser.uid);
+          await setDoc(docRef, { 
+            products: updatedProducts, 
+            sales: yangiSales 
+          }, { merge: true });
+        } catch (error) {
+          console.error("Bekor qilishni bulutga saqlashda xato:", error);
+        }
+      }
     }
   };
 
@@ -327,10 +386,13 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                     <strong style={{ color: tr.isUsd ? '#2563eb' : '#10b981' }}>+{tr.amount.toLocaleString()} {tr.isUsd ? '$' : "so'm"}</strong>
                   </div>
                   <div style={{ color: '#4b5563', fontSize: '13px', whiteSpace: 'pre-line' }}>{tr.productName}</div>
+                  
+                  {/* YANGI O'ZGARISH: Sana ham chiqadigan bo'ldi */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#9ca3af', marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #f3f4f6' }}>
-                    <span>Vaqti: {new Date(tr.date).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>Sana va vaqt: {new Date(tr.date).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                     {tr.isDebtPayment && <span style={{ backgroundColor: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>Qarz to'lovi</span>}
                   </div>
+
                 </div>
               ))}
             </div>

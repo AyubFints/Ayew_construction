@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { auth } from '../firebase';
+import { auth } from '../firebase'; // Yo'l to'g'ri ko'rsatilgan
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { Lock, User, LogIn, UserPlus } from 'lucide-react';
 
-const Login = ({ onLogin }) => {
+const Login = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [loginName, setLoginName] = useState('');
   const [password, setPassword] = useState('');
@@ -15,7 +15,6 @@ const Login = ({ onLogin }) => {
     setError('');
     setLoading(true);
 
-    // Dastur qulay bo'lishi uchun oddiy loginga soxta pochta ulaymiz (Firebase pochta so'raydi)
     const email = `${loginName.trim().toLowerCase()}@dokon.uz`;
 
     try {
@@ -25,7 +24,7 @@ const Login = ({ onLogin }) => {
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
-      // Dasturga kirish App.jsx orqali boshqariladi
+      // Dasturga kirish App.jsx dagi onAuthStateChanged orqali avtomat ishga tushadi
     } catch (err) {
       console.error(err);
       if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') setError("Login yoki parol xato!");

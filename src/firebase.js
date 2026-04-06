@@ -2,19 +2,21 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// Sizning Firebase bazangiz kalitlari
 const firebaseConfig = {
-  apiKey: "AIzaSyDulMOCZ57vaSrs1JA4fipqcG1zcdGrUaE",
-  authDomain: "ayewqur-ayew.firebaseapp.com",
-  projectId: "ayewqur-ayew",
-  storageBucket: "ayewqur-ayew.firebasestorage.app",
-  messagingSenderId: "405408640898",
-  appId: "1:405408640898:web:9980a3c81e837a6b06699b"
+  apiKey: "AIzaSyDLpELcjmt_f_LkaM1x5knqa8RNSI1LJY8",
+  authDomain: "ayewqur-ayew-a48af.firebaseapp.com",
+  projectId: "ayewqur-ayew-a48af",
+  storageBucket: "ayewqur-ayew-a48af.firebasestorage.app",
+  messagingSenderId: "198405017817",
+  appId: "1:198405017817:web:87591e3084322b6c196ec8",
+  measurementId: "G-936WZEEP4C"
 };
 
-// Firebase'ni ishga tushirish
+// Firebaseni ishga tushirish
 const app = initializeApp(firebaseConfig);
 
-// Xavfsizlik va Ma'lumotlar bazasini eksport qilish
+// Dastur qolgan joylarda ishlata olishi uchun eksport qilish
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+

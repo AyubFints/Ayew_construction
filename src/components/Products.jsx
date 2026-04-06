@@ -1,35 +1,28 @@
 import React, { useState } from 'react';
 import { Package, ArrowLeft, Trash2, PlusCircle, Check, X, Tags, Filter, FolderPlus, Edit, DollarSign } from 'lucide-react';
 
-const Products = ({ products, setProducts, categories = [], setCategories, setPage }) => {
-  // Tovar qo'shish formasi holatlari
+const Products = ({ products, setProducts, categories = [], setCategories, setPage, saveToFirebase }) => {
   const [name, setName] = useState(''); 
   const [unit, setUnit] = useState('metr'); 
   const [quantity, setQuantity] = useState(''); 
-  const [price, setPrice] = useState('');
+  const [costPrice, setCostPrice] = useState(''); // YANGI: Olingan narxi
+  const [price, setPrice] = useState(''); // Sotilish narxi
   
-  // Bo'limlar (Kategoriyalar)
   const [newCategoryName, setNewCategoryName] = useState('');
   const [activeFilter, setActiveFilter] = useState('Barchasi');
   
-  // Tovarga kirim qilish (+ miqdor)
   const [addingStockId, setAddingStockId] = useState(null);
   const [stockAmount, setStockAmount] = useState('');
   
-  // Tovarni boshqa bo'limga ko'chirish
   const [assigningCatId, setAssigningCatId] = useState(null);
   const [selectedCat, setSelectedCat] = useState('');
 
-  // Tovar nomini o'zgartirish
   const [editingProductId, setEditingProductId] = useState(null);
   const [editingName, setEditingName] = useState('');
 
-  // Tovar narxini o'zgartirish
   const [changingPriceId, setChangingPriceId] = useState(null);
   const [newPriceAmount, setNewPriceAmount] = useState('');
 
-  // Jami hisob-kitob (So'm va Dollarni alohida hisoblash)
-  // O'ZGARTIRISH: Dona/$ qo'shildi
   const totalValueSom = products.reduce((acc, curr) => {
     return (curr.unit !== 'kv' && curr.unit !== 'Dona/$') ? acc + (curr.quantity * curr.price) : acc;
   }, 0);
@@ -50,15 +43,22 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
       alert("Bu nomdagi bo'lim allaqachon bor!");
       return;
     }
-    setCategories([...categories, catName]);
+    const newCategories = [...categories, catName];
+    setCategories(newCategories);
+    saveToFirebase({ categories: newCategories });
     setNewCategoryName('');
     setActiveFilter(catName);
   };
 
   const handleDeleteCategory = (catToDelete) => {
     if (window.confirm(`"${catToDelete}" bo'limini o'chirasizmi?\n\n(Bu yerdagi tovarlar o'chmaydi, shunchaki "Umumiy" ro'yxatga qaytadi)`)) {
-      setCategories(categories.filter(c => c !== catToDelete));
-      setProducts(products.map(p => p.category === catToDelete ? { ...p, category: 'Umumiy' } : p));
+      const newCategories = categories.filter(c => c !== catToDelete);
+      const newProducts = products.map(p => p.category === catToDelete ? { ...p, category: 'Umumiy' } : p);
+      
+      setCategories(newCategories);
+      setProducts(newProducts);
+      saveToFirebase({ categories: newCategories, products: newProducts });
+      
       if (activeFilter === catToDelete) setActiveFilter('Barchasi');
     }
   };
@@ -67,46 +67,72 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     e.preventDefault();
     const productCategory = activeFilter !== 'Barchasi' ? activeFilter : 'Umumiy';
     
-    setProducts([...products, { 
-      id: Date.now(), 
+    // YANGI: costPrice qo'shildi
+    const newProduct = { 
+      id: Date.now().toString(),
       name, 
       unit, 
       category: productCategory, 
       quantity: parseFloat(quantity), 
-      price: parseFloat(price) 
-    }]);
-    setName(''); setQuantity(''); setPrice('');
+      costPrice: parseFloat(costPrice), // Olingan narx bazaga yozilmoqda
+      price: parseFloat(price) // Sotilish narxi
+    };
+
+    const newProducts = [...products, newProduct];
+    setProducts(newProducts);
+    saveToFirebase({ products: newProducts });
+    
+    setName(''); setQuantity(''); setCostPrice(''); setPrice('');
   };
   
   const handleDeleteProduct = (id, productName) => { 
-    if (window.confirm(`O'chirasizmi: ${productName}?`)) setProducts(products.filter(p => p.id !== id)); 
+    if (window.confirm(`O'chirasizmi: ${productName}?`)) {
+      const newProducts = products.filter(p => p.id !== id);
+      setProducts(newProducts);
+      saveToFirebase({ products: newProducts });
+    }
   };
 
   const handleConfirmAddStock = (id) => {
     const parsedAmount = parseFloat(stockAmount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) return alert("Kiritilgan miqdor xato!");
-    setProducts(products.map(p => p.id === id ? { ...p, quantity: p.quantity + parsedAmount } : p));
+    
+    const newProducts = products.map(p => p.id === id ? { ...p, quantity: p.quantity + parsedAmount } : p);
+    setProducts(newProducts);
+    saveToFirebase({ products: newProducts });
+    
     setAddingStockId(null); setStockAmount('');
   };
 
   const handleAssignCategory = (id) => {
     if (!selectedCat) return alert("Iltimos, bo'limni tanlang!");
-    setProducts(products.map(p => p.id === id ? { ...p, category: selectedCat } : p));
+    
+    const newProducts = products.map(p => p.id === id ? { ...p, category: selectedCat } : p);
+    setProducts(newProducts);
+    saveToFirebase({ products: newProducts });
+    
     setAssigningCatId(null); setSelectedCat('');
   };
 
   const handleSaveEditName = (id) => {
     if (!editingName.trim()) return alert("Tovar nomi bo'sh bo'lishi mumkin emas!");
-    setProducts(products.map(p => p.id === id ? { ...p, name: editingName.trim() } : p));
+    
+    const newProducts = products.map(p => p.id === id ? { ...p, name: editingName.trim() } : p);
+    setProducts(newProducts);
+    saveToFirebase({ products: newProducts });
+    
     setEditingProductId(null);
   };
 
   const handleConfirmChangePrice = (id) => {
     const parsedPrice = parseFloat(newPriceAmount);
     if (isNaN(parsedPrice) || parsedPrice < 0) return alert("Narxni to'g'ri kiriting!");
-    setProducts(products.map(p => p.id === id ? { ...p, price: parsedPrice } : p));
-    setChangingPriceId(null);
-    setNewPriceAmount('');
+    
+    const newProducts = products.map(p => p.id === id ? { ...p, price: parsedPrice } : p);
+    setProducts(newProducts);
+    saveToFirebase({ products: newProducts });
+    
+    setChangingPriceId(null); setNewPriceAmount('');
   };
 
   return (
@@ -121,7 +147,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
       </div>
 
       <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#1e3a8a', color: '#ffffff', marginBottom: '30px', textAlign: 'center', border: 'none' }}>
-        <p style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '15px' }}>Jami ombor qiymati</p>
+        <p style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '15px' }}>Jami ombor qiymati (Sotuv narxida)</p>
         
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', flexWrap: 'wrap' }}>
           <div>
@@ -194,24 +220,42 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
           </h3>
           <form onSubmit={handleAddProduct}>
             <input type="text" className="form-control" placeholder="Tovar nomi" value={name} onChange={(e) => setName(e.target.value)} required />
+            
             <div style={{ display: 'flex', gap: '10px' }}>
               <input type="number" className="form-control" placeholder="Miqdori" value={quantity} onChange={(e) => setQuantity(e.target.value)} required min="0.001" step="any" style={{ flex: 2 }} />
               <select className="form-control" value={unit} onChange={(e) => setUnit(e.target.value)} style={{ flex: 1 }}>
                 <option value="metr">Metr</option>
                 <option value="kv">KV($)</option> 
-                <option value="Dona/$">Dona($)</option> {/* O'ZGARTIRISH */}
+                <option value="Dona/$">Dona($)</option>
                 <option value="dona">Dona</option>
                 <option value="pachka">Pachka</option>
                 <option value="kg">KG</option>
                 <option value="qop">Qop</option>
               </select>
             </div>
-            <input type="number" className="form-control" placeholder="1 dona narxi" value={price} onChange={(e) => setPrice(e.target.value)} required min="0" step="any" />
             
-            {/* O'ZGARTIRISH: Dona/$ bo'lsa $ chiqadi */}
+            {/* YANGI: 2 ta narx kiritish joyi (Olingan va Sotiladigan) */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block', fontWeight: 'bold' }}>Olingan narxi (Tan narx):</label>
+                <input type="number" className="form-control" placeholder="Masalan: 10000" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} required min="0" step="any" style={{ width: '100%', marginBottom: 0 }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block', fontWeight: 'bold' }}>Sotilish narxi:</label>
+                <input type="number" className="form-control" placeholder="Masalan: 12000" value={price} onChange={(e) => setPrice(e.target.value)} required min="0" step="any" style={{ width: '100%', marginBottom: 0 }} />
+              </div>
+            </div>
+            
             {quantity && price && (
-              <div style={{ padding: '15px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '20px', fontWeight: 'bold', color: '#1e3a8a' }}>
-                Umumiy qiymat: {(parseFloat(quantity) * parseFloat(price)).toLocaleString()} {(unit === 'kv' || unit === 'Dona/$') ? '$' : "so'm"}
+              <div style={{ padding: '15px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '20px', color: '#1e3a8a' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                  Umumiy qiymat (Sotuv): {(parseFloat(quantity) * parseFloat(price)).toLocaleString()} {(unit === 'kv' || unit === 'Dona/$') ? '$' : "so'm"}
+                </div>
+                {costPrice && (
+                  <div style={{ fontSize: '13px', color: '#10b981', fontWeight: 'bold' }}>
+                    Kutilayotgan sof foyda: {((parseFloat(price) - parseFloat(costPrice)) * parseFloat(quantity)).toLocaleString()} {(unit === 'kv' || unit === 'Dona/$') ? '$' : "so'm"}
+                  </div>
+                )}
               </div>
             )}
             
@@ -275,13 +319,19 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <div style={{ color: '#6b7280', fontSize: '13px' }}>Qoldiq: <span style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '16px' }}>{p.quantity} {p.unit}</span></div>
                       
-                      {/* O'ZGARTIRISH: Dona/$ bo'lsa $ belgisi chiqishi */}
-                      <div style={{ color: '#6b7280', fontSize: '13px' }}>
-                        Narxi: <span style={{ fontWeight: 'bold', color: '#111827', fontSize: '14px' }}>{p.price.toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
-                      </div>
+                      {/* YANGI: 2 xil narxni ko'rsatish */}
                       <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px' }}>
-                        Jami qiymati: <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>{(p.quantity * p.price).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
+                        Olingan narxi: <span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '14px' }}>{p.costPrice ? p.costPrice.toLocaleString() : 'Kiritilmagan'} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
                       </div>
+                      <div style={{ color: '#6b7280', fontSize: '13px' }}>
+                        Sotilish narxi: <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>{p.price.toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
+                      </div>
+                      
+                      {p.costPrice && p.price && (
+                        <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px', backgroundColor: '#ecfdf5', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
+                          Foyda (1 dona): <span style={{ fontWeight: 'bold', color: '#059669', fontSize: '13px' }}>{(p.price - p.costPrice).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
@@ -290,10 +340,10 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                         <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#f0fdf4', padding: '6px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
                           <input 
                             type="number" 
-                            placeholder="Yangi narxi" 
+                            placeholder="Yangi sotuv narxi" 
                             value={newPriceAmount} 
                             onChange={e => setNewPriceAmount(e.target.value)} 
-                            style={{ width: '90px', padding: '6px', border: '1px solid #86efac', borderRadius: '6px', outline: 'none' }} 
+                            style={{ width: '100px', padding: '6px', border: '1px solid #86efac', borderRadius: '6px', outline: 'none' }} 
                             autoFocus 
                             min="0" step="any" 
                           />

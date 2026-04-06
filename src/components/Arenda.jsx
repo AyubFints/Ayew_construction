@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Plus, Trash2, Calendar, BarChart3, Clock, TrendingDown, ChevronRight } from 'lucide-react';
+// --- FIREBASE IMPORTLARI QO'SHILDI ---
+import { auth, db } from "../firebase";
+import { doc, setDoc } from 'firebase/firestore';
 
 const Arenda = ({ arenda = [], setArenda, setPage }) => {
   const [type, setType] = useState('');
@@ -31,7 +34,8 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
                 .reduce((s, i) => s + i.amount, 0),
   };
 
-  const handleAdd = (e) => {
+  // --- FIREBASE'GA SAQLASH QO'SHILDI ---
+  const handleAdd = async (e) => {
     e.preventDefault();
     if (!type || !amount) return alert("Ma'lumotlarni to'liq kiriting!");
 
@@ -44,8 +48,35 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
       timestamp: new Date().getTime(),
     };
 
-    setArenda([newExpense, ...arenda]);
+    const yangiArenda = [newExpense, ...arenda];
+    setArenda(yangiArenda); // Ekranda ko'rsatish
     setType(''); setAmount(''); setNote('');
+
+    // Bulutga (Firebase) yuborish
+    if (auth.currentUser) {
+      try {
+        const docRef = doc(db, "stores", auth.currentUser.uid);
+        await setDoc(docRef, { arenda: yangiArenda }, { merge: true });
+      } catch (error) {
+        console.error("Bulutga yozishda xato:", error);
+      }
+    }
+  };
+
+  // --- FIREBASE'DAN O'CHIRISH QO'SHILDI ---
+  const handleDelete = async (id) => {
+    const qolganArenda = arenda.filter(i => i.id !== id);
+    setArenda(qolganArenda); // Ekranda o'chirish
+
+    // Bulutdan ham o'chirish
+    if (auth.currentUser) {
+      try {
+        const docRef = doc(db, "stores", auth.currentUser.uid);
+        await setDoc(docRef, { arenda: qolganArenda }, { merge: true });
+      } catch (error) {
+        console.error("Bulutdan o'chirishda xato:", error);
+      }
+    }
   };
 
   return (
@@ -129,7 +160,8 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
             </div>
             <div style={{textAlign:'right', display:'flex', alignItems:'center', gap:'12px'}}>
               <span style={{fontWeight:'bold', color:'#b91c1c'}}>-{item.amount.toLocaleString()}</span>
-              <button onClick={() => setArenda(arenda.filter(i => i.id !== item.id))} style={deleteBtnStyle}>
+              {/* O'chirish tugmasi endi to'g'ri ishlaydi */}
+              <button onClick={() => handleDelete(item.id)} style={deleteBtnStyle}>
                 <Trash2 size={16} />
               </button>
             </div>

@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { ArrowLeft, BookOpen, Search, User, CheckCircle, ChevronDown, ChevronUp, Clock, History, Calendar, DollarSign } from 'lucide-react';
 
+// --- FIREBASE IMPORTLARI QO'SHILDI ---
+import { auth, db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
+
 const Debts = ({ sales, setSales, setPage, customers = [] }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [repayAmounts, setRepayAmounts] = useState({});
@@ -28,7 +32,8 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
     c.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleRepay = (sale, isFull) => {
+  // --- FIREBASE'GA ULANGAN TO'LOV FUNKSIYASI ---
+  const handleRepay = async (sale, isFull) => {
     const isKv = isUsdProduct(sale.productName, sale.unit);
     const remainingDebt = sale.totalSum - (sale.paidAmount || 0);
     const currencyStr = isKv ? '$' : "so'm";
@@ -50,7 +55,8 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
         date: now
       };
 
-      setSales(sales.map(s => {
+      // Yangi savdolar ro'yxatini shakllantirish
+      const yangiSales = sales.map(s => {
         if (s.id === sale.id) {
           return { 
             ...s, 
@@ -58,14 +64,24 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
             isDebt: !isFullyPaid, 
             wasDebt: true,
             lastPaymentDate: now, 
-            // To'lovlar tarixini massivga yig'ib boramiz
             paymentHistory: [...(s.paymentHistory || []), newPaymentEntry]
           };
         }
         return s;
-      }));
+      });
 
+      setSales(yangiSales); // Ekranni darhol yangilash
       setRepayAmounts({ ...repayAmounts, [sale.id]: '' });
+
+      // Bulutga (Firebase) yozish
+      if (auth.currentUser) {
+        try {
+          const docRef = doc(db, "stores", auth.currentUser.uid);
+          await setDoc(docRef, { sales: yangiSales }, { merge: true });
+        } catch (error) {
+          console.error("To'lovni bulutga saqlashda xato:", error);
+        }
+      }
     }
   };
 
