@@ -5,8 +5,8 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
   const [name, setName] = useState(''); 
   const [unit, setUnit] = useState('metr'); 
   const [quantity, setQuantity] = useState(''); 
-  const [costPrice, setCostPrice] = useState(''); // YANGI: Olingan narxi
-  const [price, setPrice] = useState(''); // Sotilish narxi
+  const [costPrice, setCostPrice] = useState(''); 
+  const [price, setPrice] = useState(''); 
   
   const [newCategoryName, setNewCategoryName] = useState('');
   const [activeFilter, setActiveFilter] = useState('Barchasi');
@@ -67,15 +67,14 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     e.preventDefault();
     const productCategory = activeFilter !== 'Barchasi' ? activeFilter : 'Umumiy';
     
-    // YANGI: costPrice qo'shildi
     const newProduct = { 
       id: Date.now().toString(),
       name, 
       unit, 
       category: productCategory, 
       quantity: parseFloat(quantity), 
-      costPrice: parseFloat(costPrice), // Olingan narx bazaga yozilmoqda
-      price: parseFloat(price) // Sotilish narxi
+      costPrice: parseFloat(costPrice), 
+      price: parseFloat(price) 
     };
 
     const newProducts = [...products, newProduct];
@@ -234,7 +233,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
               </select>
             </div>
             
-            {/* YANGI: 2 ta narx kiritish joyi (Olingan va Sotiladigan) */}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
               <div style={{ flex: 1 }}>
                 <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block', fontWeight: 'bold' }}>Olingan narxi (Tan narx):</label>
@@ -316,10 +314,9 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #d1d5db' }}>
                     
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                       <div style={{ color: '#6b7280', fontSize: '13px' }}>Qoldiq: <span style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '16px' }}>{p.quantity} {p.unit}</span></div>
                       
-                      {/* YANGI: 2 xil narxni ko'rsatish */}
                       <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px' }}>
                         Olingan narxi: <span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '14px' }}>{p.costPrice ? p.costPrice.toLocaleString() : 'Kiritilmagan'} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
                       </div>
@@ -327,8 +324,13 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                         Sotilish narxi: <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>{p.price.toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
                       </div>
                       
+                      {/* YANGI: Jami summa qismi */}
+                      <div style={{ color: '#1e3a8a', fontSize: '13px', marginTop: '4px', backgroundColor: '#eff6ff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+                        Jami summasi: <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{(p.quantity * p.price).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
+                      </div>
+
                       {p.costPrice && p.price && (
-                        <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px', backgroundColor: '#ecfdf5', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
+                        <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '2px', backgroundColor: '#ecfdf5', padding: '2px 6px', borderRadius: '4px' }}>
                           Foyda (1 dona): <span style={{ fontWeight: 'bold', color: '#059669', fontSize: '13px' }}>{(p.price - p.costPrice).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
                         </div>
                       )}
