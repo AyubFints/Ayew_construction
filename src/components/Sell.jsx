@@ -18,7 +18,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
   const [customName, setCustomName] = useState('');
   const [customPrice, setCustomPrice] = useState('');
-  const [customCostPrice, setCustomCostPrice] = useState(''); // YANGI: Erkin savdo uchun tan narxi
+  const [customCostPrice, setCustomCostPrice] = useState(''); 
   const [customCurrency, setCustomCurrency] = useState('som'); 
 
   const [sellQty, setSellQty] = useState('');
@@ -168,7 +168,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
       setCart([...cart, { 
         id: Date.now(), 
         isCustom: false, 
-        product: { ...selectedProduct, price: finalPrice }, // costPrice avtomat qo'shilib o'tadi
+        product: { ...selectedProduct, price: finalPrice }, 
         qty: qty, 
         total: qty * finalPrice 
       }]);
@@ -178,7 +178,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
       if (!customName.trim()) return setError("Tovar nomini kiriting!");
       const price = parseFloat(customPrice);
       if (price <= 0 || isNaN(price)) return setError("Narxni to'g'ri kiriting!");
-      const costP = parseFloat(customCostPrice) || 0; // Olingan narx
+      const costP = parseFloat(customCostPrice) || 0; 
       const qty = parseFloat(sellQty);
       if (qty <= 0 || isNaN(qty)) return setError("Miqdorni to'g'ri kiriting!");
 
@@ -190,7 +190,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         id: `custom_${Date.now()}`,
         name: name,
         price: price,
-        costPrice: costP, // Foyda uchun jo'natilyapti
+        costPrice: costP, 
         unit: finalUnit,
         quantity: '∞' 
       };
@@ -208,7 +208,8 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
   const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
 
-  const handleFinalSell = async () => {
+  // YANGI TEZLASHTIRILGAN FUNKSIYA: handleFinalSell
+  const handleFinalSell = () => {
     if (!customer) return setError("Mijozni tanlang!");
     if (cart.length === 0) return setError("Savat bo'sh! Tovar qo'shing.");
 
@@ -238,7 +239,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         customer, 
         totalSum: overallSom, 
         isReceived: false, 
-        cartItems: cartSom // Foyda sahifasi aynan shundan o'qiydi!
+        cartItems: cartSom 
       });
     }
 
@@ -259,21 +260,11 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
     const yangiSales = [...sales, ...newSales];
 
+    // 1. Ma'lumotlarni darhol dastur (React) xotirasida yangilash
     setProducts(updatedProducts);
     setSales(yangiSales);
-    
-    if (auth.currentUser) {
-      try {
-        const docRef = doc(db, "stores", auth.currentUser.uid);
-        await setDoc(docRef, { 
-          products: updatedProducts,
-          sales: yangiSales
-        }, { merge: true });
-      } catch (error) {
-        console.error("Savdoni bulutga saqlashda xato:", error);
-      }
-    }
 
+    // 2. Alert xabarini tayyorlash
     const overallSomAlert = cartSom.reduce((sum, item) => sum + item.total, 0);
     const overallUsdAlert = cartUsd.reduce((sum, item) => sum + item.total, 0);
     
@@ -282,8 +273,20 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     if (overallUsdAlert > 0) alertMsg += `${overallSomAlert > 0 ? 'va ' : ''}${overallUsdAlert.toLocaleString()} $`;
     alertMsg += `\n(Pulini qabul qilish uchun Kassa bo'limiga o'ting)`;
 
+    // 3. Ekranni tozalash va xabarni tezkorlik bilan chiqarish
     setCart([]); setCustomer(''); setError('');
-    alert(alertMsg);
+    setTimeout(() => alert(alertMsg), 10); // 10 millisekunddan keyin alert chiqadi, shunda qotish sezilmaydi.
+
+    // 4. Firebase bulutiga bildirmasdan, orqa fonda saqlab qo'yish
+    if (auth.currentUser) {
+      const docRef = doc(db, "stores", auth.currentUser.uid);
+      setDoc(docRef, { 
+        products: updatedProducts,
+        sales: yangiSales
+      }, { merge: true }).catch(error => {
+        console.error("Savdoni bulutga saqlashda xato:", error);
+      });
+    }
   };
 
   const cartTotalSom = cart.filter(i => !isUsdUnit(i.product.unit)).reduce((sum, item) => sum + item.total, 0);

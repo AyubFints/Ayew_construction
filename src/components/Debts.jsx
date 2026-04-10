@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { ArrowLeft, BookOpen, Search, User, CheckCircle, ChevronDown, ChevronUp, Clock, History, Calendar, DollarSign } from 'lucide-react';
+import { ArrowLeft, BookOpen, Search, User, CheckCircle, ChevronDown, ChevronUp, Clock, History, Calendar, DollarSign, MessageCircle } from 'lucide-react';
 
-// --- FIREBASE IMPORTLARI QO'SHILDI ---
 import { auth, db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
@@ -10,7 +9,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
   const [repayAmounts, setRepayAmounts] = useState({});
   const [expandedCustomer, setExpandedCustomer] = useState(null);
 
-  // --- DOLLAR YOKI SO'MLIGINI ANIQLASH ---
   const isUsdUnit = (unit) => {
     if (!unit) return false;
     return unit.toLowerCase() === 'kv' || unit.includes('$');
@@ -32,7 +30,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
     c.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // --- FIREBASE'GA ULANGAN TO'LOV FUNKSIYASI ---
   const handleRepay = async (sale, isFull) => {
     const isKv = isUsdProduct(sale.productName, sale.unit);
     const remainingDebt = sale.totalSum - (sale.paidAmount || 0);
@@ -48,14 +45,12 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
       const newPaidAmount = (sale.paidAmount || 0) + amount;
       const isFullyPaid = Math.abs(newPaidAmount - sale.totalSum) < 0.1;
       
-      // Yangi to'lov ob'ekti
       const newPaymentEntry = {
         id: Date.now(),
         amount: amount,
         date: now
       };
 
-      // Yangi savdolar ro'yxatini shakllantirish
       const yangiSales = sales.map(s => {
         if (s.id === sale.id) {
           return { 
@@ -70,10 +65,9 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
         return s;
       });
 
-      setSales(yangiSales); // Ekranni darhol yangilash
+      setSales(yangiSales); 
       setRepayAmounts({ ...repayAmounts, [sale.id]: '' });
 
-      // Bulutga (Firebase) yozish
       if (auth.currentUser) {
         try {
           const docRef = doc(db, "stores", auth.currentUser.uid);
@@ -99,7 +93,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
         </h2>
       </div>
 
-      {/* UMUMIY QARZ KARTASI */}
       <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#ef4444', color: '#ffffff', marginBottom: '30px', textAlign: 'center', border: 'none', borderRadius: '15px' }}>
         <p style={{ margin: 0, fontSize: '16px', color: '#fee2e2', textTransform: 'uppercase', fontWeight: 'bold' }}>Umumiy Qarzlar</p>
         <h2 style={{ margin: '10px 0 0 0', fontSize: '32px' }}>
@@ -111,7 +104,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
 
       <div className="card" style={{ marginBottom: '30px', borderTop: '4px solid #ef4444' }}>
         
-        {/* QIDIRUV */}
         <div style={{ position: 'relative', marginBottom: '20px' }}>
           <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
           <input 
@@ -128,22 +120,64 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '40px' }}>
           {filteredDebts.map(sale => {
             const isKv = isUsdProduct(sale.productName, sale.unit);
+            const currency = isKv ? '$' : "so'm";
             const remaining = sale.totalSum - (sale.paidAmount || 0);
+
+            // YANGI: KUNLARNI HISOBLASH MANTIG'I
+            let daysLeftText = null;
+            let isUrgent = false;
+
+            if (sale.debtDeadline) {
+              const daysLeft = Math.ceil((sale.debtDeadline - Date.now()) / (1000 * 60 * 60 * 24));
+              isUrgent = daysLeft <= 3;
+              if (daysLeft > 0) {
+                daysLeftText = `${daysLeft} kun qoldi`;
+              } else if (daysLeft === 0) {
+                daysLeftText = "Bugun to'lash muddati!";
+              } else {
+                daysLeftText = `${Math.abs(daysLeft)} kun o'tib ketdi!`;
+                isUrgent = true;
+              }
+            }
+
             return (
-              <div key={sale.id} className="fade-in" style={{ padding: '20px', backgroundColor: '#fff', border: '1px solid #d1d5db', borderLeft: '5px solid #ef4444', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+              <div key={sale.id} className="fade-in" style={{ padding: '20px', backgroundColor: '#fff', border: '1px solid #d1d5db', borderLeft: isUrgent ? '5px solid #dc2626' : '5px solid #ef4444', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <User size={18} color="#1e3a8a" />
                       <span style={{ fontWeight: 'bold', fontSize: '18px' }}>{sale.customer}</span>
                     </div>
-                    <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px' }}>Mahsulot: {sale.productName}</div>
+                    <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px', whiteSpace: 'pre-line' }}>{sale.productName}</div>
                     <div style={{ color: '#9ca3af', fontSize: '12px' }}>Sana: {new Date(sale.id).toLocaleDateString()}</div>
+                    
+                    {/* YANGI: KUNLARNI KO'RSATISH VA SMS TUGMASI */}
+                    {sale.debtDeadline && (
+                      <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <span style={{ 
+                          backgroundColor: isUrgent ? '#fee2e2' : '#d1fae5', 
+                          color: isUrgent ? '#dc2626' : '#059669', 
+                          padding: '4px 8px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' 
+                        }}>
+                          <Clock size={14} /> {daysLeftText}
+                        </span>
+                        
+                        {isUrgent && sale.customerPhone && (
+                          <a 
+                            href={`sms:${sale.customerPhone}?body=${encodeURIComponent(`Assalomu alaykum, ${sale.customer}. Do'kondan qarz to'lash muddati keldi. Qarz: ${remaining.toLocaleString()} ${currency}. Iltimos to'lovni amalga oshiring.`)}`} 
+                            className="btn" 
+                            style={{ backgroundColor: '#2563eb', color: 'white', padding: '4px 10px', fontSize: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', width: 'auto', border: 'none' }}
+                          >
+                            <MessageCircle size={14} /> SMS yozish
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '12px', color: '#6b7280' }}>Qolgan qarz:</div>
                     <div style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '22px' }}>
-                      {remaining.toLocaleString()} {isKv ? '$' : "so'm"}
+                      {remaining.toLocaleString()} {currency}
                     </div>
                   </div>
                 </div>
@@ -208,13 +242,11 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
 
                           return (
                             <div key={h.id} style={{ padding: '12px', border: '1px solid #d1d5db', borderRadius: '8px', backgroundColor: '#fff' }}>
-                              {/* Xarid haqida qisqacha */}
                               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f3f4f6', paddingBottom: '8px', marginBottom: '8px' }}>
                                 <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{h.productName}</span>
                                 <span style={{ fontSize: '12px', color: '#6b7280' }}>{new Date(h.id).toLocaleDateString()}</span>
                               </div>
 
-                              {/* To'lovlar tarixi - ENGI QISMI */}
                               <div style={{ marginBottom: '10px' }}>
                                 <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                    <Clock size={12} /> To'lovlar xronologiyasi:
@@ -233,7 +265,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
                                 )}
                               </div>
 
-                              {/* Yakuniy qoldiq */}
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb' }}>
                                 <div style={{ fontSize: '13px' }}>Jami: <b>{h.totalSum.toLocaleString()}</b></div>
                                 <div style={{ fontSize: '13px', color: h.isDebt ? '#ef4444' : '#10b981', fontWeight: 'bold' }}>
@@ -253,7 +284,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
         </div>
       </div>
       
-      {/* QO'SHIMCHA ELEMENT: Agar hech narsa chiqmasa */}
       {filteredDebts.length === 0 && searchQuery && (
         <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
            Mijoz topilmadi...

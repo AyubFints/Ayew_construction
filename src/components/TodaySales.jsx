@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, FileText, Clock, Tag, XCircle, Banknote, ChevronRight } from 'lucide-react';
 
-// --- FIREBASE IMPORTLARI ---
 import { auth, db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
@@ -22,14 +21,12 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
   sales.forEach(sale => {
     const isUsd = isUsdProduct(sale.productName);
 
-    // Bugungi yangi qarzlar
     if (new Date(sale.id).toLocaleDateString('uz-UZ') === todayStr && sale.isDebt) {
       const remainingDebt = sale.totalSum - (sale.paidAmount || 0);
       if (isUsd) todayNewDebtsUsd += remainingDebt;
       else todayNewDebtsSom += remainingDebt;
     }
 
-    // Bugungi kirimlar
     if (sale.paymentHistory && sale.paymentHistory.length > 0) {
       sale.paymentHistory.forEach(payment => {
         if (new Date(payment.date).toLocaleDateString('uz-UZ') === todayStr) {
@@ -45,7 +42,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
             productName: sale.productName,
             totalSum: sale.totalSum,
             isDebt: sale.isDebt,
-            // Faqatgina savdo qarz bo'lsa va bu birinchi to'lov bo'lmasa qarz to'lovi deyiladi
             isDebtPayment: sale.isDebt && payment.date !== sale.id 
           });
         }
@@ -80,7 +76,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
   const netCashSom = totalIncomeSom - totalExpenseSom;
   const netCashUsd = totalIncomeUsd - totalExpenseUsd;
 
-  // --- FIREBASE'GA ULANGAN "TO'LIQ OLINDI" FUNKSIYASI ---
   const handleReceive = async (id, customer) => {
     if (window.confirm(`${customer} hamma pulni to'liq to'ladimi?`)) {
       const now = Date.now();
@@ -93,9 +88,8 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
         paymentHistory: [{ amount: s.totalSum, date: now }] 
       } : s);
 
-      setSales(yangiSales); // Ekranni yangilash
+      setSales(yangiSales);
 
-      // Bulutga yozish
       if (auth.currentUser) {
         try {
           const docRef = doc(db, "stores", auth.currentUser.uid);
@@ -107,7 +101,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     }
   };
 
-  // --- FIREBASE'GA ULANGAN "QISMAN TO'LASH" FUNKSIYASI ---
+  // YANGI: Qisman to'lovda kun va nomer so'rash
   const handlePartialPayment = async (sale) => {
     const inputAmount = parseFloat(partialAmounts[sale.id]);
     const currency = isUsdProduct(sale.productName) ? '$' : "so'm";
@@ -116,20 +110,31 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
 
     const remaining = sale.totalSum - inputAmount;
     const now = Date.now();
+    
     if (window.confirm(`${sale.customer}dan ${inputAmount.toLocaleString()} ${currency} olindi.\nQolgan ${remaining.toLocaleString()} ${currency} qarzga yozilsinmi?`)) {
+      
+      const daysStr = window.prompt("Qolgan qarz necha kunga berilyapti? (Masalan: 10)", "10");
+      if (daysStr === null) return; 
+      const phoneStr = window.prompt("Telefon raqami (SMS yuborish uchun):", "+998");
+      
+      const debtDays = parseInt(daysStr) || 0;
+      const debtDeadline = debtDays > 0 ? now + (debtDays * 24 * 60 * 60 * 1000) : null;
+
       const yangiSales = sales.map(s => s.id === sale.id ? { 
         ...s, 
         isReceived: true, 
         paidAmount: inputAmount, 
         isDebt: true, 
         receivedAt: now, 
-        paymentHistory: [{ amount: inputAmount, date: now }]
+        paymentHistory: [{ amount: inputAmount, date: now }],
+        debtDays,
+        debtDeadline,
+        customerPhone: phoneStr || ''
       } : s);
 
-      setSales(yangiSales); // Ekranni yangilash
+      setSales(yangiSales); 
       setPartialAmounts({ ...partialAmounts, [sale.id]: '' });
 
-      // Bulutga yozish
       if (auth.currentUser) {
         try {
           const docRef = doc(db, "stores", auth.currentUser.uid);
@@ -141,13 +146,28 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     }
   };
 
-  // --- FIREBASE'GA ULANGAN "QARZGA Yozish" FUNKSIYASI ---
-  const handleToDebt = async (id) => {
-    if (window.confirm("Hamma pulni qarzga yozamizmi?")) {
-      const yangiSales = sales.map(s => s.id === id ? { ...s, isDebt: true, paidAmount: 0 } : s);
-      setSales(yangiSales); // Ekranni yangilash
+  // YANGI: To'liq qarzga yozishda kun va nomer so'rash
+  const handleToDebt = async (id, customer) => {
+    if (window.confirm(`${customer}ning hamma pulini qarzga yozamizmi?`)) {
+      
+      const daysStr = window.prompt("Necha kunga berilyapti? (Masalan: 10)", "10");
+      if (daysStr === null) return;
+      const phoneStr = window.prompt("Telefon raqami (SMS yuborish uchun):", "+998");
 
-      // Bulutga yozish
+      const debtDays = parseInt(daysStr) || 0;
+      const debtDeadline = debtDays > 0 ? Date.now() + (debtDays * 24 * 60 * 60 * 1000) : null;
+
+      const yangiSales = sales.map(s => s.id === id ? { 
+        ...s, 
+        isDebt: true, 
+        paidAmount: 0,
+        debtDays,
+        debtDeadline,
+        customerPhone: phoneStr || ''
+      } : s);
+      
+      setSales(yangiSales);
+
       if (auth.currentUser) {
         try {
           const docRef = doc(db, "stores", auth.currentUser.uid);
@@ -159,7 +179,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     }
   };
 
-  // --- FIREBASE'GA ULANGAN "BEKOR QILISH" FUNKSIYASI ---
   const handleCancelSale = async (saleToCancel) => {
     if (window.confirm(`ROSTDAN HAM BEKOR QILASIZMI?\nMijoz: ${saleToCancel.customer}`)) {
       let updatedProducts = [...products];
@@ -171,10 +190,9 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
       
       const yangiSales = sales.filter(s => s.id !== saleToCancel.id);
       
-      setProducts(updatedProducts); // Omborni tiklash ekranda
-      setSales(yangiSales); // Savdoni o'chirish ekranda
+      setProducts(updatedProducts); 
+      setSales(yangiSales); 
 
-      // Bulutga yozish (Ombor va Savdolarni birdaniga yangilash)
       if (auth.currentUser) {
         try {
           const docRef = doc(db, "stores", auth.currentUser.uid);
@@ -233,13 +251,11 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
 
   return (
     <div className="fade-in app-container">
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <button onClick={() => setPage('dashboard')} className="btn btn-danger" style={{ width: 'auto' }}><ArrowLeft size={18} /> Ortga</button>
         <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>Bugungi Kassa <Wallet size={28} /></h2>
       </div>
 
-      {/* Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '40px' }}>
         <div className="card" style={{ borderTop: '6px solid #10b981' }}>
           <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>JAMI KIRIM</p>
@@ -276,7 +292,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
-        {/* Pending Sales */}
         <div className="card" style={{ borderTop: '4px solid #4b5563' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px' }}><Clock size={20} color="#4b5563" /> Kutilayotgan to'lovlar</h3>
           {pendingSales.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Kutilayotganlar yo'q.</p> : (
@@ -303,7 +318,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                     </div>
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <button onClick={() => handleReceive(sale.id, sale.customer)} className="btn btn-primary" style={{ flex: 1, background: '#10b981' }}>To'liq olindi</button>
-                      <button onClick={() => handleToDebt(sale.id)} className="btn" style={{ flex: 1, background: '#f59e0b', color: 'white' }}>Qarzga</button>
+                      <button onClick={() => handleToDebt(sale.id, sale.customer)} className="btn" style={{ flex: 1, background: '#f59e0b', color: 'white' }}>Qarzga</button>
                     </div>
                     <button onClick={() => handleCancelSale(sale)} className="btn btn-danger" style={{ width: '100%', marginTop: '10px' }}><XCircle size={18} /> Bekor qilish</button>
                   </div>
@@ -313,7 +328,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
           )}
         </div>
 
-        {/* Payments Received Today */}
         <div className="card" style={{ borderTop: '4px solid #1e3a8a' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px' }}><CheckCircle size={20} color="#1e3a8a" /> Bugun kassaga tushgan pullar</h3>
           {todaysPayments.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Hali pul tushmadi.</p> : (
@@ -345,7 +359,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
         </div>
       </div>
 
-      {/* History Section */}
       <div className="card" style={{ marginTop: '30px', borderTop: '4px solid #1e3a8a' }}>
         {!selectedHistory ? (
           <>
@@ -386,13 +399,10 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                     <strong style={{ color: tr.isUsd ? '#2563eb' : '#10b981' }}>+{tr.amount.toLocaleString()} {tr.isUsd ? '$' : "so'm"}</strong>
                   </div>
                   <div style={{ color: '#4b5563', fontSize: '13px', whiteSpace: 'pre-line' }}>{tr.productName}</div>
-                  
-                  {/* YANGI O'ZGARISH: Sana ham chiqadigan bo'ldi */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#9ca3af', marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #f3f4f6' }}>
                     <span>Sana va vaqt: {new Date(tr.date).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                     {tr.isDebtPayment && <span style={{ backgroundColor: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>Qarz to'lovi</span>}
                   </div>
-
                 </div>
               ))}
             </div>
