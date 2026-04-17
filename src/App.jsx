@@ -10,9 +10,8 @@ import Debts from './components/Debts';
 import Settings from './components/Settings';
 import Customers from './components/Customers'; 
 import Arenda from './components/Arenda'; 
-import Profit from './components/Profit'; // YANGI: Foyda sahifasi ulandi
+import Profit from './components/Profit'; 
 
-// YANGI: TrendingUp ikonkasini qo'shdik
 import { Home, Package, ShoppingCart, RotateCcw, Wallet, BookOpen, Users, Lock, MessageCircle, Landmark, TrendingUp } from 'lucide-react'; 
 
 import { auth, db } from './firebase';
@@ -193,7 +192,7 @@ function App() {
       { id: 'todaysales', icon: <Wallet size={22} />, label: 'Kassa' },
       { id: 'customers', icon: <Users size={22} />, label: 'Mijozlar' }, 
       { id: 'debts', icon: <BookOpen size={22} />, label: 'Qarz' },
-      { id: 'profit', icon: <TrendingUp size={22} />, label: 'Foyda' }, // YANGI: Pastki menyuga qo'shildi
+      { id: 'profit', icon: <TrendingUp size={22} />, label: 'Foyda' }, 
     ];
     const visibleNavs = navItems.filter(item => item.id !== page);
     return (
@@ -202,7 +201,7 @@ function App() {
         backgroundColor: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)',
         boxShadow: '0 10px 30px rgba(30, 58, 138, 0.2)', borderRadius: '30px',
         display: 'flex', gap: '15px', padding: '12px 25px', zIndex: 1000, border: '1px solid #e0e7ff',
-        overflowX: 'auto', maxWidth: '95vw' // Menyuga ko'p narsa qo'shilsa sig'ishi uchun
+        overflowX: 'auto', maxWidth: '95vw' 
       }}>
         {visibleNavs.map(item => (
           <div key={item.id} onClick={() => setPage(item.id)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', minWidth: '46px' }}>
@@ -225,11 +224,14 @@ function App() {
       case 'sell': return <Sell products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} customers={customers} />;
       case 'return': return <Return products={products} setProducts={setProducts} returns={returns} setReturns={setReturns} setPage={setPage} customers={customers} />;
       case 'todaysales': return <TodaySales products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} />;
-      case 'customers': return <Customers customers={customers} setCustomers={setCustomers} sales={sales} setPage={setPage} />;
+      
+      // MANA SHU QATOR TO'G'RILANDI: returns={returns} qo'shildi
+      case 'customers': return <Customers customers={customers} setCustomers={setCustomers} sales={sales} returns={returns} setPage={setPage} />;
+      
       case 'debts': return <Debts sales={sales} setSales={setSales} setPage={setPage} customers={customers} />;
       case 'settings': return <Settings storeName={storeName} setStoreName={setStoreName} setProducts={setProducts} setSales={setSales} setReturns={setReturns} setPage={setPage} />;
       case 'arenda': return <Arenda arenda={arenda} setArenda={setArenda} setPage={setPage} />;
-      case 'profit': return <Profit sales={sales} setPage={setPage} />; // YANGI: Foyda sahifasi ulandi
+      case 'profit': return <Profit sales={sales} setPage={setPage} />;
       default: return <Dashboard storeName={storeName} products={products} setPage={setPage} onLogout={handleLogout} />;
     }
   };
