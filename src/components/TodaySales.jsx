@@ -78,10 +78,21 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
   const netCashSom = totalIncomeSom - totalExpenseSom;
   const netCashUsd = totalIncomeUsd - totalExpenseUsd;
 
-  // --- YANGILANGAN: To'liq qabul qilish (Qolgan pulni qabul qiladi) ---
+  // --- YANGILANGAN: Xatoni oldini oladigan "To'liq qabul qilish" ---
   const handleReceive = async (id, customer) => {
     const sale = sales.find(s => s.id === id);
     const remaining = sale.totalSum - (sale.paidAmount || 0);
+
+    // XIMOYALOVCHI KOD: Agar puli allaqachon to'liq to'langan bo'lsa (qarzdan yopilgan bo'lsa)
+    if (remaining <= 0) {
+      alert("Bu savdoning puli allaqachon to'liq to'langan! U kutilayotganlar ro'yxatidan olib tashlanadi.");
+      const correctedSales = sales.map(s => s.id === id ? { ...s, isReceived: true, isDebt: false } : s);
+      setSales(correctedSales);
+      if (auth.currentUser) {
+        await setDoc(doc(db, "stores", auth.currentUser.uid), { sales: correctedSales }, { merge: true });
+      }
+      return;
+    }
 
     if (window.confirm(`${customer} qolgan ${remaining.toLocaleString()} summani to'liq to'ladimi?`)) {
       const now = Date.now();
@@ -107,7 +118,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     }
   };
 
-  // --- YANGILANGAN: Qisman to'lov (Kassada turaveradi) ---
   const handlePartialPayment = async (sale) => {
     const inputAmount = parseFloat(partialAmounts[sale.id]);
     const currency = isUsdProduct(sale.productName) ? '$' : "so'm";
@@ -117,8 +127,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     const remainingBefore = sale.totalSum - currentPaid;
 
     if (inputAmount > remainingBefore) return alert(`Xato! Qolgan summa faqat ${remainingBefore.toLocaleString()} ${currency}`);
-    
-    if (inputAmount === remainingBefore) return handleReceive(sale.id, sale.customer); // Agar qolganini to'liq bersa
+    if (inputAmount === remainingBefore) return handleReceive(sale.id, sale.customer); 
 
     const now = Date.now();
     
@@ -129,7 +138,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
       const yangiSales = sales.map(s => s.id === sale.id ? { 
         ...s, 
         paidAmount: newPaidAmount, 
-        // isDebt yoki isReceived true QILINMAYDI, shuning uchun ekranda turaveradi!
         paymentHistory: [...(s.paymentHistory || []), { amount: inputAmount, date: now }]
       } : s);
 
@@ -147,7 +155,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     }
   };
 
-  // --- YANGILANGAN: Faqat QOLGAN pulni qarzga yozish ---
   const handleToDebt = async (id, customer) => {
     const sale = sales.find(s => s.id === id);
     const remaining = sale.totalSum - (sale.paidAmount || 0);
@@ -164,7 +171,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
       const yangiSales = sales.map(s => s.id === id ? { 
         ...s, 
         isDebt: true, 
-        // paidAmount o'zgartirilmaydi, chunki u oldin pul bergan bo'lishi mumkin
         debtDays,
         debtDeadline,
         customerPhone: phoneStr || ''
@@ -251,8 +257,12 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
   }, [sales, historyType]);
 
-  // isReceived yoki isDebt bo'lmaganlari "Kutilayotganlar" ro'yxatida chiqadi
-  const pendingSales = sales.filter(s => !s.isReceived && !s.isDebt);
+  // --- YANGILANGAN: XATONI TO'G'RILAYDIGAN QISM ---
+  // Endi to'langan puli jami puliga teng bo'lib qolganlar (qarzdan to'langanlar) bu ro'yxatda chiqmaydi!
+  const pendingSales = sales.filter(s => {
+    const currentPaid = s.paidAmount || 0;
+    return !s.isReceived && !s.isDebt && currentPaid < s.totalSum;
+  });
 
   return (
     <div className="fade-in app-container">
@@ -317,7 +327,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
                       </div>
                     </div>
                     
-                    {/* YANGI QISMI: Agar qisman to'lagan bo'lsa, To'langan va Qolganini ko'rsatadi */}
                     {currentPaid > 0 && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', backgroundColor: '#ecfdf5', padding: '8px', borderRadius: '6px', marginBottom: '10px', border: '1px solid #a7f3d0' }}>
                         <span style={{ color: '#059669', fontWeight: 'bold' }}>To'landi: {currentPaid.toLocaleString()}</span>
