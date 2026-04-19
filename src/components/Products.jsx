@@ -150,6 +150,13 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     setChangingCostPriceId(null); setNewCostPriceAmount('');
   };
 
+  // YANGI: O'lchov birligini to'g'ri so'zga aylantiradigan yordamchi funksiya
+  const getUnitText = (u) => {
+    if (!u) return 'dona';
+    if (u === 'Dona/$') return 'dona';
+    return u;
+  };
+
   return (
     <div className="fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -251,11 +258,11 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
             
             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block', fontWeight: 'bold' }}>Olingan narxi (Tan narx):</label>
+                <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block', fontWeight: 'bold' }}>Olingan narxi (1 {getUnitText(unit)}):</label>
                 <input type="number" className="form-control" placeholder="Masalan: 10000" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} required min="0" step="any" style={{ width: '100%', marginBottom: 0 }} />
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block', fontWeight: 'bold' }}>Sotilish narxi:</label>
+                <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block', fontWeight: 'bold' }}>Sotilish narxi (1 {getUnitText(unit)}):</label>
                 <input type="number" className="form-control" placeholder="Masalan: 12000" value={price} onChange={(e) => setPrice(e.target.value)} required min="0" step="any" style={{ width: '100%', marginBottom: 0 }} />
               </div>
             </div>
@@ -338,10 +345,10 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                       <div style={{ color: '#6b7280', fontSize: '13px' }}>Qoldiq: <span style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '16px' }}>{p.quantity} {p.unit}</span></div>
                       
                       <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px' }}>
-                        Olingan narxi: <span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '14px' }}>{p.costPrice ? p.costPrice.toLocaleString() : 'Kiritilmagan'} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
+                        1 {getUnitText(p.unit)} olingan narxi: <span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '14px' }}>{p.costPrice ? p.costPrice.toLocaleString() : 'Kiritilmagan'} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
                       </div>
                       <div style={{ color: '#6b7280', fontSize: '13px' }}>
-                        Sotilish narxi: <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>{p.price.toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
+                        1 {getUnitText(p.unit)} sotilish narxi: <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>{p.price.toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
                       </div>
                       
                       <div style={{ color: '#1e3a8a', fontSize: '13px', marginTop: '4px', backgroundColor: '#eff6ff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
@@ -350,7 +357,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
 
                       {p.costPrice && p.price && (
                         <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '2px', backgroundColor: '#ecfdf5', padding: '2px 6px', borderRadius: '4px' }}>
-                          Foyda (1 dona): <span style={{ fontWeight: 'bold', color: '#059669', fontSize: '13px' }}>{(p.price - p.costPrice).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
+                          Foyda (1 {getUnitText(p.unit)} uchun): <span style={{ fontWeight: 'bold', color: '#059669', fontSize: '13px' }}>{(p.price - p.costPrice).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
                         </div>
                       )}
                     </div>
@@ -394,7 +401,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                             autoFocus 
                             min="0" step="any" 
                           />
-                          <button onClick={() => handleConfirmChangeCostPrice(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#10b981', border: 'none' }} title="Saqlash"><Check size={16} /></button>
+                          <button onClick={() => handleConfirmChangePrice(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#10b981', border: 'none' }} title="Saqlash"><Check size={16} /></button>
                           <button onClick={() => { setChangingPriceId(null); setNewPriceAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }} title="Bekor qilish"><X size={16} /></button>
                         </div>
                       ) : (

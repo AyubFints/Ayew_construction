@@ -230,7 +230,13 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
                   const rUsd = ret.returnSumUsd !== undefined ? ret.returnSumUsd : (isUsdProduct(ret.productName, ret.unit) ? (ret.returnSum || 0) : 0);
                   return (
                     <div key={idx} style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', backgroundColor: '#fffbeb', borderRadius: '6px', border: '1px solid #fef3c7' }}>
-                      <span style={{ color: '#92400e', flex: 1, whiteSpace: 'pre-line', lineHeight: '1.4' }}>{ret.productName}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: '#92400e', whiteSpace: 'pre-line', lineHeight: '1.4' }}>{ret.productName}</div>
+                        {/* MANA SHU YERDA QACHON QAYTARILGANI SANA VA SOATI BILAN QO'SHILDI */}
+                        <div style={{ fontSize: '10px', color: '#b45309', marginTop: '4px', fontWeight: 'bold' }}>
+                          {new Date(ret.id).toLocaleDateString('uz-UZ')} {new Date(ret.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
                       <span style={{ fontWeight: 'bold', color: '#d97706', textAlign: 'right', minWidth: '70px' }}>
                         {rSom > 0 && `-${rSom.toLocaleString()} so'm`}
                         {rUsd > 0 && `-${rUsd.toLocaleString()} $`}
