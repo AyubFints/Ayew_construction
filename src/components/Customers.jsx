@@ -11,6 +11,9 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
   
   const [historyType, setHistoryType] = useState('monthly');
   const [expandedPeriod, setExpandedPeriod] = useState(null);
+  
+  // YANGI: Vozvratlar tafsilotini ochib yopish uchun state
+  const [showReturnsDetails, setShowReturnsDetails] = useState(false);
 
   const handleAddCustomer = async (e) => {
     e.preventDefault();
@@ -162,10 +165,12 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
 
   if (selectedCustomer) {
     const stats = getCustomerStats(selectedCustomer.name);
+    // Mijozning faqat qaytargan narsalarini alohida ajratib olamiz
+    const returnedItems = stats.history.filter(h => h.itemType === 'return');
 
     return (
       <div className="fade-in app-container" style={{ paddingBottom: '40px' }}>
-        <button onClick={() => setSelectedCustomer(null)} className="btn btn-danger" style={{ marginBottom: '25px', width: 'auto' }}>
+        <button onClick={() => { setSelectedCustomer(null); setShowReturnsDetails(false); }} className="btn btn-danger" style={{ marginBottom: '25px', width: 'auto' }}>
           <ArrowLeft size={18} /> Orqaga
         </button>
 
@@ -182,8 +187,9 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           </div>
         </div>
 
-        {/* TEPADAGI ASOSIY 4 TA KARTA (RANGLI, O'ZGARMADI) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+        {/* TEPADAGI ASOSIY 4 TA KARTA */}
+        {/* alignItems: 'start' qo'shildi, toki bitta karta uzaysa qolganlari ham cho'zilib ketmasligi uchun */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '30px', alignItems: 'start' }}>
           
           <div className="card" style={{ background: '#f8fafc', borderTop: '4px solid #3b82f6', padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', marginBottom: '10px' }}>
@@ -194,13 +200,46 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
             {stats.totalBoughtSom === 0 && stats.totalBoughtUsd === 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#1e3a8a' }}>0 so'm</h2>}
           </div>
 
+          {/* YANGILANGAN VOZVRAT KARTASI */}
           <div className="card" style={{ background: '#fdf8f6', borderTop: '4px solid #f59e0b', padding: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', marginBottom: '10px' }}>
-              <PackageMinus size={18} /> <span style={{ fontSize: '13px', fontWeight: 'bold' }}>VOZVRAT QILGAN</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b' }}>
+                <PackageMinus size={18} /> <span style={{ fontSize: '13px', fontWeight: 'bold' }}>VOZVRAT QILGAN</span>
+              </div>
+              {/* Tafsilot tugmasi (faqat vozvrat qilingan narsa bo'lsagina chiqadi) */}
+              {returnedItems.length > 0 && (
+                <button 
+                  onClick={() => setShowReturnsDetails(!showReturnsDetails)} 
+                  style={{ background: 'none', border: 'none', color: '#b45309', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: 0 }}
+                >
+                  Tafsilot {showReturnsDetails ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                </button>
+              )}
             </div>
+            
             {stats.totalReturnedSom > 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#b45309' }}>-{stats.totalReturnedSom.toLocaleString()} so'm</h2>}
             {stats.totalReturnedUsd > 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#d97706' }}>-{stats.totalReturnedUsd.toLocaleString()} $</h2>}
             {stats.totalReturnedSom === 0 && stats.totalReturnedUsd === 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#d97706' }}>0 so'm</h2>}
+            
+            {/* VOZVRAT QILINGAN NARSALAR RO'YXATI */}
+            {showReturnsDetails && returnedItems.length > 0 && (
+              <div className="fade-in" style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px dashed #fcd34d', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#b45309', textTransform: 'uppercase', marginBottom: '4px' }}>Nimalar qaytgan?</div>
+                {returnedItems.map((ret, idx) => {
+                  const rSom = ret.returnSumSom !== undefined ? ret.returnSumSom : (!isUsdProduct(ret.productName, ret.unit) ? (ret.returnSum || 0) : 0);
+                  const rUsd = ret.returnSumUsd !== undefined ? ret.returnSumUsd : (isUsdProduct(ret.productName, ret.unit) ? (ret.returnSum || 0) : 0);
+                  return (
+                    <div key={idx} style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', backgroundColor: '#fffbeb', borderRadius: '6px', border: '1px solid #fef3c7' }}>
+                      <span style={{ color: '#92400e', flex: 1, whiteSpace: 'pre-line', lineHeight: '1.4' }}>{ret.productName}</span>
+                      <span style={{ fontWeight: 'bold', color: '#d97706', textAlign: 'right', minWidth: '70px' }}>
+                        {rSom > 0 && `-${rSom.toLocaleString()} so'm`}
+                        {rUsd > 0 && `-${rUsd.toLocaleString()} $`}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="card" style={{ background: stats.hasDebt ? '#fff5f5' : '#f0fdf4', borderTop: `4px solid ${stats.hasDebt ? '#ef4444' : '#10b981'}`, padding: '20px' }}>
@@ -222,7 +261,7 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           </div>
         </div>
 
-        {/* --- NIMALAR OLGANI RO'YXATI (OQ VA TO'Q KO'K DIZAYN) --- */}
+        {/* --- NIMALAR OLGANI RO'YXATI --- */}
         <div className="card" style={{ padding: '20px', marginBottom: '30px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#1e3a8a' }}>
             <BarChart3 size={20} color="#1e3a8a" /> Davrlar bo'yicha hisobot
@@ -293,7 +332,7 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           )}
         </div>
 
-        {/* --- BARCHA HARAKATLAR TARIXI (OQ VA TO'Q KO'K DIZAYN) --- */}
+        {/* --- BARCHA HARAKATLAR TARIXI --- */}
         <div className="card" style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1' }}>
           <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#1e3a8a' }}>
             <History size={20} color="#1e3a8a" /> Barcha harakatlar xronologiyasi
@@ -403,7 +442,7 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           {customers.map(c => {
             const stat = getCustomerStats(c.name);
             return (
-              <div key={c.id} onClick={() => setSelectedCustomer(c)} className="menu-card" style={{ padding: '15px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', border: '1px solid #f1f5f9', cursor: 'pointer' }}>
+              <div key={c.id} onClick={() => { setSelectedCustomer(c); setShowReturnsDetails(false); setExpandedPeriod(null); }} className="menu-card" style={{ padding: '15px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', border: '1px solid #f1f5f9', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                   <div style={{ background: '#eff6ff', color: '#2563eb', width: '40px', height: '40px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
                     {c.name.charAt(0).toUpperCase()}
