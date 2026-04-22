@@ -38,9 +38,11 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
   const [detailFilter, setDetailFilter] = useState('daily');
   const [detailDate, setDetailDate] = useState(currentDayStr);
 
+  // YANGILANGAN: kv va Dona/$ larni to'g'ri tanish
   const isUsdUnit = (unit) => {
     if (!unit) return false;
-    return unit.includes('$');
+    const lowerUnit = unit.toLowerCase();
+    return lowerUnit.includes('$') || lowerUnit === 'kv';
   };
 
   const handleDetailFilterChange = (type) => {
@@ -64,7 +66,12 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     return `${y}` === detailDate;
   };
 
-  const isUsdProduct = (productName) => typeof productName === 'string' && productName.includes('$');
+  // YANGILANGAN: mahsulot nomida $ yoki kv borligini to'g'ri tekshirish
+  const isUsdProduct = (productName) => {
+    if (typeof productName !== 'string') return false;
+    const lowerName = productName.toLowerCase();
+    return lowerName.includes('$') || lowerName.includes(' kv ');
+  };
 
   const tableData = useMemo(() => {
     return sales.filter(s => isMatchDate(s.id)).sort((a, b) => b.id - a.id);
@@ -74,7 +81,15 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
   let periodIncomeUsd = 0;
   tableData.forEach(curr => {
     const amount = Number(curr.totalSum) || Number(curr.total) || 0;
-    if (isUsdProduct(curr.productName)) periodIncomeUsd += amount;
+    // Tekshiruvni cartItems dan ham aniqroq olamiz agar bor bo'lsa
+    let isUsd = false;
+    if (curr.cartItems && curr.cartItems.length > 0) {
+        isUsd = isUsdUnit(curr.cartItems[0].product.unit);
+    } else {
+        isUsd = isUsdProduct(curr.productName);
+    }
+
+    if (isUsd) periodIncomeUsd += amount;
     else periodIncomeSom += amount;
   });
   
@@ -107,7 +122,14 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
       if (!map[key]) map[key] = { label, incomeSom: 0, incomeUsd: 0, expenseSom: 0, expenseUsd: 0, timestamp: timeToUse };
       
       const amount = Number(s.totalSum) || Number(s.total) || 0;
-      if (isUsdProduct(s.productName)) map[key].incomeUsd += amount;
+      let isUsd = false;
+      if (s.cartItems && s.cartItems.length > 0) {
+          isUsd = isUsdUnit(s.cartItems[0].product.unit);
+      } else {
+          isUsd = isUsdProduct(s.productName);
+      }
+
+      if (isUsd) map[key].incomeUsd += amount;
       else map[key].incomeSom += amount;
     });
 
@@ -183,7 +205,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
       if (qty <= 0 || isNaN(qty)) return setError("Miqdorni to'g'ri kiriting!");
 
       const isUsd = customCurrency === 'usd';
-      const finalUnit = isUsd ? (sellUnit.includes('$') ? sellUnit : `${sellUnit}/$`) : sellUnit;
+      const finalUnit = isUsd ? (sellUnit.includes('$') ? sellUnit : (sellUnit === 'kv' ? 'kv' : `${sellUnit}/$`)) : sellUnit;
       const name = isUsd ? `${customName} $ (Erkin)` : `${customName} (Erkin)`;
 
       const newCustomProduct = {
@@ -208,7 +230,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
   const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
 
-  // YANGI TEZLASHTIRILGAN FUNKSIYA: handleFinalSell
   const handleFinalSell = () => {
     if (!customer) return setError("Mijozni tanlang!");
     if (cart.length === 0) return setError("Savat bo'sh! Tovar qo'shing.");
@@ -275,7 +296,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
     // 3. Ekranni tozalash va xabarni tezkorlik bilan chiqarish
     setCart([]); setCustomer(''); setError('');
-    setTimeout(() => alert(alertMsg), 10); // 10 millisekunddan keyin alert chiqadi, shunda qotish sezilmaydi.
+    setTimeout(() => alert(alertMsg), 10);
 
     // 4. Firebase bulutiga bildirmasdan, orqa fonda saqlab qo'yish
     if (auth.currentUser) {
