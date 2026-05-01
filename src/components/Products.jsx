@@ -23,16 +23,27 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
   const [changingPriceId, setChangingPriceId] = useState(null);
   const [newPriceAmount, setNewPriceAmount] = useState('');
 
-  // YANGI: Olingan narxni o'zgartirish uchun state'lar
   const [changingCostPriceId, setChangingCostPriceId] = useState(null);
   const [newCostPriceAmount, setNewCostPriceAmount] = useState('');
 
+  // SOTUV NARXI BO'YICHA UMUMIY QIYMAT
   const totalValueSom = products.reduce((acc, curr) => {
     return (curr.unit !== 'kv' && curr.unit !== 'Dona/$') ? acc + (curr.quantity * curr.price) : acc;
   }, 0);
 
   const totalValueUsd = products.reduce((acc, curr) => {
     return (curr.unit === 'kv' || curr.unit === 'Dona/$') ? acc + (curr.quantity * curr.price) : acc;
+  }, 0);
+
+  // YANGI: TAN NARX (OLINGAN NARX) BO'YICHA UMUMIY QIYMAT
+  const totalCostValueSom = products.reduce((acc, curr) => {
+    const cost = curr.costPrice || 0;
+    return (curr.unit !== 'kv' && curr.unit !== 'Dona/$') ? acc + (curr.quantity * cost) : acc;
+  }, 0);
+
+  const totalCostValueUsd = products.reduce((acc, curr) => {
+    const cost = curr.costPrice || 0;
+    return (curr.unit === 'kv' || curr.unit === 'Dona/$') ? acc + (curr.quantity * cost) : acc;
   }, 0);
 
   const displayedProducts = activeFilter === 'Barchasi' 
@@ -138,7 +149,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     setChangingPriceId(null); setNewPriceAmount('');
   };
 
-  // YANGI: Olingan narxni Firebase'ga saqlash funksiyasi
   const handleConfirmChangeCostPrice = (id) => {
     const parsedCostPrice = parseFloat(newCostPriceAmount);
     if (isNaN(parsedCostPrice) || parsedCostPrice < 0) return alert("Olingan narxni to'g'ri kiriting!");
@@ -150,7 +160,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     setChangingCostPriceId(null); setNewCostPriceAmount('');
   };
 
-  // YANGI: O'lchov birligini to'g'ri so'zga aylantiradigan yordamchi funksiya
   const getUnitText = (u) => {
     if (!u) return 'dona';
     if (u === 'Dona/$') return 'dona';
@@ -168,24 +177,44 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
         </h2>
       </div>
 
-      <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#1e3a8a', color: '#ffffff', marginBottom: '30px', textAlign: 'center', border: 'none' }}>
-        <p style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '15px' }}>Jami ombor qiymati (Sotuv narxida)</p>
+      <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#1e3a8a', color: '#ffffff', marginBottom: '30px', border: 'none', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', flexWrap: 'wrap' }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '38px', fontWeight: 'bold', color: '#ffffff' }}>
-              {totalValueSom.toLocaleString()} <span style={{ fontSize: '20px', color: '#9ca3af' }}>so'm</span>
-            </h2>
-          </div>
-          
-          <div style={{ width: '2px', height: '40px', backgroundColor: '#4b5563' }}></div>
-          
-          <div>
-            <h2 style={{ margin: 0, fontSize: '38px', fontWeight: 'bold', color: '#10b981' }}>
-              {totalValueUsd.toLocaleString()} <span style={{ fontSize: '20px', color: '#9ca3af' }}>$</span>
-            </h2>
+        {/* SOTUV NARXIDAGI JAMI QIYMAT */}
+        <div style={{ textAlign: 'center', paddingBottom: '20px', borderBottom: '1px solid #475569' }}>
+          <p style={{ margin: 0, fontSize: '15px', fontWeight: 'bold', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '10px' }}>Jami ombor qiymati (Sotuv narxida)</p>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: '#ffffff' }}>
+                {totalValueSom.toLocaleString()} <span style={{ fontSize: '18px', color: '#9ca3af' }}>so'm</span>
+              </h2>
+            </div>
+            <div style={{ width: '2px', height: '30px', backgroundColor: '#4b5563' }}></div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: '#10b981' }}>
+                {totalValueUsd.toLocaleString()} <span style={{ fontSize: '18px', color: '#9ca3af' }}>$</span>
+              </h2>
+            </div>
           </div>
         </div>
+
+        {/* TAN NARXDAGI JAMI QIYMAT */}
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', color: '#fca5a5', textTransform: 'uppercase', marginBottom: '10px' }}>Jami ombor qiymati (Tan narxida)</p>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '28px', fontWeight: 'bold', color: '#fecaca' }}>
+                {totalCostValueSom.toLocaleString()} <span style={{ fontSize: '16px', color: '#fca5a5' }}>so'm</span>
+              </h2>
+            </div>
+            <div style={{ width: '2px', height: '25px', backgroundColor: '#4b5563' }}></div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '28px', fontWeight: 'bold', color: '#fecaca' }}>
+                {totalCostValueUsd.toLocaleString()} <span style={{ fontSize: '16px', color: '#fca5a5' }}>$</span>
+              </h2>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <div className="card" style={{ padding: '20px', marginBottom: '30px', borderTop: '4px solid #4b5563', backgroundColor: '#ffffff' }}>
