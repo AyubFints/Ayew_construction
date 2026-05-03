@@ -12,7 +12,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
   const [historyType, setHistoryType] = useState('monthly');
   const [expandedPeriod, setExpandedPeriod] = useState(null);
   
-  // YANGI: Vozvratlar tafsilotini ochib yopish uchun state
   const [showReturnsDetails, setShowReturnsDetails] = useState(false);
 
   const handleAddCustomer = async (e) => {
@@ -63,7 +62,7 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
 
   const isUsdProduct = (productName, unit) => {
     if (isUsdUnit(unit)) return true;
-    if (typeof productName === 'string' && (productName.includes('$') || productName.includes(' kv '))) return true;
+    if (typeof productName === 'string' && (productName.includes('$') || productName.toLowerCase().includes(' kv '))) return true;
     return false;
   };
 
@@ -130,14 +129,14 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
       if (historyType === 'daily') return { key: t.toLocaleDateString('uz-UZ'), label: t.toLocaleDateString('uz-UZ') + " kungi" };
       if (historyType === 'monthly') {
         const months = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
-        return { key: `${months[t.getMonth()]} ${t.getFullYear()}`, label: `${months[t.getMonth()]} ${t.getFullYear()} dagi` };
+        return { key: `${months[t.getMonth()]} ${t.getFullYear()}`, label: `${months[t.getMonth()]} ${t.getFullYear()}` };
       }
       return { key: t.getFullYear().toString(), label: `${t.getFullYear()} yildagi` };
     };
 
     stats.history.forEach(item => {
       const { key, label } = getKeyAndLabel(item.id);
-      if (!map[key]) map[key] = { label, key, boughtSom: 0, boughtUsd: 0, debtSom: 0, debtUsd: 0, timestamp: item.id, details: [] };
+      if (!map[key]) map[key] = { label, key, boughtSom: 0, boughtUsd: 0, debtSom: 0, debtUsd: 0, costSom: 0, costUsd: 0, profitSom: 0, profitUsd: 0, timestamp: item.id, details: [] };
       
       if (item.itemType === 'sale') {
         const isKv = isUsdProduct(item.productName, item.unit);
@@ -151,7 +150,36 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           map[key].boughtSom += sum;
           map[key].debtSom += remainingDebt;
         }
-        map[key].details.push({ type: 'sale', name: item.productName, sum, isKv });
+
+        // TANNARX VA FOYDANI HISOBLASH
+        let currentCostSom = 0;
+        let currentCostUsd = 0;
+        let currentProfitSom = 0;
+        let currentProfitUsd = 0;
+
+        if (item.cartItems && item.cartItems.length > 0) {
+           item.cartItems.forEach(cartItem => {
+              const isItemUsd = isUsdUnit(cartItem.product.unit);
+              const itemCost = (Number(cartItem.product.costPrice) || 0) * cartItem.qty;
+              const itemRevenue = Number(cartItem.total) || 0;
+              const itemProfit = itemRevenue - itemCost;
+
+              if (isItemUsd) {
+                 currentCostUsd += itemCost;
+                 currentProfitUsd += itemProfit;
+              } else {
+                 currentCostSom += itemCost;
+                 currentProfitSom += itemProfit;
+              }
+           });
+        }
+
+        map[key].costSom += currentCostSom;
+        map[key].costUsd += currentCostUsd;
+        map[key].profitSom += currentProfitSom;
+        map[key].profitUsd += currentProfitUsd;
+
+        map[key].details.push({ type: 'sale', name: item.productName, sum, isKv, costSom: currentCostSom, costUsd: currentCostUsd, profitSom: currentProfitSom, profitUsd: currentProfitUsd });
       } 
       else if (item.itemType === 'return') {
         const rSom = item.returnSumSom !== undefined ? item.returnSumSom : (!isUsdProduct(item.productName, item.unit) ? (item.returnSum || 0) : 0);
@@ -165,7 +193,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
 
   if (selectedCustomer) {
     const stats = getCustomerStats(selectedCustomer.name);
-    // Mijozning faqat qaytargan narsalarini alohida ajratib olamiz
     const returnedItems = stats.history.filter(h => h.itemType === 'return');
 
     return (
@@ -174,7 +201,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           <ArrowLeft size={18} /> Orqaga
         </button>
 
-        {/* PROFIL SHAPKASI (RANGI O'Z JOYIDA) */}
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '30px', marginBottom: '25px', borderTop: '4px solid #1e3a8a' }}>
           <div style={{ width: '80px', height: '80px', borderRadius: '24px', background: 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontWeight: 'bold', color: '#1e3a8a' }}>
             {selectedCustomer.name.charAt(0).toUpperCase()}
@@ -187,8 +213,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           </div>
         </div>
 
-        {/* TEPADAGI ASOSIY 4 TA KARTA */}
-        {/* alignItems: 'start' qo'shildi, toki bitta karta uzaysa qolganlari ham cho'zilib ketmasligi uchun */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '30px', alignItems: 'start' }}>
           
           <div className="card" style={{ background: '#f8fafc', borderTop: '4px solid #3b82f6', padding: '20px' }}>
@@ -200,13 +224,11 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
             {stats.totalBoughtSom === 0 && stats.totalBoughtUsd === 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#1e3a8a' }}>0 so'm</h2>}
           </div>
 
-          {/* YANGILANGAN VOZVRAT KARTASI */}
           <div className="card" style={{ background: '#fdf8f6', borderTop: '4px solid #f59e0b', padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b' }}>
                 <PackageMinus size={18} /> <span style={{ fontSize: '13px', fontWeight: 'bold' }}>VOZVRAT QILGAN</span>
               </div>
-              {/* Tafsilot tugmasi (faqat vozvrat qilingan narsa bo'lsagina chiqadi) */}
               {returnedItems.length > 0 && (
                 <button 
                   onClick={() => setShowReturnsDetails(!showReturnsDetails)} 
@@ -221,7 +243,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
             {stats.totalReturnedUsd > 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#d97706' }}>-{stats.totalReturnedUsd.toLocaleString()} $</h2>}
             {stats.totalReturnedSom === 0 && stats.totalReturnedUsd === 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#d97706' }}>0 so'm</h2>}
             
-            {/* VOZVRAT QILINGAN NARSALAR RO'YXATI */}
             {showReturnsDetails && returnedItems.length > 0 && (
               <div className="fade-in" style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px dashed #fcd34d', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
                 <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#b45309', textTransform: 'uppercase', marginBottom: '4px' }}>Nimalar qaytgan?</div>
@@ -232,7 +253,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
                     <div key={idx} style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', backgroundColor: '#fffbeb', borderRadius: '6px', border: '1px solid #fef3c7' }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ color: '#92400e', whiteSpace: 'pre-line', lineHeight: '1.4' }}>{ret.productName}</div>
-                        {/* MANA SHU YERDA QACHON QAYTARILGANI SANA VA SOATI BILAN QO'SHILDI */}
                         <div style={{ fontSize: '10px', color: '#b45309', marginTop: '4px', fontWeight: 'bold' }}>
                           {new Date(ret.id).toLocaleDateString('uz-UZ')} {new Date(ret.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
                         </div>
@@ -267,7 +287,7 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           </div>
         </div>
 
-        {/* --- NIMALAR OLGANI RO'YXATI --- */}
+        {/* --- NIMALAR OLGANI RO'YXATI VA YANGI HISOBLAR --- */}
         <div className="card" style={{ padding: '20px', marginBottom: '30px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#1e3a8a' }}>
             <BarChart3 size={20} color="#1e3a8a" /> Davrlar bo'yicha hisobot
@@ -279,44 +299,77 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           </div>
           
           {aggregatedHistory.length === 0 ? <p style={{ textAlign: 'center', color: '#64748b' }}>Hozircha ma'lumot yo'q.</p> : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               {aggregatedHistory.map((item, index) => {
                 const paidSom = item.boughtSom - item.debtSom;
                 const paidUsd = item.boughtUsd - item.debtUsd;
                 return (
-                  <div key={index} className="fade-in" style={{ padding: '15px', background: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', borderLeft: '4px solid #1e3a8a', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div key={index} className="fade-in" style={{ padding: '15px', background: '#ffffff', borderRadius: '12px', border: '1px solid #cbd5e1', borderLeft: '5px solid #1e3a8a', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     
                     <div 
                       onClick={() => setExpandedPeriod(expandedPeriod === item.key ? null : item.key)}
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: expandedPeriod === item.key ? '1px dashed #cbd5e1' : 'none', paddingBottom: expandedPeriod === item.key ? '10px' : '0' }}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
                     >
-                      <div style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '16px' }}>{item.label}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#1e3a8a', backgroundColor: '#f1f5f9', padding: '4px 10px', borderRadius: '8px', fontSize: '13px', fontWeight: 'bold' }}>
-                        Nimalar olgan? {expandedPeriod === item.key ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                      <div style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '18px' }}>{item.label} Hisoboti</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#1e3a8a', backgroundColor: '#f1f5f9', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 'bold' }}>
+                        Tafsilotlar {expandedPeriod === item.key ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginTop: '5px' }}>
-                      <div style={{ color: '#1e3a8a', fontSize: '14px', fontWeight: 'bold' }}>
-                        Oldi: {item.boughtSom > 0 ? `${item.boughtSom.toLocaleString()} so'm ` : ''} 
-                        {item.boughtUsd > 0 ? `${item.boughtUsd.toLocaleString()} $` : ''}
+                    {/* YANGILANGAN KARTALAR (GRID KO'RINISHIDA) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginTop: '10px' }}>
+                      
+                      <div style={{ backgroundColor: '#f1f5f9', padding: '10px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Oldi (Sotuv)</div>
+                        <div style={{ color: '#1e3a8a', fontSize: '14px', fontWeight: 'bold' }}>
+                          {item.boughtSom > 0 && <div>{item.boughtSom.toLocaleString()} so'm</div>}
+                          {item.boughtUsd > 0 && <div>{item.boughtUsd.toLocaleString()} $</div>}
+                          {item.boughtSom === 0 && item.boughtUsd === 0 && '0'}
+                        </div>
                       </div>
-                      <div style={{ color: '#1e3a8a', fontSize: '14px', fontWeight: 'bold' }}>
-                        Qarz: {item.debtSom > 0 ? `${item.debtSom.toLocaleString()} so'm ` : ''}
-                        {item.debtUsd > 0 ? `${item.debtUsd.toLocaleString()} $` : ''}
-                        {item.debtSom === 0 && item.debtUsd === 0 && '0'}
+
+                      <div style={{ backgroundColor: '#fef2f2', padding: '10px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Tan narxi</div>
+                        <div style={{ color: '#dc2626', fontSize: '14px', fontWeight: 'bold' }}>
+                          {item.costSom > 0 && <div>{item.costSom.toLocaleString()} so'm</div>}
+                          {item.costUsd > 0 && <div>{item.costUsd.toLocaleString()} $</div>}
+                          {item.costSom === 0 && item.costUsd === 0 && 'Kiritilmagan'}
+                        </div>
                       </div>
-                      <div style={{ color: '#1e3a8a', fontSize: '14px', fontWeight: 'bold' }}>
-                        To'ladi: {paidSom > 0 || paidUsd === 0 ? `${paidSom.toLocaleString()} so'm ` : ''}
-                        {paidUsd > 0 ? `${paidUsd.toLocaleString()} $` : ''}
+
+                      <div style={{ backgroundColor: '#ecfdf5', padding: '10px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Sof Foyda</div>
+                        <div style={{ color: '#059669', fontSize: '14px', fontWeight: 'bold' }}>
+                          {item.profitSom !== 0 && <div>{item.profitSom.toLocaleString()} so'm</div>}
+                          {item.profitUsd !== 0 && <div>{item.profitUsd.toLocaleString()} $</div>}
+                          {item.profitSom === 0 && item.profitUsd === 0 && '0'}
+                        </div>
                       </div>
+
+                      <div style={{ backgroundColor: '#fffbeb', padding: '10px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Qarz bo'ldi</div>
+                        <div style={{ color: '#d97706', fontSize: '14px', fontWeight: 'bold' }}>
+                          {item.debtSom > 0 && <div>{item.debtSom.toLocaleString()} so'm</div>}
+                          {item.debtUsd > 0 && <div>{item.debtUsd.toLocaleString()} $</div>}
+                          {item.debtSom === 0 && item.debtUsd === 0 && '0'}
+                        </div>
+                      </div>
+
+                      <div style={{ backgroundColor: '#eff6ff', padding: '10px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>To'ladi</div>
+                        <div style={{ color: '#2563eb', fontSize: '14px', fontWeight: 'bold' }}>
+                          {(paidSom > 0 || paidUsd === 0) && <div>{paidSom.toLocaleString()} so'm</div>}
+                          {paidUsd > 0 && <div>{paidUsd.toLocaleString()} $</div>}
+                        </div>
+                      </div>
+
                     </div>
 
                     {expandedPeriod === item.key && (
-                      <div className="fade-in" style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}>Shu davr ichidagi xaridlar:</div>
+                      <div className="fade-in" style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}>Shu davr ichidagi xaridlar tafsiloti:</div>
                         {item.details.map((det, i) => (
-                          <div key={i} style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                          <div key={i} style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                             <div style={{ flex: 1, color: '#1e293b', display: 'flex', alignItems: 'flex-start', gap: '8px', lineHeight: '1.5' }}>
                               {det.type === 'return' ? <RotateCcw size={16} color="#1e3a8a" /> : <ShoppingCart size={16} color="#1e3a8a" />}
                               <span style={{ whiteSpace: 'pre-line' }}>{det.name}</span>
@@ -375,7 +428,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
                     </div>
                   </div>
 
-                  {/* To'lovlar tarixi */}
                   {item.paymentHistory && item.paymentHistory.length > 0 && (
                     <div style={{ marginTop: '12px', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
                       <div style={{ fontSize: '11px', color: '#1e3a8a', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase' }}>
@@ -424,7 +476,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
     );
   }
 
-  // MIJOZLAR RO'YXATI ASOSIY OYNA
   return (
     <div className="fade-in app-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>

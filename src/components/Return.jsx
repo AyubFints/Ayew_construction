@@ -9,6 +9,10 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [returnQty, setReturnQty] = useState('');
+  
+  // YANGI: Qaytish narxi uchun state
+  const [returnPrice, setReturnPrice] = useState(''); 
+  
   const [cart, setCart] = useState([]); 
   const [error, setError] = useState('');
 
@@ -114,6 +118,7 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
     setSearchQuery('');
     setSelectedProductId('');
     setReturnQty('');
+    setReturnPrice(''); // Tozalanadi
     setError('');
   };
 
@@ -121,10 +126,23 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
     e.preventDefault();
     setError('');
     if (!selectedProduct) return setError("Iltimos, avval tovarni tanlang!");
+    
     const qty = parseFloat(returnQty);
+    const customPrice = parseFloat(returnPrice); // YANGI: Kiritilgan narx
+
     if (qty <= 0 || isNaN(qty)) return setError("Miqdor to'g'ri emas!");
-    const itemTotal = qty * selectedProduct.price;
-    setCart([...cart, { id: Date.now(), product: selectedProduct, qty: qty, total: itemTotal }]);
+    if (customPrice < 0 || isNaN(customPrice)) return setError("Narx to'g'ri emas!");
+    
+    const itemTotal = qty * customPrice; // O'ZGARDI: Maxsus narxga ko'paytiriladi
+    
+    setCart([...cart, { 
+      id: Date.now(), 
+      product: selectedProduct, 
+      qty: qty, 
+      price: customPrice, // YANGI: Savatga maxsus narx qo'shildi
+      total: itemTotal 
+    }]);
+    
     handleClearSelection();
   };
 
@@ -142,8 +160,9 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
     const totalSom = cart.filter(item => !isUsdUnit(item.product.unit)).reduce((sum, item) => sum + item.total, 0);
     const totalUsd = cart.filter(item => isUsdUnit(item.product.unit)).reduce((sum, item) => sum + item.total, 0);
 
+    // O'ZGARDI: Tarixga endi mahsulotning haqiqiy narxi emas, balki qaytarib olingan maxsus narxi (item.price) yoziladi
     const combinedProductNames = cart.map(item => 
-      `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.product.price.toLocaleString()} ${isUsdUnit(item.product.unit) ? '$' : "so'm"})`
+      `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.price.toLocaleString()} ${isUsdUnit(item.product.unit) ? '$' : "so'm"})`
     ).join('\n');
 
     const newReturnData = {
@@ -193,7 +212,6 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
         </h2>
       </div>
 
-      {/* --- DINAMIK TEPADAGI BLOKLAR --- */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '40px' }}>
         <div className="card" style={{ borderTop: '6px solid #4b5563', position: 'relative', overflow: 'hidden' }}>
           <TrendingDown size={60} style={{ position: 'absolute', right: '-10px', bottom: '-10px', opacity: 0.05 }} color="#4b5563" />
@@ -264,14 +282,44 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
               <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
               <input className="form-control" style={{ paddingLeft: '38px' }} placeholder="Tovarni qidiring..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
-            <select className="form-control" value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}>
+            
+            {/* O'ZGARDI: Tovar tanlanganda narx avtomatik chiqishi uchun */}
+            <select 
+              className="form-control" 
+              value={selectedProductId} 
+              onChange={e => {
+                const pId = e.target.value;
+                setSelectedProductId(pId);
+                const prod = products.find(p => p.id.toString() === pId);
+                if (prod) {
+                  setReturnPrice(prod.price); // Asl narxi joylanadi
+                } else {
+                  setReturnPrice('');
+                }
+              }}
+            >
               <option value="">-- Tovarni tanlang --</option>
-              <option value="">-- Tanlang --</option>
               {filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name} ({p.quantity} {p.unit})</option>)}
             </select>
+
+            {/* YANGI: Maxsus qaytarish narxi uchun kiritish maydonlari */}
             {selectedProduct && (
-              <input type="number" className="form-control" placeholder={`Qancha qaytdi? (${selectedProduct.unit})`} value={returnQty} onChange={e => setReturnQty(e.target.value)} />
+              <div className="fade-in" style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '12px', color: '#6b7280', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
+                    Qancha qaytdi? ({selectedProduct.unit})
+                  </label>
+                  <input type="number" className="form-control" placeholder="Miqdori" value={returnQty} onChange={e => setReturnQty(e.target.value)} min="0.01" step="any" required />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '12px', color: '#6b7280', fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
+                    Qaytish narxi (1 {selectedProduct.unit})
+                  </label>
+                  <input type="number" className="form-control" placeholder="Narxni o'zgartirish" value={returnPrice} onChange={e => setReturnPrice(e.target.value)} min="0" step="any" required />
+                </div>
+              </div>
             )}
+
             <button type="submit" className="btn" style={{ background: '#4b5563', color: 'white', width: '100%', padding: '15px', fontSize: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
               <PlusCircle size={20} /> Savatga qo'shish
             </button>
@@ -290,7 +338,8 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
                   <div style={{ flex: 1 }}>
                     <p style={{ margin: 0, fontWeight: 'bold' }}>{index + 1}. {item.product.name}</p>
                     <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#6b7280' }}>
-                      {item.qty} {item.product.unit} x {item.product.price.toLocaleString()} {isUsd ? '$' : "so'm"}
+                      {/* O'ZGARDI: Qaytarilgan narx item.price dan olinmoqda */}
+                      {item.qty} {item.product.unit} x {item.price.toLocaleString()} {isUsd ? '$' : "so'm"}
                     </p>
                   </div>
                   <div style={{ fontWeight: 'bold', color: '#ef4444', marginRight: '15px' }}>
@@ -391,7 +440,7 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
           </div>
         )}
       </div>
-    </div>
+    </div>  
   );
 };
 
