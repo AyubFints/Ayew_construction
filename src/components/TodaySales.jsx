@@ -4,7 +4,8 @@ import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, Fil
 import { auth, db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
-const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }) => {
+// YANGILANGAN: customers = [] prop orqali mijozlar bazasini ham qabul qiladi
+const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, customers = [] }) => {
   const [partialAmounts, setPartialAmounts] = useState({});
   const [historyType, setHistoryType] = useState('daily'); 
   const [selectedHistory, setSelectedHistory] = useState(null); 
@@ -78,12 +79,10 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
   const netCashSom = totalIncomeSom - totalExpenseSom;
   const netCashUsd = totalIncomeUsd - totalExpenseUsd;
 
-  // --- YANGILANGAN: Xatoni oldini oladigan "To'liq qabul qilish" ---
   const handleReceive = async (id, customer) => {
     const sale = sales.find(s => s.id === id);
     const remaining = sale.totalSum - (sale.paidAmount || 0);
 
-    // XIMOYALOVCHI KOD: Agar puli allaqachon to'liq to'langan bo'lsa (qarzdan yopilgan bo'lsa)
     if (remaining <= 0) {
       alert("Bu savdoning puli allaqachon to'liq to'langan! U kutilayotganlar ro'yxatidan olib tashlanadi.");
       const correctedSales = sales.map(s => s.id === id ? { ...s, isReceived: true, isDebt: false } : s);
@@ -155,15 +154,19 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     }
   };
 
-  const handleToDebt = async (id, customer) => {
+  const handleToDebt = async (id, customerName) => {
     const sale = sales.find(s => s.id === id);
     const remaining = sale.totalSum - (sale.paidAmount || 0);
 
-    if (window.confirm(`${customer}ning to'lanmagan ${remaining.toLocaleString()} qoldig'ini qarzga yozamizmi?`)) {
+    if (window.confirm(`${customerName}ning to'lanmagan ${remaining.toLocaleString()} qoldig'ini qarzga yozamizmi?`)) {
       
       const daysStr = window.prompt("Necha kunga berilyapti? (Masalan: 10)", "10");
       if (daysStr === null) return;
-      const phoneStr = window.prompt("Telefon raqami (SMS yuborish uchun):", "+998");
+      
+      // YANGILANGAN QISM: Telefon raqamni window.prompt bilan so'ramaydi.
+      // Mijozlar bazasidan avtomatik qidirib topadi:
+      const foundCustomer = customers.find(c => c.name === customerName);
+      const phoneStr = foundCustomer ? foundCustomer.phone : '';
 
       const debtDays = parseInt(daysStr) || 0;
       const debtDeadline = debtDays > 0 ? Date.now() + (debtDays * 24 * 60 * 60 * 1000) : null;
@@ -173,7 +176,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
         isDebt: true, 
         debtDays,
         debtDeadline,
-        customerPhone: phoneStr || ''
+        customerPhone: phoneStr || '' // Avtomatik topilgan raqam yoziladi
       } : s);
       
       setSales(yangiSales);
@@ -257,8 +260,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage }
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
   }, [sales, historyType]);
 
-  // --- YANGILANGAN: XATONI TO'G'RILAYDIGAN QISM ---
-  // Endi to'langan puli jami puliga teng bo'lib qolganlar (qarzdan to'langanlar) bu ro'yxatda chiqmaydi!
   const pendingSales = sales.filter(s => {
     const currentPaid = s.paidAmount || 0;
     return !s.isReceived && !s.isDebt && currentPaid < s.totalSum;

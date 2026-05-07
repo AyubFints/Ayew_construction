@@ -223,11 +223,11 @@ function App() {
       case 'products': return <Products products={products} setProducts={setProducts} categories={categories} setCategories={setCategories} setPage={setPage} saveToFirebase={saveToFirebase} />;
       case 'sell': return <Sell products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} customers={customers} />;
       case 'return': return <Return products={products} setProducts={setProducts} returns={returns} setReturns={setReturns} setPage={setPage} customers={customers} />;
-      case 'todaysales': return <TodaySales products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} />;
       
-      // MANA SHU QATOR TO'G'RILANDI: returns={returns} qo'shildi
+      // MANA SHU YERGA CUSTOMERS QO'SHILDI
+      case 'todaysales': return <TodaySales products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} customers={customers} />;
+      
       case 'customers': return <Customers customers={customers} setCustomers={setCustomers} sales={sales} returns={returns} setPage={setPage} />;
-      
       case 'debts': return <Debts sales={sales} setSales={setSales} setPage={setPage} customers={customers} />;
       case 'settings': return <Settings storeName={storeName} setStoreName={setStoreName} setProducts={setProducts} setSales={setSales} setReturns={setReturns} setPage={setPage} />;
       case 'arenda': return <Arenda arenda={arenda} setArenda={setArenda} setPage={setPage} />;

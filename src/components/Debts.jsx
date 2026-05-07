@@ -123,7 +123,10 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
             const currency = isKv ? '$' : "so'm";
             const remaining = sale.totalSum - (sale.paidAmount || 0);
 
-            // YANGI: KUNLARNI HISOBLASH MANTIG'I
+            // YANGI: Raqamni Mijozlar bazasidan qidirish (avvalgidek sale ichidan, yo'q bo'lsa bazadan)
+            const foundCustomer = customers.find(c => c.name === sale.customer);
+            const phone = sale.customerPhone || (foundCustomer ? foundCustomer.phone : '');
+
             let daysLeftText = null;
             let isUrgent = false;
 
@@ -151,9 +154,8 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
                     <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px', whiteSpace: 'pre-line' }}>{sale.productName}</div>
                     <div style={{ color: '#9ca3af', fontSize: '12px' }}>Sana: {new Date(sale.id).toLocaleDateString()}</div>
                     
-                    {/* YANGI: KUNLARNI KO'RSATISH VA SMS TUGMASI */}
-                    {sale.debtDeadline && (
-                      <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      {sale.debtDeadline && (
                         <span style={{ 
                           backgroundColor: isUrgent ? '#fee2e2' : '#d1fae5', 
                           color: isUrgent ? '#dc2626' : '#059669', 
@@ -161,18 +163,19 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
                         }}>
                           <Clock size={14} /> {daysLeftText}
                         </span>
-                        
-                        {isUrgent && sale.customerPhone && (
-                          <a 
-                            href={`sms:${sale.customerPhone}?body=${encodeURIComponent(`Assalomu alaykum, ${sale.customer}. Do'kondan qarz to'lash muddati keldi. Qarz: ${remaining.toLocaleString()} ${currency}. Iltimos to'lovni amalga oshiring.`)}`} 
-                            className="btn" 
-                            style={{ backgroundColor: '#2563eb', color: 'white', padding: '4px 10px', fontSize: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', width: 'auto', border: 'none' }}
-                          >
-                            <MessageCircle size={14} /> SMS yozish
-                          </a>
-                        )}
-                      </div>
-                    )}
+                      )}
+                      
+                      {/* O'ZGARDI: SMS tugmasi raqam bo'lsa har doim chiqadi! */}
+                      {phone && (
+                        <a 
+                          href={`sms:${phone}?body=${encodeURIComponent(`Assalomu alaykum, ${sale.customer}. Do'kondan olingan tovarlar bo'yicha qoldiq qarz: ${remaining.toLocaleString()} ${currency}. Iltimos to'lovni amalga oshiring.`)}`} 
+                          className="btn" 
+                          style={{ backgroundColor: '#2563eb', color: 'white', padding: '6px 12px', fontSize: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', width: 'auto', border: 'none', borderRadius: '8px' }}
+                        >
+                          <MessageCircle size={14} /> Eslatma yuborish
+                        </a>
+                      )}
+                    </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '12px', color: '#6b7280' }}>Qolgan qarz:</div>
