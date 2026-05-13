@@ -8,12 +8,36 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
 
   return (
     <div className="fade-in">
+      
+      {/* TELEFON UCHUN 2 QATOR (USTUN) QILADIGAN MAXSUS STIL */}
+      <style>
+        {`
+          @media (max-width: 768px) {
+            .dashboard-grid {
+              display: grid !important;
+              grid-template-columns: repeat(2, 1fr) !important;
+              gap: 12px !important;
+            }
+            .menu-card {
+              padding: 15px 10px !important;
+            }
+            .menu-icon svg {
+              width: 32px !important;
+              height: 32px !important;
+            }
+            .menu-title {
+              font-size: 13px !important;
+            }
+          }
+        `}
+      </style>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
         <div>
           <h1 style={{ fontSize: '28px', color: '#111827', margin: 0 }}>Boshqaruv Paneli</h1>
           <p style={{ color: '#4b5563', margin: '5px 0 0 0', fontWeight: '500' }}>{storeName}</p>
         </div>
-        <button onClick={onLogout} className="btn btn-danger" style={{ width: 'auto', padding: '10px 20px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <button onClick={onLogout} className="btn btn-danger fade-in" style={{ width: 'auto', padding: '10px 20px', display: 'flex', gap: '8px', alignItems: 'center' }}>
           <LogOut size={18} /> Dasturdan chiqish
         </button>
       </div>
@@ -39,49 +63,49 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
 
       <div className="dashboard-grid">
         {/* SOTUV BO'LIMI */}
-        <div className="menu-card" onClick={() => setPage('sell')}>
+        <div className="menu-card fade-in" style={{ animationDelay: '0.05s' }} onClick={() => setPage('sell')}>
           <div className="menu-icon"><ShoppingCart size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Sotish bo'limi</div>
         </div>
         
         {/* QAYTISH BO'LIMI */}
-        <div className="menu-card" onClick={() => setPage('return')}>
+        <div className="menu-card fade-in" style={{ animationDelay: '0.1s' }} onClick={() => setPage('return')}>
           <div className="menu-icon"><RotateCcw size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Qaytish (Vozvrat)</div>
         </div>
         
         {/* OMBORXONA */}
-        <div className="menu-card" onClick={() => setPage('products')}>
+        <div className="menu-card fade-in" style={{ animationDelay: '0.15s' }} onClick={() => setPage('products')}>
           <div className="menu-icon"><Package size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Tovarlar ombori</div>
         </div>
         
         {/* KASSA */}
-        <div className="menu-card" onClick={() => setPage('todaysales')}>
+        <div className="menu-card fade-in" style={{ animationDelay: '0.2s' }} onClick={() => setPage('todaysales')}>
           <div className="menu-icon"><Wallet size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Bugungi kassa</div>
         </div>
 
-        {/* --- MIJOZLAR BAZASI (YANGI!) --- */}
-        <div className="menu-card" onClick={() => setPage('customers')} style={{ borderBottom: '4px solid #1e3a8a' }}>
+        {/* --- MIJOZLAR BAZASI --- */}
+        <div className="menu-card fade-in" style={{ animationDelay: '0.25s', borderBottom: '4px solid #1e3a8a' }} onClick={() => setPage('customers')}>
           <div className="menu-icon"><Users size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title" style={{ fontWeight: 'bold' }}>Mijozlar bazasi</div>
         </div>
         
         {/* QARZ DAFTARI */}
-        <div className="menu-card" onClick={() => setPage('debts')}>
+        <div className="menu-card fade-in" style={{ animationDelay: '0.3s' }} onClick={() => setPage('debts')}>
           <div className="menu-icon"><BookOpen size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Qarz Daftari</div>
         </div>
 
-        {/* --- ARENDA VA CHIQIMLAR (YANGI QO'SHILDI) --- */}
-        <div className="menu-card" onClick={() => setPage('arenda')}>
+        {/* --- ARENDA VA CHIQIMLAR --- */}
+        <div className="menu-card fade-in" style={{ animationDelay: '0.35s' }} onClick={() => setPage('arenda')}>
           <div className="menu-icon"><Landmark size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Arenda va Chiqimlar</div>
         </div>
 
         {/* SOZLAMALAR */}
-        <div className="menu-card" onClick={() => setPage('settings')} style={{ backgroundColor: '#f9fafb' }}>
+        <div className="menu-card fade-in" style={{ animationDelay: '0.4s', backgroundColor: '#f9fafb' }} onClick={() => setPage('settings')}>
           <div className="menu-icon"><SettingsIcon size={40} color="#4b5563" strokeWidth={1.5} /></div>
           <div className="menu-title" style={{ color: '#4b5563' }}>Sozlamalar</div>
         </div>

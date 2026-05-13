@@ -79,6 +79,50 @@ function App() {
   const [dataLoaded, setDataLoaded] = useState(true); 
   const [page, setPage] = useState('dashboard');
 
+  // --- OVOZ CHIQARISH FUNKSIYASI (Yoqimli va zamonaviy ohang) ---
+  useEffect(() => {
+    const playModernSound = () => {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        
+        // Ikkita ohangni birlashtiramiz (chiroyli akkord hosil bo'ladi)
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        osc1.type = 'sine'; // Mayin to'lqin
+        osc2.type = 'sine'; 
+        
+        osc1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5 notasi
+        osc2.frequency.setValueAtTime(659.25, ctx.currentTime); // E5 notasi
+        
+        // Ovoz silliq kirib, asta-sekin silliq so'nishi uchun (quloqqa yoqimli)
+        gainNode.gain.setValueAtTime(0, ctx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.02); // Tezlik bilan ko'tariladi
+        gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4); // Asta-sekin yo'qoladi
+        
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        osc1.start();
+        osc2.start();
+        
+        // 0.4 soniyadan keyin butunlay o'chadi
+        osc1.stop(ctx.currentTime + 0.4);
+        osc2.stop(ctx.currentTime + 0.4);
+      } catch (error) {
+        console.log("Ovoz chiqarishda xatolik:", error);
+      }
+    };
+
+    // Sahifa o'zgarganda zamonaviy ovoz chiqaradi
+    playModernSound();
+  }, [page]); 
+  // ----------------------------------------
+
   const [storeName, setStoreName] = useState(() => localStorage.getItem('app_storeName') || "Qurilish mollari do'koni");
   const [categories, setCategories] = useState(() => JSON.parse(localStorage.getItem('app_categories') || '["Umumiy"]'));
   const [products, setProducts] = useState(() => JSON.parse(localStorage.getItem('app_products') || '[]'));
@@ -223,10 +267,7 @@ function App() {
       case 'products': return <Products products={products} setProducts={setProducts} categories={categories} setCategories={setCategories} setPage={setPage} saveToFirebase={saveToFirebase} />;
       case 'sell': return <Sell products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} customers={customers} />;
       case 'return': return <Return products={products} setProducts={setProducts} returns={returns} setReturns={setReturns} setPage={setPage} customers={customers} />;
-      
-      // MANA SHU YERGA CUSTOMERS QO'SHILDI
       case 'todaysales': return <TodaySales products={products} setProducts={setProducts} sales={sales} setSales={setSales} returns={returns} setPage={setPage} customers={customers} />;
-      
       case 'customers': return <Customers customers={customers} setCustomers={setCustomers} sales={sales} returns={returns} setPage={setPage} />;
       case 'debts': return <Debts sales={sales} setSales={setSales} setPage={setPage} customers={customers} />;
       case 'settings': return <Settings storeName={storeName} setStoreName={setStoreName} setProducts={setProducts} setSales={setSales} setReturns={setReturns} setPage={setPage} />;
