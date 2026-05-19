@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, ArrowLeft, UserPlus, History, Phone, ShoppingBag, Banknote, BarChart3, CheckCircle, Trash2, PackageMinus, Landmark, ChevronDown, ChevronUp, ShoppingCart, RotateCcw, CreditCard } from 'lucide-react';
+import { Users, ArrowLeft, UserPlus, History, Phone, ShoppingBag, Banknote, BarChart3, CheckCircle, Trash2, PackageMinus, Landmark, ChevronDown, ChevronUp, ShoppingCart, RotateCcw, CreditCard, RefreshCcw } from 'lucide-react';
 
 import { auth, db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -76,6 +76,11 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
     let totalDebtUsd = 0;
     let totalReturnedSom = 0;
     let totalReturnedUsd = 0;
+    
+    // BUGUNGI VOZVRAT UCHUN
+    let todayReturnedSom = 0;
+    let todayReturnedUsd = 0;
+    const todayStr = new Date().toLocaleDateString('uz-UZ');
 
     mySales.forEach(s => {
       const isKv = isUsdProduct(s.productName, s.unit);
@@ -92,12 +97,23 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
     });
 
     myReturns.forEach(r => {
+      let rSom = 0;
+      let rUsd = 0;
+      
       if (r.returnSumSom !== undefined || r.returnSumUsd !== undefined) {
-        totalReturnedSom += (Number(r.returnSumSom) || 0);
-        totalReturnedUsd += (Number(r.returnSumUsd) || 0);
+        rSom = (Number(r.returnSumSom) || 0);
+        rUsd = (Number(r.returnSumUsd) || 0);
       } else {
-        if (isUsdProduct(r.productName, r.unit)) totalReturnedUsd += (Number(r.returnSum) || 0);
-        else totalReturnedSom += (Number(r.returnSum) || 0);
+        if (isUsdProduct(r.productName, r.unit)) rUsd = (Number(r.returnSum) || 0);
+        else rSom = (Number(r.returnSum) || 0);
+      }
+      
+      totalReturnedSom += rSom;
+      totalReturnedUsd += rUsd;
+
+      if (new Date(r.id).toLocaleDateString('uz-UZ') === todayStr) {
+        todayReturnedSom += rSom;
+        todayReturnedUsd += rUsd;
       }
     });
 
@@ -113,6 +129,7 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
       totalBoughtSom, totalBoughtUsd, 
       totalDebtSom, totalDebtUsd, 
       totalReturnedSom, totalReturnedUsd,
+      todayReturnedSom, todayReturnedUsd,
       actualPaidSom, actualPaidUsd,
       hasDebt: totalDebtSom > 0 || totalDebtUsd > 0,
       history: combinedHistory 
@@ -136,7 +153,7 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
 
     stats.history.forEach(item => {
       const { key, label } = getKeyAndLabel(item.id);
-      if (!map[key]) map[key] = { label, key, boughtSom: 0, boughtUsd: 0, debtSom: 0, debtUsd: 0, costSom: 0, costUsd: 0, profitSom: 0, profitUsd: 0, timestamp: item.id, details: [] };
+      if (!map[key]) map[key] = { label, key, boughtSom: 0, boughtUsd: 0, debtSom: 0, debtUsd: 0, costSom: 0, costUsd: 0, profitSom: 0, profitUsd: 0, returnedSom: 0, returnedUsd: 0, timestamp: item.id, details: [] };
       
       if (item.itemType === 'sale') {
         const isKv = isUsdProduct(item.productName, item.unit);
@@ -151,7 +168,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           map[key].debtSom += remainingDebt;
         }
 
-        // TANNARX VA FOYDANI HISOBLASH
         let currentCostSom = 0;
         let currentCostUsd = 0;
         let currentProfitSom = 0;
@@ -184,6 +200,10 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
       else if (item.itemType === 'return') {
         const rSom = item.returnSumSom !== undefined ? item.returnSumSom : (!isUsdProduct(item.productName, item.unit) ? (item.returnSum || 0) : 0);
         const rUsd = item.returnSumUsd !== undefined ? item.returnSumUsd : (isUsdProduct(item.productName, item.unit) ? (item.returnSum || 0) : 0);
+        
+        map[key].returnedSom += rSom;
+        map[key].returnedUsd += rUsd;
+
         map[key].details.push({ type: 'return', name: item.productName, rSom, rUsd });
       }
     });
@@ -213,77 +233,54 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '30px', alignItems: 'start' }}>
+        {/* JAMI HISOBLAR GRIDI (Xarid, Vozvrat Jami, Bugun, Qarz...) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginBottom: '30px', alignItems: 'start' }}>
           
           <div className="card" style={{ background: '#f8fafc', borderTop: '4px solid #3b82f6', padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', marginBottom: '10px' }}>
-              <ShoppingBag size={18} /> <span style={{ fontSize: '13px', fontWeight: 'bold' }}>JAMI XARIDLAR</span>
+              <ShoppingBag size={18} /> <span style={{ fontSize: '12px', fontWeight: 'bold' }}>JAMI XARIDLAR</span>
             </div>
-            {stats.totalBoughtSom > 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#1e3a8a' }}>{stats.totalBoughtSom.toLocaleString()} so'm</h2>}
-            {stats.totalBoughtUsd > 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#2563eb' }}>{stats.totalBoughtUsd.toLocaleString()} $</h2>}
-            {stats.totalBoughtSom === 0 && stats.totalBoughtUsd === 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#1e3a8a' }}>0 so'm</h2>}
+            {stats.totalBoughtSom > 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#1e3a8a' }}>{stats.totalBoughtSom.toLocaleString()} so'm</h2>}
+            {stats.totalBoughtUsd > 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#2563eb' }}>{stats.totalBoughtUsd.toLocaleString()} $</h2>}
+            {stats.totalBoughtSom === 0 && stats.totalBoughtUsd === 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#1e3a8a' }}>0 so'm</h2>}
           </div>
 
-          <div className="card" style={{ background: '#fdf8f6', borderTop: '4px solid #f59e0b', padding: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b' }}>
-                <PackageMinus size={18} /> <span style={{ fontSize: '13px', fontWeight: 'bold' }}>VOZVRAT QILGAN</span>
-              </div>
-              {returnedItems.length > 0 && (
-                <button 
-                  onClick={() => setShowReturnsDetails(!showReturnsDetails)} 
-                  style={{ background: 'none', border: 'none', color: '#b45309', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: 0 }}
-                >
-                  Tafsilot {showReturnsDetails ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
-                </button>
-              )}
+          {/* VOZVRAT JAMI KARTASI */}
+          <div className="card" style={{ background: '#fdf8f6', borderTop: '4px solid #f97316', padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', marginBottom: '10px' }}>
+              <PackageMinus size={18} /> <span style={{ fontSize: '12px', fontWeight: 'bold' }}>VOZVRAT (Shu kungacha)</span>
             </div>
-            
-            {stats.totalReturnedSom > 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#b45309' }}>-{stats.totalReturnedSom.toLocaleString()} so'm</h2>}
-            {stats.totalReturnedUsd > 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#d97706' }}>-{stats.totalReturnedUsd.toLocaleString()} $</h2>}
-            {stats.totalReturnedSom === 0 && stats.totalReturnedUsd === 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#d97706' }}>0 so'm</h2>}
-            
-            {showReturnsDetails && returnedItems.length > 0 && (
-              <div className="fade-in" style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px dashed #fcd34d', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
-                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#b45309', textTransform: 'uppercase', marginBottom: '4px' }}>Nimalar qaytgan?</div>
-                {returnedItems.map((ret, idx) => {
-                  const rSom = ret.returnSumSom !== undefined ? ret.returnSumSom : (!isUsdProduct(ret.productName, ret.unit) ? (ret.returnSum || 0) : 0);
-                  const rUsd = ret.returnSumUsd !== undefined ? ret.returnSumUsd : (isUsdProduct(ret.productName, ret.unit) ? (ret.returnSum || 0) : 0);
-                  return (
-                    <div key={idx} style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', backgroundColor: '#fffbeb', borderRadius: '6px', border: '1px solid #fef3c7' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ color: '#92400e', whiteSpace: 'pre-line', lineHeight: '1.4' }}>{ret.productName}</div>
-                        <div style={{ fontSize: '10px', color: '#b45309', marginTop: '4px', fontWeight: 'bold' }}>
-                          {new Date(ret.id).toLocaleDateString('uz-UZ')} {new Date(ret.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                      <span style={{ fontWeight: 'bold', color: '#d97706', textAlign: 'right', minWidth: '70px' }}>
-                        {rSom > 0 && `-${rSom.toLocaleString()} so'm`}
-                        {rUsd > 0 && `-${rUsd.toLocaleString()} $`}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {stats.totalReturnedSom > 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#b45309' }}>-{stats.totalReturnedSom.toLocaleString()} so'm</h2>}
+            {stats.totalReturnedUsd > 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#d97706' }}>-{stats.totalReturnedUsd.toLocaleString()} $</h2>}
+            {stats.totalReturnedSom === 0 && stats.totalReturnedUsd === 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#d97706' }}>0 so'm</h2>}
+          </div>
+
+          {/* --- ALOHIDA VA KATTA "BUGUNGI VOZVRAT" KARTASI (Siz so'ragan o'zgarish) --- */}
+          <div className="card fade-in" style={{ background: '#fffbeb', borderTop: '4px solid #ea580c', padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#854d0e', marginBottom: '10px' }}>
+              <RefreshCcw size={18} /> <span style={{ fontSize: '12px', fontWeight: 'bold' }}>BUGUN QAYTARDI</span>
+            </div>
+            {stats.todayReturnedSom > 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#9a3412' }}>-{stats.todayReturnedSom.toLocaleString()} so'm</h2>}
+            {stats.todayReturnedUsd > 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#c2410c' }}>-{stats.todayReturnedUsd.toLocaleString()} $</h2>}
+            {stats.todayReturnedSom === 0 && stats.todayReturnedUsd === 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#c2410c' }}>0 so'm</h2>}
           </div>
 
           <div className="card" style={{ background: stats.hasDebt ? '#fff5f5' : '#f0fdf4', borderTop: `4px solid ${stats.hasDebt ? '#ef4444' : '#10b981'}`, padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6b7280', marginBottom: '10px' }}>
-              <History size={18} /> <span style={{ fontSize: '13px', fontWeight: 'bold' }}>QARZ MIQDORI</span>
+              <History size={18} /> <span style={{ fontSize: '12px', fontWeight: 'bold' }}>QARZ MIQDORI</span>
             </div>
-            {stats.totalDebtSom > 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#ef4444' }}>-{stats.totalDebtSom.toLocaleString()} so'm</h2>}
-            {stats.totalDebtUsd > 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#dc2626' }}>-{stats.totalDebtUsd.toLocaleString()} $</h2>}
-            {!stats.hasDebt && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#10b981' }}>0 so'm</h2>}
+            {stats.totalDebtSom > 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#ef4444' }}>-{stats.totalDebtSom.toLocaleString()} so'm</h2>}
+            {stats.totalDebtUsd > 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#dc2626' }}>-{stats.totalDebtUsd.toLocaleString()} $</h2>}
+            {!stats.hasDebt && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#10b981' }}>0 so'm</h2>}
           </div>
 
           <div className="card" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)', color: 'white', border: 'none', padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.8, marginBottom: '10px' }}>
-              <Landmark size={18} /> <span style={{ fontSize: '13px', fontWeight: 'bold' }}>SOF TO'LAGAN PULLAR</span>
+              <Landmark size={18} /> <span style={{ fontSize: '12px', fontWeight: 'bold' }}>SOF TO'LAGAN PULLAR</span>
             </div>
-            {stats.actualPaidSom > 0 && <h2 style={{ fontSize: '24px', margin: '5px 0 0 0', color: '#ffffff' }}>{stats.actualPaidSom.toLocaleString()} so'm</h2>}
-            {stats.actualPaidUsd > 0 && <h2 style={{ fontSize: '24px', margin: '5px 0 0 0', color: '#bfdbfe' }}>{stats.actualPaidUsd.toLocaleString()} $</h2>}
-            {stats.actualPaidSom <= 0 && stats.actualPaidUsd <= 0 && <h2 style={{ fontSize: '24px', margin: '5px 0 0 0', color: '#ffffff' }}>0 so'm</h2>}
+            {stats.actualPaidSom > 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#ffffff' }}>{stats.actualPaidSom.toLocaleString()} so'm</h2>}
+            {stats.actualPaidUsd > 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#bfdbfe' }}>{stats.actualPaidUsd.toLocaleString()} $</h2>}
+            {stats.actualPaidSom <= 0 && stats.actualPaidUsd <= 0 && <h2 style={{ fontSize: '20px', margin: '5px 0 0 0', color: '#ffffff' }}>0 so'm</h2>}
           </div>
         </div>
 
@@ -316,50 +313,50 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
                       </div>
                     </div>
 
-                    {/* YANGILANGAN KARTALAR (GRID KO'RINISHIDA) */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginTop: '10px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '8px', marginTop: '10px' }}>
                       
                       <div style={{ backgroundColor: '#f1f5f9', padding: '10px', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Oldi (Sotuv)</div>
-                        <div style={{ color: '#1e3a8a', fontSize: '14px', fontWeight: 'bold' }}>
+                        <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Sotuv</div>
+                        <div style={{ color: '#1e3a8a', fontSize: '13px', fontWeight: 'bold' }}>
                           {item.boughtSom > 0 && <div>{item.boughtSom.toLocaleString()} so'm</div>}
                           {item.boughtUsd > 0 && <div>{item.boughtUsd.toLocaleString()} $</div>}
                           {item.boughtSom === 0 && item.boughtUsd === 0 && '0'}
                         </div>
                       </div>
 
+                      <div style={{ backgroundColor: '#fff7ed', padding: '10px', borderRadius: '8px', border: '1px solid #ffedd5' }}>
+                        <div style={{ fontSize: '10px', color: '#b45309', textTransform: 'uppercase', marginBottom: '4px' }}>Vozvrat</div>
+                        <div style={{ color: '#d97706', fontSize: '13px', fontWeight: 'bold' }}>
+                          {item.returnedSom > 0 && <div>-{item.returnedSom.toLocaleString()} so'm</div>}
+                          {item.returnedUsd > 0 && <div>-{item.returnedUsd.toLocaleString()} $</div>}
+                          {item.returnedSom === 0 && item.returnedUsd === 0 && '0'}
+                        </div>
+                      </div>
+
                       <div style={{ backgroundColor: '#fef2f2', padding: '10px', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Tan narxi</div>
-                        <div style={{ color: '#dc2626', fontSize: '14px', fontWeight: 'bold' }}>
+                        <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Tan narx</div>
+                        <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: 'bold' }}>
                           {item.costSom > 0 && <div>{item.costSom.toLocaleString()} so'm</div>}
                           {item.costUsd > 0 && <div>{item.costUsd.toLocaleString()} $</div>}
-                          {item.costSom === 0 && item.costUsd === 0 && 'Kiritilmagan'}
+                          {item.costSom === 0 && item.costUsd === 0 && '-'}
                         </div>
                       </div>
 
                       <div style={{ backgroundColor: '#ecfdf5', padding: '10px', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Sof Foyda</div>
-                        <div style={{ color: '#059669', fontSize: '14px', fontWeight: 'bold' }}>
+                        <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Sof Foyda</div>
+                        <div style={{ color: '#059669', fontSize: '13px', fontWeight: 'bold' }}>
                           {item.profitSom !== 0 && <div>{item.profitSom.toLocaleString()} so'm</div>}
                           {item.profitUsd !== 0 && <div>{item.profitUsd.toLocaleString()} $</div>}
                           {item.profitSom === 0 && item.profitUsd === 0 && '0'}
                         </div>
                       </div>
 
-                      <div style={{ backgroundColor: '#fffbeb', padding: '10px', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Qarz bo'ldi</div>
-                        <div style={{ color: '#d97706', fontSize: '14px', fontWeight: 'bold' }}>
+                      <div style={{ backgroundColor: '#fefce8', padding: '10px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Qarz bo'ldi</div>
+                        <div style={{ color: '#ca8a04', fontSize: '13px', fontWeight: 'bold' }}>
                           {item.debtSom > 0 && <div>{item.debtSom.toLocaleString()} so'm</div>}
                           {item.debtUsd > 0 && <div>{item.debtUsd.toLocaleString()} $</div>}
                           {item.debtSom === 0 && item.debtUsd === 0 && '0'}
-                        </div>
-                      </div>
-
-                      <div style={{ backgroundColor: '#eff6ff', padding: '10px', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>To'ladi</div>
-                        <div style={{ color: '#2563eb', fontSize: '14px', fontWeight: 'bold' }}>
-                          {(paidSom > 0 || paidUsd === 0) && <div>{paidSom.toLocaleString()} so'm</div>}
-                          {paidUsd > 0 && <div>{paidUsd.toLocaleString()} $</div>}
                         </div>
                       </div>
 
@@ -371,10 +368,10 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
                         {item.details.map((det, i) => (
                           <div key={i} style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                             <div style={{ flex: 1, color: '#1e293b', display: 'flex', alignItems: 'flex-start', gap: '8px', lineHeight: '1.5' }}>
-                              {det.type === 'return' ? <RotateCcw size={16} color="#1e3a8a" /> : <ShoppingCart size={16} color="#1e3a8a" />}
+                              {det.type === 'return' ? <RotateCcw size={16} color="#d97706" /> : <ShoppingCart size={16} color="#1e3a8a" />}
                               <span style={{ whiteSpace: 'pre-line' }}>{det.name}</span>
                             </div>
-                            <div style={{ fontWeight: 'bold', color: '#1e3a8a', minWidth: '90px', textAlign: 'right' }}>
+                            <div style={{ fontWeight: 'bold', color: det.type === 'return' ? '#d97706' : '#1e3a8a', minWidth: '90px', textAlign: 'right' }}>
                               {det.type === 'sale' 
                                 ? `${det.sum.toLocaleString()} ${det.isKv ? '$' : "so'm"}` 
                                 : `-${(det.rSom > 0 ? det.rSom : det.rUsd).toLocaleString()} ${det.rSom > 0 ? "so'm" : "$"}`
@@ -451,19 +448,19 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
               const rUsd = item.returnSumUsd !== undefined ? item.returnSumUsd : (isUsdProduct(item.productName, item.unit) ? (item.returnSum || 0) : 0);
               
               return (
-                <div key={`return-${item.id}`} className="fade-in" style={{ padding: '15px', borderRadius: '8px', background: '#ffffff', border: '1px solid #cbd5e1', borderLeft: '4px solid #1e3a8a', marginBottom: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                <div key={`return-${item.id}`} className="fade-in" style={{ padding: '15px', borderRadius: '8px', background: '#ffffff', border: '1px solid #cbd5e1', borderLeft: '4px solid #d97706', marginBottom: '10px', display: 'flex', justifyContent: 'space-between' }}>
                   <div>
                     <div style={{ fontWeight: 'bold', color: '#1e293b', whiteSpace: 'pre-line', lineHeight: '1.5' }}>{item.productName}</div>
                     <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <RotateCcw size={14} color="#64748b" /> Vozvrat qilingan: {new Date(item.id).toLocaleDateString('uz-UZ')} soat {new Date(item.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
+                      <RotateCcw size={14} color="#d97706" /> Vozvrat qilingan: {new Date(item.id).toLocaleDateString('uz-UZ')} soat {new Date(item.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', minWidth: '120px' }}>
-                    <div style={{ fontWeight: '800', color: '#1e3a8a', fontSize: '16px' }}>
+                    <div style={{ fontWeight: '800', color: '#d97706', fontSize: '16px' }}>
                       {rSom > 0 && `-${rSom.toLocaleString()} so'm`}
                       {rUsd > 0 && `-${rUsd.toLocaleString()} $`}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#1e3a8a', marginTop: '4px', fontWeight: 'bold' }}>
+                    <div style={{ fontSize: '12px', color: '#d97706', marginTop: '4px', fontWeight: 'bold' }}>
                       Qaytarildi
                     </div>
                   </div>
