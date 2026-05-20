@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, Search, X, PackageOpen, Tag, DollarSign } from 'lucide-react';
+import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, Search, X, PackageOpen, Tag, DollarSign, Wallet } from 'lucide-react';
 
 import { auth, db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -29,6 +29,8 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
   
   const [showHistory, setShowHistory] = useState(false);
   const [historyType, setHistoryType] = useState('daily');
+
+  const [successModal, setSuccessModal] = useState({ show: false, som: 0, usd: 0 });
   
   const d = new Date();
   const currentDayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -38,7 +40,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
   const [detailFilter, setDetailFilter] = useState('daily');
   const [detailDate, setDetailDate] = useState(currentDayStr);
 
-  // YANGILANGAN: kv va Dona/$ larni to'g'ri tanish
   const isUsdUnit = (unit) => {
     if (!unit) return false;
     const lowerUnit = unit.toLowerCase();
@@ -66,7 +67,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     return `${y}` === detailDate;
   };
 
-  // YANGILANGAN: mahsulot nomida $ yoki kv borligini to'g'ri tekshirish
   const isUsdProduct = (productName) => {
     if (typeof productName !== 'string') return false;
     const lowerName = productName.toLowerCase();
@@ -81,7 +81,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
   let periodIncomeUsd = 0;
   tableData.forEach(curr => {
     const amount = Number(curr.totalSum) || Number(curr.total) || 0;
-    // Tekshiruvni cartItems dan ham aniqroq olamiz agar bor bo'lsa
     let isUsd = false;
     if (curr.cartItems && curr.cartItems.length > 0) {
         isUsd = isUsdUnit(curr.cartItems[0].product.unit);
@@ -281,24 +280,15 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
     const yangiSales = [...sales, ...newSales];
 
-    // 1. Ma'lumotlarni darhol dastur (React) xotirasida yangilash
     setProducts(updatedProducts);
     setSales(yangiSales);
 
-    // 2. Alert xabarini tayyorlash
     const overallSomAlert = cartSom.reduce((sum, item) => sum + item.total, 0);
     const overallUsdAlert = cartUsd.reduce((sum, item) => sum + item.total, 0);
     
-    let alertMsg = `✅ Savdo yakunlandi! Jami summa: `;
-    if (overallSomAlert > 0) alertMsg += `${overallSomAlert.toLocaleString()} so'm `;
-    if (overallUsdAlert > 0) alertMsg += `${overallSomAlert > 0 ? 'va ' : ''}${overallUsdAlert.toLocaleString()} $`;
-    alertMsg += `\n(Pulini qabul qilish uchun Kassa bo'limiga o'ting)`;
-
-    // 3. Ekranni tozalash va xabarni tezkorlik bilan chiqarish
     setCart([]); setCustomer(''); setError('');
-    setTimeout(() => alert(alertMsg), 10);
+    setSuccessModal({ show: true, som: overallSomAlert, usd: overallUsdAlert });
 
-    // 4. Firebase bulutiga bildirmasdan, orqa fonda saqlab qo'yish
     if (auth.currentUser) {
       const docRef = doc(db, "stores", auth.currentUser.uid);
       setDoc(docRef, { 
@@ -315,6 +305,49 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
   return (
     <div className="fade-in app-container">
+      
+      {/* --- TO'Q KO'K MAVZUDAGI MODAL OYNA --- */}
+      {successModal.show && (
+        <div className="fade-in" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(17, 24, 39, 0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' }}>
+          <div className="card fade-in" style={{ width: '100%', maxWidth: '400px', backgroundColor: 'white', borderRadius: '24px', padding: '30px', textAlign: 'center', borderTop: '8px solid #1e3a8a', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '15px' }}>
+              <CheckCircle size={70} color="#1e3a8a" />
+            </div>
+            <h2 style={{ color: '#111827', margin: '0 0 10px 0', fontSize: '26px' }}>Savdo yakunlandi!</h2>
+            <p style={{ color: '#6b7280', margin: '0 0 20px 0', fontSize: '15px' }}>Tovarlar ro'yxatdan chiqarildi.</p>
+
+            <div style={{ backgroundColor: '#eff6ff', padding: '20px', borderRadius: '16px', marginBottom: '20px', border: '1px solid #bfdbfe' }}>
+              <span style={{ fontSize: '12px', color: '#1e40af', fontWeight: 'bold', textTransform: 'uppercase' }}>Jami to'lanishi kerak:</span>
+              {successModal.som > 0 && <h3 style={{ margin: '5px 0 0 0', color: '#1e3a8a', fontSize: '24px' }}>{successModal.som.toLocaleString()} so'm</h3>}
+              {successModal.usd > 0 && <h3 style={{ margin: '5px 0 0 0', color: '#1e3a8a', fontSize: '24px' }}>{successModal.usd.toLocaleString()} $</h3>}
+              {successModal.som === 0 && successModal.usd === 0 && <h3 style={{ margin: '5px 0 0 0', color: '#1e3a8a', fontSize: '24px' }}>0 so'm</h3>}
+            </div>
+
+            <p style={{ fontSize: '13px', color: '#ef4444', fontWeight: 'bold', marginBottom: '25px', backgroundColor: '#fef2f2', padding: '10px', borderRadius: '8px' }}>
+              ⚠️ Pulni hali qabul qilmadingiz! Qabul qilish uchun Kassa bo'limiga o'ting.
+            </p>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                onClick={() => setSuccessModal({ show: false, som: 0, usd: 0 })} 
+                className="btn" 
+                style={{ flex: 1, backgroundColor: '#f3f4f6', color: '#4b5563', fontSize: '15px', fontWeight: 'bold', padding: '12px' }}
+              >
+                Yopish
+              </button>
+              <button 
+                onClick={() => { setSuccessModal({ show: false, som: 0, usd: 0 }); setPage('todaysales'); }} 
+                className="btn btn-primary" 
+                style={{ flex: 1.5, backgroundColor: '#1e3a8a', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', fontSize: '15px', padding: '12px', color: 'white', border: 'none' }}
+              >
+                <Wallet size={18} /> Kassaga o'tish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ------------------------------------------------ */}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <button onClick={() => setPage('dashboard')} className="btn btn-danger" style={{ width: 'auto' }}>
           <ArrowLeft size={18} /> Orqaga
@@ -644,7 +677,11 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
               </div>
             </div>
 
-            <button onClick={handleFinalSell} className="btn btn-primary" style={{ fontSize: '18px', padding: '16px', display: 'flex', gap: '8px', justifyContent: 'center', width: '100%' }}>
+            <button 
+              onClick={handleFinalSell} 
+              className="btn btn-primary" 
+              style={{ fontSize: '18px', padding: '16px', display: 'flex', gap: '8px', justifyContent: 'center', width: '100%', backgroundColor: '#1e3a8a', color: 'white', border: 'none', borderRadius: '8px' }}
+            >
               <CheckCircle size={22} /> Tasdiqlash va Sotish
             </button>
           </div>

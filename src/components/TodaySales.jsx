@@ -4,7 +4,6 @@ import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, Fil
 import { auth, db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
-// YANGILANGAN: customers = [] prop orqali mijozlar bazasini ham qabul qiladi
 const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, customers = [] }) => {
   const [partialAmounts, setPartialAmounts] = useState({});
   const [historyType, setHistoryType] = useState('daily'); 
@@ -22,14 +21,12 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
   sales.forEach(sale => {
     const isUsd = isUsdProduct(sale.productName);
 
-    // Qarzga o'tganlarnigina hisoblash
     if (new Date(sale.id).toLocaleDateString('uz-UZ') === todayStr && sale.isDebt) {
       const remainingDebt = sale.totalSum - (sale.paidAmount || 0);
       if (isUsd) todayNewDebtsUsd += remainingDebt;
       else todayNewDebtsSom += remainingDebt;
     }
 
-    // Bugungi kirim va qisman to'lovlarni hisoblash
     if (sale.paymentHistory && sale.paymentHistory.length > 0) {
       sale.paymentHistory.forEach(payment => {
         if (new Date(payment.date).toLocaleDateString('uz-UZ') === todayStr) {
@@ -79,6 +76,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
   const netCashSom = totalIncomeSom - totalExpenseSom;
   const netCashUsd = totalIncomeUsd - totalExpenseUsd;
 
+  // --- TAYYOR, TO'G'RILANGAN QISM ---
   const handleReceive = async (id, customer) => {
     const sale = sales.find(s => s.id === id);
     const remaining = sale.totalSum - (sale.paidAmount || 0);
@@ -104,14 +102,17 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         paymentHistory: [...(s.paymentHistory || []), { amount: remaining, date: now }] 
       } : s);
 
+      // 1. Ekrandagi ma'lumotni darhol yangilash
       setSales(yangiSales);
 
+      // 2. O'zgarishni darhol Firebase'ga (Bulutga) yozish!
       if (auth.currentUser) {
         try {
           const docRef = doc(db, "stores", auth.currentUser.uid);
           await setDoc(docRef, { sales: yangiSales }, { merge: true });
         } catch (error) {
           console.error("Kassani bulutga saqlashda xato:", error);
+          alert("Internet bilan muammo bor! Saqlanmadi.");
         }
       }
     }
@@ -163,8 +164,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
       const daysStr = window.prompt("Necha kunga berilyapti? (Masalan: 10)", "10");
       if (daysStr === null) return;
       
-      // YANGILANGAN QISM: Telefon raqamni window.prompt bilan so'ramaydi.
-      // Mijozlar bazasidan avtomatik qidirib topadi:
       const foundCustomer = customers.find(c => c.name === customerName);
       const phoneStr = foundCustomer ? foundCustomer.phone : '';
 
@@ -176,7 +175,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         isDebt: true, 
         debtDays,
         debtDeadline,
-        customerPhone: phoneStr || '' // Avtomatik topilgan raqam yoziladi
+        customerPhone: phoneStr || '' 
       } : s);
       
       setSales(yangiSales);
@@ -406,7 +405,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         </div>
       </div>
 
-      {/* TARIY QISMI */}
+      {/* TARIX QISMI */}
       <div className="card" style={{ marginTop: '30px', borderTop: '4px solid #1e3a8a' }}>
         {!selectedHistory ? (
           <>
