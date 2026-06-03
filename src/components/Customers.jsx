@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, ArrowLeft, UserPlus, History, Phone, ShoppingBag, Banknote, BarChart3, CheckCircle, Trash2, PackageMinus, Landmark, ChevronDown, ChevronUp, ShoppingCart, RotateCcw, CreditCard, RefreshCcw } from 'lucide-react';
+import { Users, ArrowLeft, UserPlus, History, Phone, ShoppingBag, Banknote, BarChart3, CheckCircle, Trash2, PackageMinus, Landmark, ChevronDown, ChevronUp, ShoppingCart, RotateCcw, CreditCard, RefreshCcw, Clock } from 'lucide-react';
 
 import { auth, db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -77,7 +77,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
     let totalReturnedSom = 0;
     let totalReturnedUsd = 0;
     
-    // BUGUNGI VOZVRAT UCHUN
     let todayReturnedSom = 0;
     let todayReturnedUsd = 0;
     const todayStr = new Date().toLocaleDateString('uz-UZ');
@@ -211,6 +210,9 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
   }, [selectedCustomer, sales, returns, historyType]);
 
+  // =====================
+  // MIJOZ ICHKI SAHIFASI
+  // =====================
   if (selectedCustomer) {
     const stats = getCustomerStats(selectedCustomer.name);
     const returnedItems = stats.history.filter(h => h.itemType === 'return');
@@ -233,7 +235,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           </div>
         </div>
 
-        {/* JAMI HISOBLAR GRIDI (Xarid, Vozvrat Jami, Bugun, Qarz...) */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginBottom: '30px', alignItems: 'start' }}>
           
           <div className="card" style={{ background: '#f8fafc', borderTop: '4px solid #3b82f6', padding: '20px' }}>
@@ -245,17 +246,51 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
             {stats.totalBoughtSom === 0 && stats.totalBoughtUsd === 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#1e3a8a' }}>0 so'm</h2>}
           </div>
 
-          {/* VOZVRAT JAMI KARTASI */}
           <div className="card" style={{ background: '#fdf8f6', borderTop: '4px solid #f97316', padding: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', marginBottom: '10px' }}>
-              <PackageMinus size={18} /> <span style={{ fontSize: '12px', fontWeight: 'bold' }}>VOZVRAT (Shu kungacha)</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b' }}>
+                <PackageMinus size={18} /> <span style={{ fontSize: '12px', fontWeight: 'bold' }}>VOZVRAT (Shu kungacha)</span>
+              </div>
+              
+              {returnedItems.length > 0 && (
+                <button 
+                  onClick={() => setShowReturnsDetails(!showReturnsDetails)} 
+                  style={{ background: '#fef3c7', border: '1px solid #fde68a', color: '#b45309', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  Tafsilot {showReturnsDetails ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                </button>
+              )}
             </div>
+
             {stats.totalReturnedSom > 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#b45309' }}>-{stats.totalReturnedSom.toLocaleString()} so'm</h2>}
             {stats.totalReturnedUsd > 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#d97706' }}>-{stats.totalReturnedUsd.toLocaleString()} $</h2>}
             {stats.totalReturnedSom === 0 && stats.totalReturnedUsd === 0 && <h2 style={{ fontSize: '18px', margin: '5px 0 0 0', color: '#d97706' }}>0 so'm</h2>}
+            
+            {showReturnsDetails && returnedItems.length > 0 && (
+              <div className="fade-in" style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px dashed #fcd34d', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '250px', overflowY: 'auto' }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#b45309', textTransform: 'uppercase', marginBottom: '4px' }}>Qaytarilgan tovarlar ro'yxati:</div>
+                {returnedItems.map((ret, idx) => {
+                  const rSom = ret.returnSumSom !== undefined ? ret.returnSumSom : (!isUsdProduct(ret.productName, ret.unit) ? (ret.returnSum || 0) : 0);
+                  const rUsd = ret.returnSumUsd !== undefined ? ret.returnSumUsd : (isUsdProduct(ret.productName, ret.unit) ? (ret.returnSum || 0) : 0);
+                  return (
+                    <div key={idx} style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: '#fffbeb', borderRadius: '6px', border: '1px solid #fef3c7' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: '#92400e', whiteSpace: 'pre-line', lineHeight: '1.4' }}>{ret.productName}</div>
+                        <div style={{ fontSize: '10px', color: '#b45309', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Clock size={12} /> {new Date(ret.id).toLocaleDateString('uz-UZ')} / {new Date(ret.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 'bold', color: '#d97706', textAlign: 'right', minWidth: '80px', fontSize: '13px' }}>
+                        {rSom > 0 && `-${rSom.toLocaleString()} so'm`}
+                        {rUsd > 0 && `-${rUsd.toLocaleString()} $`}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* --- ALOHIDA VA KATTA "BUGUNGI VOZVRAT" KARTASI (Siz so'ragan o'zgarish) --- */}
           <div className="card fade-in" style={{ background: '#fffbeb', borderTop: '4px solid #ea580c', padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#854d0e', marginBottom: '10px' }}>
               <RefreshCcw size={18} /> <span style={{ fontSize: '12px', fontWeight: 'bold' }}>BUGUN QAYTARDI</span>
@@ -284,7 +319,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           </div>
         </div>
 
-        {/* --- NIMALAR OLGANI RO'YXATI VA YANGI HISOBLAR --- */}
         <div className="card" style={{ padding: '20px', marginBottom: '30px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#1e3a8a' }}>
             <BarChart3 size={20} color="#1e3a8a" /> Davrlar bo'yicha hisobot
@@ -298,8 +332,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           {aggregatedHistory.length === 0 ? <p style={{ textAlign: 'center', color: '#64748b' }}>Hozircha ma'lumot yo'q.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               {aggregatedHistory.map((item, index) => {
-                const paidSom = item.boughtSom - item.debtSom;
-                const paidUsd = item.boughtUsd - item.debtUsd;
                 return (
                   <div key={index} className="fade-in" style={{ padding: '15px', background: '#ffffff', borderRadius: '12px', border: '1px solid #cbd5e1', borderLeft: '5px solid #1e3a8a', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     
@@ -388,7 +420,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
           )}
         </div>
 
-        {/* --- BARCHA HARAKATLAR TARIXI --- */}
         <div className="card" style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1' }}>
           <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#1e3a8a' }}>
             <History size={20} color="#1e3a8a" /> Barcha harakatlar xronologiyasi
@@ -473,6 +504,9 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
     );
   }
 
+  // =====================
+  // ASOSIY MIJOZLAR RO'YXATI
+  // =====================
   return (
     <div className="fade-in app-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>

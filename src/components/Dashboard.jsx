@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, RotateCcw, Package, Wallet, BookOpen, LogOut, Settings as SettingsIcon, AlertTriangle, Users, Landmark, Calendar } from 'lucide-react';
+import { ShoppingCart, RotateCcw, Package, Wallet, BookOpen, LogOut, Settings as SettingsIcon, AlertTriangle, Users, Landmark, Calendar, Store } from 'lucide-react';
 
 const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
   
@@ -24,6 +24,39 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
       
       <style>
         {`
+          @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&display=swap');
+
+          .smart-logo {
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 900;
+            font-size: 46px;
+            margin: 0;
+            background: linear-gradient(90deg, #1e3a8a 0%, #10b981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1.5px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          }
+
+          .smart-subtitle {
+            margin: 5px 0 0 60px;
+            font-size: 14px;
+            color: #6b7280;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+          }
+
+          /* Tugayotgan tovarlar yozuvi uchun logotipdagi gradient */
+          .gradient-text {
+            background: linear-gradient(90deg, #1e3a8a 0%, #10b981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+          }
+
           @media (max-width: 768px) {
             .dashboard-grid {
               display: grid !important;
@@ -40,44 +73,54 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
             .menu-title {
               font-size: 13px !important;
             }
+            .smart-logo {
+              font-size: 32px;
+            }
+            .smart-subtitle {
+              margin-left: 45px;
+              font-size: 11px;
+              letter-spacing: 2px;
+            }
+            .header-top {
+              flex-direction: column;
+              gap: 20px;
+            }
+            .logout-btn {
+              width: 100% !important;
+              justify-content: center;
+            }
           }
         `}
       </style>
 
-      {/* --- TEPADAGI QISM (Sana, Sarlavha va Chiqish tugmasi) --- */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px' }}>
+      {/* --- TEPADAGI QISM (Logotip, Sana, Sarlavha va Chiqish tugmasi) --- */}
+      <div className="header-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px' }}>
         <div>
-          {/* SANA SHU YERGA QO'SHILDI */}
+          
+          {/* --- SMART DO'KON LOGOTIPI --- */}
+          <div style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '2px dashed #e5e7eb' }}>
+            <h1 className="smart-logo">
+              <Store size={46} color="#1e3a8a" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.1))' }} />
+              SMART DO'KON
+            </h1>
+            <p className="smart-subtitle">Avtomatlashtirilgan Tizim</p>
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', backgroundColor: '#ecfdf5', padding: '5px 12px', borderRadius: '20px', width: 'fit-content' }}>
             <Calendar size={16} /> {sanaMatni}
           </div>
-          <h1 style={{ fontSize: '28px', color: '#111827', margin: 0 }}>Boshqaruv Paneli</h1>
-          <p style={{ color: '#4b5563', margin: '5px 0 0 0', fontWeight: '500' }}>{storeName}</p>
+          <h2 style={{ fontSize: '24px', color: '#111827', margin: 0 }}>
+            Boshqaruv Paneli <span style={{ color: '#9ca3af', fontWeight: 'normal', fontSize: '20px' }}>| {storeName}</span>
+          </h2>
         </div>
-        <button onClick={onLogout} className="btn btn-danger fade-in" style={{ width: 'auto', padding: '10px 20px', display: 'flex', gap: '8px', alignItems: 'center', marginTop: '5px' }}>
+
+        <button onClick={onLogout} className="btn btn-danger fade-in logout-btn" style={{ width: 'auto', padding: '12px 20px', display: 'flex', gap: '8px', alignItems: 'center', marginTop: '5px', borderRadius: '12px', fontWeight: 'bold', boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.2)' }}>
           <LogOut size={18} /> Dasturdan chiqish
         </button>
       </div>
 
-      {lowStockProducts.length > 0 && (
-        <div className="fade-in card" style={{ padding: '25px', backgroundColor: '#ffffff', border: '1px solid #d1d5db', borderLeft: '5px solid #1f2937', marginBottom: '40px' }}>
-          <h3 style={{ margin: '0 0 15px 0', color: '#111827', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <AlertTriangle size={24} color="#1f2937" /> Diqqat, quyidagi tovarlar omborda tugamoqda!
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px' }}>
-            {lowStockProducts.map(p => (
-              <div key={p.id} style={{ backgroundColor: '#f9fafb', padding: '12px 15px', borderRadius: '8px', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: '600', color: '#374151', fontSize: '14px' }}>{p.name}</span>
-                <span style={{ fontWeight: 'bold', color: '#1e3a8a', backgroundColor: '#e5e7eb', padding: '4px 8px', borderRadius: '6px', fontSize: '13px' }}>
-                  {p.quantity} {p.unit}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="dashboard-grid">
+      {/* --- ASOSIY MENYU TUGMALARI --- */}
+      <div className="dashboard-grid" style={{ marginBottom: '40px' }}>
         <div className="menu-card fade-in" style={{ animationDelay: '0.05s' }} onClick={() => setPage('sell')}>
           <div className="menu-icon"><ShoppingCart size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Sotish bo'limi</div>
@@ -118,6 +161,34 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
           <div className="menu-title" style={{ color: '#4b5563' }}>Sozlamalar</div>
         </div>
       </div>
+
+      {/* --- KAM QOLGAN TOVARLAR OGOHLANTIRISHI (ENG TAGIGA, YANGI DIZAYNDA OLINDI) --- */}
+      {lowStockProducts.length > 0 && (
+        <div className="fade-in card" style={{ padding: '25px', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e5e7eb', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)', position: 'relative', overflow: 'hidden' }}>
+          
+          {/* Orqa fondagi tepa gradient chiziq */}
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '6px', background: 'linear-gradient(90deg, #1e3a8a 0%, #10b981 100%)' }}></div>
+          
+          <h3 style={{ margin: '0 0 20px 0', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '18px' }}>
+            <div style={{ background: '#ecfdf5', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <AlertTriangle size={24} color="#10b981" />
+            </div>
+            <span className="gradient-text" style={{ fontWeight: '800' }}>DIQQAT, QUYIDAGI TOVARLAR OMBORDA TUGAMOQDA!</span>
+          </h3>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
+            {lowStockProducts.map(p => (
+              <div key={p.id} style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>{p.name}</span>
+                <span style={{ fontWeight: 'bold', color: 'white', background: 'linear-gradient(135deg, #1e3a8a 0%, #10b981 100%)', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)' }}>
+                  {p.quantity} {p.unit}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
