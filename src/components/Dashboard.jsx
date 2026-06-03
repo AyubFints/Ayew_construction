@@ -104,7 +104,10 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
               SMART DO'KON
             </h1>
             <p className="smart-subtitle">Avtomatlashtirilgan Tizim</p>
+            <p className="smart-subtitle">Do'koningiz endi Smartfonda!"0700"</p>
+            
           </div>
+          
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', backgroundColor: '#ecfdf5', padding: '5px 12px', borderRadius: '20px', width: 'fit-content' }}>
             <Calendar size={16} /> {sanaMatni}
