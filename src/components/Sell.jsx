@@ -711,7 +711,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
           <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px dashed #d1d5db' }}>Tanlangan sana (<b>{detailDate}</b>) uchun hech qanday ma'lumot yo'q.</p>
         ) : (
           <div className="fade-in">
-            <div style={{ backgroundColor: '#f3f4f6', padding: '15px', borderRadius: '8px 8px 0 0', border: '1px solid #e5e7eb', borderBottom: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ backgroundColor: '#f3f4f6', padding: '15px', borderRadius: '8px', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', marginBottom: '15px' }}>
               <span style={{ fontWeight: 'bold', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '8px' }}><CalendarDays size={18} /> Sana: {detailDate}</span>
               <span style={{ fontWeight: 'bold', color: '#111827', fontSize: '16px' }}>
                 Jami tushum: {periodIncomeSom > 0 || periodIncomeUsd === 0 ? `${periodIncomeSom.toLocaleString()} so'm ` : ''}
@@ -719,47 +719,58 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
               </span>
             </div>
             
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e5e7eb', backgroundColor: '#ffffff' }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Xaridor (Mijoz)</th>
-                    <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Jami Summa</th>
-                    <th style={{ textAlign: 'left', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Olingan tovarlar</th>
-                    <th style={{ textAlign: 'right', padding: '14px', borderBottom: '2px solid #e5e7eb', color: '#4b5563', backgroundColor: '#f9fafb' }}>Sana/Vaqt</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableData.map(item => (
-                    <tr key={item.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '14px', color: '#1e3a8a', fontWeight: 'bold' }}>
-                        {item.customer}
+            {/* --- YANGI KARTALOQ KO'RINISHIDAGI RO'YXAT --- */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {tableData.map(item => {
+                const isUsd = isUsdProduct(item.productName);
+                const amount = Number(item.totalSum) || Number(item.total) || 0;
+                
+                return (
+                  <div key={item.id} className="fade-in" style={{ padding: '15px', backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderLeft: `4px solid ${isUsd ? '#10b981' : '#1e3a8a'}`, borderRadius: '12px', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ flex: '1' }}>
+                        <div style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase' }}>Jami Summa</div>
+                        <div style={{ fontWeight: 'bold', color: isUsd ? '#10b981' : '#1e3a8a', fontSize: '18px' }}>
+                          +{amount.toLocaleString()} {isUsd ? '$' : "so'm"}
+                        </div>
+                      </div>
+                      <div style={{ flex: '1', textAlign: 'right' }}>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Mijoz</div>
+                        <div style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '16px' }}>{item.customer}</div>
+                        
+                        {/* Status Yorliqlari (Badge) */}
                         {!item.isReceived && !item.isDebt && (
-                           <div style={{ marginTop: '4px', fontSize: '11px', color: '#f59e0b', fontWeight: 'bold' }}>
-                             (Kassada kutilmoqda)
-                           </div>
+                          <span style={{ fontSize: '11px', backgroundColor: '#fef3c7', color: '#d97706', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold', display: 'inline-block', marginTop: '4px' }}>Kassada kutilmoqda</span>
+                        )}
+                        {item.isDebt && (
+                           <span style={{ fontSize: '11px', backgroundColor: '#fee2e2', color: '#ef4444', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold', display: 'inline-block', marginTop: '4px' }}>Qarzga berilgan</span>
+                        )}
+                        {item.isReceived && !item.wasDebt && (
+                           <span style={{ fontSize: '11px', backgroundColor: '#d1fae5', color: '#059669', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold', display: 'inline-block', marginTop: '4px' }}>To'liq to'langan</span>
                         )}
                         {item.wasDebt && (
-                           <div style={{ marginTop: '4px', fontSize: '11px', color: '#b45309', fontWeight: 'bold' }}>
-                             (Qarzdan to'landi)
-                           </div>
+                           <span style={{ fontSize: '11px', backgroundColor: '#ffedd5', color: '#c2410c', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold', display: 'inline-block', marginTop: '4px' }}>Qarzdan to'landi</span>
                         )}
-                      </td>
+                      </div>
+                    </div>
+                    
+                    <div style={{ color: '#4b5563', fontSize: '14px', marginTop: '12px', whiteSpace: 'pre-line', lineHeight: '1.6', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                      {item.productName}
+                    </div>
 
-                      <td style={{ padding: '14px', color: isUsdProduct(item.productName) ? '#10b981' : '#1e3a8a', fontWeight: 'bold', fontSize: '16px' }}>
-                        +{(Number(item.totalSum) || Number(item.total) || 0).toLocaleString()} {isUsdProduct(item.productName) ? '$' : "so'm"}
-                      </td>
-
-                      <td style={{ padding: '14px', color: '#4b5563', lineHeight: '1.6', fontSize: '14px', whiteSpace: 'pre-line' }}>{item.productName}</td>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '12px', borderTop: '1px dashed #e2e8f0', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><ShoppingCart size={14}/> Sotildi: <b>{new Date(item.id).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</b></span>
                       
-                      <td style={{ padding: '14px', color: '#6b7280', fontSize: '14px', textAlign: 'right' }}>
-                        {new Date(item.id).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      {item.receivedAt && (
+                        <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}><CheckCircle size={14}/> To'landi: <b>{new Date(item.receivedAt).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</b></span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+            {/* ------------------------------------------- */}
+
           </div>
         )}
       </div>

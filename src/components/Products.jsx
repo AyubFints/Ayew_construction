@@ -35,7 +35,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     return (curr.unit === 'kv' || curr.unit === 'Dona/$') ? acc + (curr.quantity * curr.price) : acc;
   }, 0);
 
-  // YANGI: TAN NARX (OLINGAN NARX) BO'YICHA UMUMIY QIYMAT
+  // TAN NARX (OLINGAN NARX) BO'YICHA UMUMIY QIYMAT
   const totalCostValueSom = products.reduce((acc, curr) => {
     const cost = curr.costPrice || 0;
     return (curr.unit !== 'kv' && curr.unit !== 'Dona/$') ? acc + (curr.quantity * cost) : acc;
@@ -335,6 +335,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                   
                   <button onClick={() => handleDeleteProduct(p.id, p.name)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }} title="O'chirish"><Trash2 size={20} /></button>
                   
+                  {/* --- YUQORI QISM: NOMI VA TAHRIRLASH --- */}
                   {editingProductId === p.id ? (
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px', paddingRight: '35px' }}>
                       <input 
@@ -348,7 +349,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                       <button onClick={() => setEditingProductId(null)} className="btn btn-danger" style={{ padding: '8px', width: 'auto' }} title="Bekor qilish"><X size={18} /></button>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingRight: '35px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingRight: '35px', marginBottom: '10px' }}>
                       <h4 style={{ margin: 0, color: '#111827', fontSize: '18px' }}>{p.name}</h4>
                       <button 
                         onClick={() => { 
@@ -364,124 +365,126 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                     </div>
                   )}
 
-                  <span style={{ display: 'inline-block', backgroundColor: '#e5e7eb', color: '#4b5563', fontSize: '12px', fontWeight: 'bold', padding: '2px 8px', borderRadius: '12px', marginTop: '5px' }}>
-                    Bo'lim: {p.category || 'Umumiy'}
-                  </span>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #d1d5db' }}>
+                  {/* --- O'RTA QISM: TOVAR HAQIDA MA'LUMOTLAR --- */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ display: 'inline-block', backgroundColor: '#e5e7eb', color: '#4b5563', fontSize: '12px', fontWeight: 'bold', padding: '4px 10px', borderRadius: '12px', alignSelf: 'flex-start', marginBottom: '4px' }}>
+                      Bo'lim: {p.category || 'Umumiy'}
+                    </span>
                     
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start', flex: 1 }}>
-                      <div style={{ color: '#6b7280', fontSize: '13px' }}>Qoldiq: <span style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '16px' }}>{p.quantity} {p.unit}</span></div>
-                      
-                      <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px' }}>
-                        1 {getUnitText(p.unit)} olingan narxi: <span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '14px' }}>{p.costPrice ? p.costPrice.toLocaleString() : 'Kiritilmagan'} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
-                      </div>
-                      <div style={{ color: '#6b7280', fontSize: '13px' }}>
-                        1 {getUnitText(p.unit)} sotilish narxi: <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>{p.price.toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
-                      </div>
-                      
-                      <div style={{ color: '#1e3a8a', fontSize: '13px', marginTop: '4px', backgroundColor: '#eff6ff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
-                        Jami summasi: <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{(p.quantity * p.price).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
-                      </div>
-
-                      {p.costPrice && p.price && (
-                        <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '2px', backgroundColor: '#ecfdf5', padding: '2px 6px', borderRadius: '4px' }}>
-                          Foyda (1 {getUnitText(p.unit)} uchun): <span style={{ fontWeight: 'bold', color: '#059669', fontSize: '13px' }}>{(p.price - p.costPrice).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
-                        </div>
-                      )}
+                    <div style={{ color: '#6b7280', fontSize: '14px' }}>Qoldiq: <span style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '16px' }}>{p.quantity} {p.unit}</span></div>
+                    
+                    <div style={{ color: '#6b7280', fontSize: '13px' }}>
+                      1 {getUnitText(p.unit)} olingan narxi: <span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '14px' }}>{p.costPrice ? p.costPrice.toLocaleString() : 'Kiritilmagan'} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
+                    </div>
+                    
+                    <div style={{ color: '#6b7280', fontSize: '13px' }}>
+                      1 {getUnitText(p.unit)} sotilish narxi: <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>{p.price.toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
+                    </div>
+                    
+                    <div style={{ color: '#1e3a8a', fontSize: '13px', marginTop: '4px', backgroundColor: '#eff6ff', padding: '6px 10px', borderRadius: '6px', border: '1px solid #bfdbfe', display: 'inline-block', alignSelf: 'flex-start' }}>
+                      Jami summasi: <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{(p.quantity * p.price).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end', flex: 1 }}>
-                      
-                      {/* Olingan narxni o'zgartirish tugmasi */}
-                      {changingCostPriceId === p.id ? (
-                        <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#fef2f2', padding: '6px', borderRadius: '8px', border: '1px solid #fecaca' }}>
-                          <input 
-                            type="number" 
-                            placeholder="Yangi olingan narx" 
-                            value={newCostPriceAmount} 
-                            onChange={e => setNewCostPriceAmount(e.target.value)} 
-                            style={{ width: '100px', padding: '6px', border: '1px solid #fca5a5', borderRadius: '6px', outline: 'none' }} 
-                            autoFocus 
-                            min="0" step="any" 
-                          />
-                          <button onClick={() => handleConfirmChangeCostPrice(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#ef4444', border: 'none' }} title="Saqlash"><Check size={16} /></button>
-                          <button onClick={() => { setChangingCostPriceId(null); setNewCostPriceAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#991b1b' }} title="Bekor qilish"><X size={16} /></button>
-                        </div>
-                      ) : (
-                        <button onClick={() => { 
-                          setChangingCostPriceId(p.id); setChangingPriceId(null); 
-                          setAddingStockId(null); setAssigningCatId(null); setEditingProductId(null); 
-                          setNewCostPriceAmount(p.costPrice || ''); 
-                        }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#fef2f2', color: '#991b1b', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #fecaca' }}>
-                          <DollarSign size={16} /> Tan narxni o'zgartirish
-                        </button>
-                      )}
-
-                      {/* Sotuv narxini o'zgartirish tugmasi */}
-                      {changingPriceId === p.id ? (
-                        <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#f0fdf4', padding: '6px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
-                          <input 
-                            type="number" 
-                            placeholder="Yangi sotuv narxi" 
-                            value={newPriceAmount} 
-                            onChange={e => setNewPriceAmount(e.target.value)} 
-                            style={{ width: '100px', padding: '6px', border: '1px solid #86efac', borderRadius: '6px', outline: 'none' }} 
-                            autoFocus 
-                            min="0" step="any" 
-                          />
-                          <button onClick={() => handleConfirmChangePrice(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#10b981', border: 'none' }} title="Saqlash"><Check size={16} /></button>
-                          <button onClick={() => { setChangingPriceId(null); setNewPriceAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }} title="Bekor qilish"><X size={16} /></button>
-                        </div>
-                      ) : (
-                        <button onClick={() => { 
-                          setChangingPriceId(p.id); setChangingCostPriceId(null); 
-                          setAddingStockId(null); setAssigningCatId(null); setEditingProductId(null); 
-                          setNewPriceAmount(p.price); 
-                        }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#f0fdf4', color: '#166534', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #bbf7d0' }}>
-                          <DollarSign size={16} /> Sotuv narxini o'zgar...
-                        </button>
-                      )}
-
-                      {/* Kirim qilish va Bo'limga o'tkazish */}
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        {addingStockId === p.id ? (
-                          <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#eff6ff', padding: '6px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                            <input type="number" placeholder="+ Miqdor" value={stockAmount} onChange={e => setStockAmount(e.target.value)} style={{ width: '80px', padding: '6px', border: '1px solid #93c5fd', borderRadius: '6px', outline: 'none' }} autoFocus min="0.001" step="any" />
-                            <button onClick={() => handleConfirmAddStock(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto' }}><Check size={16} /></button>
-                            <button onClick={() => { setAddingStockId(null); setStockAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }}><X size={16} /></button>
-                          </div>
-                        ) : (
-                          <button onClick={() => { 
-                            setAddingStockId(p.id); setAssigningCatId(null); 
-                            setEditingProductId(null); setChangingPriceId(null); setChangingCostPriceId(null); 
-                          }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#e0e7ff', color: '#4338ca', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #c7d2fe' }}>
-                            <PlusCircle size={16} /> Kirim
-                          </button>
-                        )}
-
-                        {assigningCatId === p.id ? (
-                          <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#f3f4f6', padding: '6px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
-                            <select value={selectedCat} onChange={e => setSelectedCat(e.target.value)} style={{ padding: '6px', border: '1px solid #d1d5db', borderRadius: '6px', outline: 'none', fontSize: '13px' }}>
-                              <option value="">-- Bo'lim --</option>
-                              <option value="Umumiy">Umumiy</option>
-                              {categories.map((c, i) => <option key={i} value={c}>{c}</option>)}
-                            </select>
-                            <button onClick={() => handleAssignCategory(p.id)} className="btn" style={{ backgroundColor: '#10b981', color: 'white', padding: '6px 10px', width: 'auto' }}><Check size={16} /></button>
-                            <button onClick={() => setAssigningCatId(null)} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }}><X size={16} /></button>
-                          </div>
-                        ) : (
-                          <button onClick={() => { 
-                            setAssigningCatId(p.id); setAddingStockId(null); 
-                            setSelectedCat(p.category || 'Umumiy'); setEditingProductId(null); 
-                            setChangingPriceId(null); setChangingCostPriceId(null); 
-                          }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#f3f4f6', color: '#4b5563', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #d1d5db' }}>
-                            <Tags size={16} /> Ko'chirish
-                          </button>
-                        )}
+                    {p.costPrice && p.price && (
+                      <div style={{ color: '#059669', fontSize: '13px', marginTop: '2px', backgroundColor: '#ecfdf5', padding: '4px 8px', borderRadius: '6px', display: 'inline-block', alignSelf: 'flex-start' }}>
+                        Foyda (1 {getUnitText(p.unit)} uchun): <span style={{ fontWeight: 'bold' }}>{(p.price - p.costPrice).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
                       </div>
-                      
-                    </div>
+                    )}
+                  </div>
+
+                  {/* --- AJRATUVCHI CHIZIQ --- */}
+                  <div style={{ borderTop: '1px dashed #d1d5db', margin: '15px 0' }}></div>
+
+                  {/* --- PASTKI QISM: AMALLAR (TUGMALAR YONMA-YON) --- */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                    
+                    {/* Kirim qilish */}
+                    {addingStockId === p.id ? (
+                      <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#eff6ff', padding: '6px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                        <input type="number" placeholder="+ Miqdor" value={stockAmount} onChange={e => setStockAmount(e.target.value)} style={{ width: '80px', padding: '6px', border: '1px solid #93c5fd', borderRadius: '6px', outline: 'none' }} autoFocus min="0.001" step="any" />
+                        <button onClick={() => handleConfirmAddStock(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto' }}><Check size={16} /></button>
+                        <button onClick={() => { setAddingStockId(null); setStockAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }}><X size={16} /></button>
+                      </div>
+                    ) : (
+                      <button onClick={() => { 
+                        setAddingStockId(p.id); setAssigningCatId(null); 
+                        setEditingProductId(null); setChangingPriceId(null); setChangingCostPriceId(null); 
+                      }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#e0e7ff', color: '#4338ca', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #c7d2fe' }}>
+                        <PlusCircle size={16} /> Kirim
+                      </button>
+                    )}
+
+                    {/* Bo'limga o'tkazish */}
+                    {assigningCatId === p.id ? (
+                      <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#f3f4f6', padding: '6px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
+                        <select value={selectedCat} onChange={e => setSelectedCat(e.target.value)} style={{ padding: '6px', border: '1px solid #d1d5db', borderRadius: '6px', outline: 'none', fontSize: '13px' }}>
+                          <option value="">-- Bo'lim --</option>
+                          <option value="Umumiy">Umumiy</option>
+                          {categories.map((c, i) => <option key={i} value={c}>{c}</option>)}
+                        </select>
+                        <button onClick={() => handleAssignCategory(p.id)} className="btn" style={{ backgroundColor: '#10b981', color: 'white', padding: '6px 10px', width: 'auto' }}><Check size={16} /></button>
+                        <button onClick={() => setAssigningCatId(null)} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }}><X size={16} /></button>
+                      </div>
+                    ) : (
+                      <button onClick={() => { 
+                        setAssigningCatId(p.id); setAddingStockId(null); 
+                        setSelectedCat(p.category || 'Umumiy'); setEditingProductId(null); 
+                        setChangingPriceId(null); setChangingCostPriceId(null); 
+                      }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#f3f4f6', color: '#4b5563', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #d1d5db' }}>
+                        <Tags size={16} /> Ko'chirish
+                      </button>
+                    )}
+
+                    {/* Tan narxni o'zgartirish */}
+                    {changingCostPriceId === p.id ? (
+                      <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#fef2f2', padding: '6px', borderRadius: '8px', border: '1px solid #fecaca' }}>
+                        <input 
+                          type="number" 
+                          placeholder="Yangi olingan narx" 
+                          value={newCostPriceAmount} 
+                          onChange={e => setNewCostPriceAmount(e.target.value)} 
+                          style={{ width: '110px', padding: '6px', border: '1px solid #fca5a5', borderRadius: '6px', outline: 'none' }} 
+                          autoFocus 
+                          min="0" step="any" 
+                        />
+                        <button onClick={() => handleConfirmChangeCostPrice(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#ef4444', border: 'none' }} title="Saqlash"><Check size={16} /></button>
+                        <button onClick={() => { setChangingCostPriceId(null); setNewCostPriceAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#991b1b' }} title="Bekor qilish"><X size={16} /></button>
+                      </div>
+                    ) : (
+                      <button onClick={() => { 
+                        setChangingCostPriceId(p.id); setChangingPriceId(null); 
+                        setAddingStockId(null); setAssigningCatId(null); setEditingProductId(null); 
+                        setNewCostPriceAmount(p.costPrice || ''); 
+                      }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#fef2f2', color: '#991b1b', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #fecaca' }}>
+                        <DollarSign size={16} /> Tan narx
+                      </button>
+                    )}
+
+                    {/* Sotuv narxini o'zgartirish */}
+                    {changingPriceId === p.id ? (
+                      <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#f0fdf4', padding: '6px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                        <input 
+                          type="number" 
+                          placeholder="Yangi sotuv narxi" 
+                          value={newPriceAmount} 
+                          onChange={e => setNewPriceAmount(e.target.value)} 
+                          style={{ width: '110px', padding: '6px', border: '1px solid #86efac', borderRadius: '6px', outline: 'none' }} 
+                          autoFocus 
+                          min="0" step="any" 
+                        />
+                        <button onClick={() => handleConfirmChangePrice(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#10b981', border: 'none' }} title="Saqlash"><Check size={16} /></button>
+                        <button onClick={() => { setChangingPriceId(null); setNewPriceAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }} title="Bekor qilish"><X size={16} /></button>
+                      </div>
+                    ) : (
+                      <button onClick={() => { 
+                        setChangingPriceId(p.id); setChangingCostPriceId(null); 
+                        setAddingStockId(null); setAssigningCatId(null); setEditingProductId(null); 
+                        setNewPriceAmount(p.price); 
+                      }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#f0fdf4', color: '#166534', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #bbf7d0' }}>
+                        <DollarSign size={16} /> Sotuv narxi
+                      </button>
+                    )}
+
                   </div>
                 </div>
               ))}
