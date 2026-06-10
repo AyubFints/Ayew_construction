@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, FileText, Clock, Tag, XCircle, Banknote, ChevronRight, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, FileText, Clock, Tag, XCircle, Banknote, ChevronRight, ShoppingCart, Printer } from 'lucide-react';
 
 import { auth, db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -76,7 +76,130 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
   const netCashSom = totalIncomeSom - totalExpenseSom;
   const netCashUsd = totalIncomeUsd - totalExpenseUsd;
 
-  // --- TAYYOR, TO'G'RILANGAN QISM ---
+  // --- AVTOMATIK CHEK CHIQARISH FUNKSIYASI ---
+  const handlePrintReceipt = (sale) => {
+    // 1. Xotiradan do'kon nomini qidiramiz
+    let storeName = localStorage.getItem('smartStoreName');
+    
+    // 2. Agar xotirada yo'q bo'lsa (faqat birinchi marta), mijozdan so'raymiz
+    if (!storeName) {
+      storeName = window.prompt("Do'kon nomini kiriting (Bu nom faqat bir marta so'raladi):", "Smart Do'kon");
+      if (!storeName) return; // Agar bekor qilsa to'xtaydi
+      localStorage.setItem('smartStoreName', storeName);
+    }
+
+    const isUsd = typeof sale.productName === 'string' && sale.productName.includes('$');
+    const currency = isUsd ? '$' : "so'm";
+
+    let tableRows = '';
+    // Agar tovarlar aniq ro'yxat (cartItems) bo'lib saqlangan bo'lsa
+    if (sale.cartItems && sale.cartItems.length > 0) {
+        tableRows = sale.cartItems.map((item, index) => `
+            <tr>
+                <td style="padding: 6px 0; border-bottom: 1px dashed #999;">${index + 1}. ${item.product.name}</td>
+                <td style="padding: 6px 0; border-bottom: 1px dashed #999; text-align: center;">${item.qty} ${item.product.unit.replace('$', '').trim()}</td>
+                <td style="padding: 6px 0; border-bottom: 1px dashed #999; text-align: right;">${item.total.toLocaleString()}</td>
+            </tr>
+        `).join('');
+    } else {
+        // Eski saqlangan ma'lumotlar uchun ehtiyot sharti
+        tableRows = `
+            <tr>
+                <td colspan="3" style="padding: 6px 0; border-bottom: 1px dashed #999; white-space: pre-wrap;">${sale.productName}</td>
+            </tr>
+        `;
+    }
+
+    const printContent = `
+    <!DOCTYPE html>
+    <html lang="uz">
+    <head>
+        <meta charset="UTF-8">
+        <title>Chek</title>
+        <style>
+            body { font-family: 'Courier New', Courier, monospace; width: 300px; margin: 0 auto; color: #000; padding: 10px; font-size: 13px; }
+            h2 { text-align: center; margin: 0 0 10px 0; font-size: 20px; text-transform: uppercase; border-bottom: 2px dashed #000; padding-bottom: 10px; }
+            .info { margin-bottom: 3px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th { border-bottom: 2px solid #000; padding-bottom: 5px; text-align: left; }
+            .right { text-align: right; }
+            .center { text-align: center; }
+            .totals { margin-top: 15px; border-top: 2px dashed #000; padding-top: 10px; }
+            .total-row { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; }
+            .total-row.big { font-size: 16px; margin-bottom: 10px; }
+            .footer { text-align: center; margin-top: 25px; border-top: 1px dashed #000; padding-top: 15px; font-size: 12px; font-weight: bold; }
+            
+            /* Print sozlamalari */
+            @media print {
+                @page { margin: 0; }
+                body { width: 100%; padding: 3mm; }
+            }
+        </style>
+    </head>
+    <body>
+        <h2>${storeName}</h2>
+        <div class="info"><b>Sana:</b> ${new Date(sale.id).toLocaleString('uz-UZ')}</div>
+        <div class="info"><b>Mijoz:</b> ${sale.customer}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Nomi</th>
+                    <th class="center">Miqdor</th>
+                    <th class="right">Summa</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${tableRows}
+            </tbody>
+        </table>
+        
+        <div class="totals">
+            <div class="total-row big">
+                <span>JAMI:</span>
+                <span>${sale.totalSum.toLocaleString()} ${currency}</span>
+            </div>
+            ${(sale.paidAmount || 0) > 0 ? `
+            <div class="total-row" style="font-weight: normal;">
+                <span>To'landi:</span>
+                <span>${(sale.paidAmount || 0).toLocaleString()} ${currency}</span>
+            </div>
+            <div class="total-row" style="font-weight: normal; color: #333;">
+                <span>Qarz/Qoldiq:</span>
+                <span>${(sale.totalSum - (sale.paidAmount || 0)).toLocaleString()} ${currency}</span>
+            </div>
+            ` : ''}
+        </div>
+
+        <div class="footer">
+            Xaridingiz uchun rahmat!<br/><br/>
+            <span style="font-size: 11px;">Dastur: Smart Do'kon</span>
+        </div>
+        
+        <script>
+            // Oyna ochilgandan so'ng avtomatik chop etishga beradi va yopiladi
+            window.onload = function() { 
+                setTimeout(function() {
+                    window.print(); 
+                    window.close();
+                }, 500);
+            }
+        </script>
+    </body>
+    </html>
+    `;
+
+    // Yashirin oyna ochish va chekni yozish
+    const printWindow = window.open('', '_blank', 'width=400,height=600,left=-1000,top=-1000');
+    if(printWindow) {
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+    } else {
+        alert("Brauzerda pop-up oynalar bloklangan. Iltimos, ruxsat bering.");
+    }
+  };
+  // ------------------------------------------
+
   const handleReceive = async (id, customer) => {
     const sale = sales.find(s => s.id === id);
     const remaining = sale.totalSum - (sale.paidAmount || 0);
@@ -102,10 +225,8 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         paymentHistory: [...(s.paymentHistory || []), { amount: remaining, date: now }] 
       } : s);
 
-      // 1. Ekrandagi ma'lumotni darhol yangilash
       setSales(yangiSales);
 
-      // 2. O'zgarishni darhol Firebase'ga (Bulutga) yozish!
       if (auth.currentUser) {
         try {
           const docRef = doc(db, "stores", auth.currentUser.uid);
@@ -363,7 +484,16 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
                         Qarzga
                       </button>
                     </div>
-                    <button onClick={() => handleCancelSale(sale)} className="btn btn-danger" style={{ width: '100%', marginTop: '10px' }}><XCircle size={18} /> Bekor qilish</button>
+
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                      <button onClick={() => handleCancelSale(sale)} className="btn btn-danger" style={{ flex: 1, padding: '10px' }}>
+                        <XCircle size={18} /> Bekor qilish
+                      </button>
+                      <button onClick={() => handlePrintReceipt(sale)} className="btn" style={{ flex: 1, padding: '10px', backgroundColor: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1' }}>
+                        <Printer size={18} /> Chek chiqarish
+                      </button>
+                    </div>
+
                   </div>
                 );
               })}

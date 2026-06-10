@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Users, ArrowLeft, UserPlus, History, Phone, ShoppingBag, Banknote, BarChart3, CheckCircle, Trash2, PackageMinus, Landmark, ChevronDown, ChevronUp, ShoppingCart, RotateCcw, CreditCard, RefreshCcw, Clock } from 'lucide-react';
+import { Users, ArrowLeft, UserPlus, History, Phone, ShoppingBag, Banknote, BarChart3, CheckCircle, Trash2, PackageMinus, Landmark, ChevronDown, ChevronUp, ShoppingCart, RotateCcw, CreditCard, RefreshCcw, Clock, Edit, Check, X } from 'lucide-react';
 
 import { auth, db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
-const Customers = ({ customers = [], setCustomers, sales = [], returns = [], setPage }) => {
+const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns = [], setReturns, setPage }) => {
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null); 
@@ -13,6 +13,11 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
   const [expandedPeriod, setExpandedPeriod] = useState(null);
   
   const [showReturnsDetails, setShowReturnsDetails] = useState(false);
+
+  // YANGI: Tahrirlash uchun state'lar
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
 
   const handleAddCustomer = async (e) => {
     e.preventDefault();
@@ -51,6 +56,54 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
         } catch (error) {
           console.error("Mijozni bulutdan o'chirishda xato:", error);
         }
+      }
+    }
+  };
+
+  // YANGI: Mijoz ma'lumotlarini tahrirlashni saqlash funksiyasi
+  const handleSaveEdit = async () => {
+    const trimmedName = editName.trim();
+    if (!trimmedName) return alert("Ism bo'sh bo'lishi mumkin emas!");
+
+    // Agar ism o'zgargan bo'lsa va shunday ism boshqa birovda bo'lsa, xato beradi
+    if (trimmedName.toLowerCase() !== selectedCustomer.name.toLowerCase()) {
+       const exists = customers.find(c => c.name.toLowerCase() === trimmedName.toLowerCase());
+       if (exists) return alert("Bunday ismli mijoz allaqachon mavjud!");
+    }
+
+    const updatedCustomers = customers.map(c => 
+      c.id === selectedCustomer.id ? { ...c, name: trimmedName, phone: editPhone.trim() } : c
+    );
+
+    setCustomers(updatedCustomers);
+    
+    // Ochiq turgan mijozning o'zini ham yangilash
+    const updatedSelectedCustomer = { ...selectedCustomer, name: trimmedName, phone: editPhone.trim() };
+    setSelectedCustomer(updatedSelectedCustomer);
+    setIsEditing(false);
+
+    if (auth.currentUser) {
+      try {
+        const docRef = doc(db, "stores", auth.currentUser.uid);
+        const updates = { customers: updatedCustomers };
+        
+        // Agar ism o'zgargan bo'lsa, xaridlar va vozvratlar tarixidagi ismini ham to'g'rilaymiz!
+        if (trimmedName !== selectedCustomer.name) {
+           if (setSales) {
+              const updatedSales = sales.map(s => s.customer === selectedCustomer.name ? { ...s, customer: trimmedName } : s);
+              setSales(updatedSales);
+              updates.sales = updatedSales;
+           }
+           if (setReturns) {
+              const updatedReturns = returns.map(r => r.customer === selectedCustomer.name ? { ...r, customer: trimmedName } : r);
+              setReturns(updatedReturns);
+              updates.returns = updatedReturns;
+           }
+        }
+
+        await setDoc(docRef, updates, { merge: true });
+      } catch (error) {
+        console.error("Tahrirni saqlashda xato:", error);
       }
     }
   };
@@ -219,19 +272,57 @@ const Customers = ({ customers = [], setCustomers, sales = [], returns = [], set
 
     return (
       <div className="fade-in app-container" style={{ paddingBottom: '40px' }}>
-        <button onClick={() => { setSelectedCustomer(null); setShowReturnsDetails(false); }} className="btn btn-danger" style={{ marginBottom: '25px', width: 'auto' }}>
+        <button onClick={() => { setSelectedCustomer(null); setShowReturnsDetails(false); setIsEditing(false); }} className="btn btn-danger" style={{ marginBottom: '25px', width: 'auto' }}>
           <ArrowLeft size={18} /> Orqaga
         </button>
 
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '30px', marginBottom: '25px', borderTop: '4px solid #1e3a8a' }}>
-          <div style={{ width: '80px', height: '80px', borderRadius: '24px', background: 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontWeight: 'bold', color: '#1e3a8a' }}>
+        <div className="card" style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', padding: '30px', marginBottom: '25px', borderTop: '4px solid #1e3a8a' }}>
+          <div style={{ width: '80px', height: '80px', borderRadius: '24px', background: 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontWeight: 'bold', color: '#1e3a8a', flexShrink: 0 }}>
             {selectedCustomer.name.charAt(0).toUpperCase()}
           </div>
-          <div>
-            <h1 style={{ margin: 0 }}>{selectedCustomer.name}</h1>
-            <p style={{ color: '#6b7280', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '5px' }}>
-              <Phone size={14} /> {selectedCustomer.phone || "Telefon kiritilmagan"}
-            </p>
+          
+          {/* YANGI QISM: TAHRIRLASH YOKI KO'RISH HOLATI */}
+          <div style={{ flex: 1 }}>
+            {isEditing ? (
+              <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b7280' }}>Mijoz ismi</label>
+                  <input type="text" className="form-control" value={editName} onChange={(e) => setEditName(e.target.value)} style={{ marginBottom: 0 }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b7280' }}>Telefon raqami</label>
+                  <input type="text" className="form-control" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} style={{ marginBottom: 0 }} />
+                </div>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
+                  <button onClick={handleSaveEdit} className="btn btn-primary" style={{ width: 'auto', padding: '8px 15px', backgroundColor: '#10b981', border: 'none', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                    <Check size={16} /> Saqlash
+                  </button>
+                  <button onClick={() => setIsEditing(false)} className="btn btn-danger" style={{ width: 'auto', padding: '8px 15px', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                    <X size={16} /> Bekor qilish
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px' }}>
+                <div>
+                  <h1 style={{ margin: 0 }}>{selectedCustomer.name}</h1>
+                  <p style={{ color: '#6b7280', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '5px' }}>
+                    <Phone size={14} /> {selectedCustomer.phone || "Telefon kiritilmagan"}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => {
+                    setEditName(selectedCustomer.name);
+                    setEditPhone(selectedCustomer.phone || '');
+                    setIsEditing(true);
+                  }} 
+                  className="btn" 
+                  style={{ backgroundColor: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', width: 'auto', padding: '8px 16px', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '14px' }}
+                >
+                  <Edit size={16} /> Tahrirlash
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

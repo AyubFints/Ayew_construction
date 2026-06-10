@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, BookOpen, Search, User, CheckCircle, ChevronDown, ChevronUp, Clock, History, Calendar, DollarSign, MessageCircle } from 'lucide-react';
+import { ArrowLeft, BookOpen, Search, User, CheckCircle, ChevronDown, ChevronUp, Clock, History, Calendar, DollarSign, MessageCircle, PlusCircle, X } from 'lucide-react';
 
 import { auth, db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -8,6 +8,14 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [repayAmounts, setRepayAmounts] = useState({});
   const [expandedCustomer, setExpandedCustomer] = useState(null);
+
+  // YANGI: Qo'lda qarz qo'shish formasi uchun state'lar
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newDebtCustomer, setNewDebtCustomer] = useState('');
+  const [newDebtAmount, setNewDebtAmount] = useState('');
+  const [newDebtCurrency, setNewDebtCurrency] = useState('som');
+  const [newDebtReason, setNewDebtReason] = useState('');
+  const [newDebtDays, setNewDebtDays] = useState('');
 
   const isUsdUnit = (unit) => {
     if (!unit) return false;
@@ -29,6 +37,64 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
   const filteredCustomers = customers.filter(c => 
     c.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // YANGI: Qo'lda qarz yaratish funksiyasi
+  const handleAddManualDebt = async (e) => {
+    e.preventDefault();
+    const amount = parseFloat(newDebtAmount);
+    
+    if (!newDebtCustomer.trim() || isNaN(amount) || amount <= 0) {
+      return alert("Iltimos, mijoz ismi va summani to'g'ri kiriting!");
+    }
+
+    const days = parseInt(newDebtDays) || 0;
+    const now = Date.now();
+    const reasonText = newDebtReason.trim() ? `- Sabab: ${newDebtReason}` : '';
+    // Tovar nomi o'rniga qarz sababini yozib qo'yamiz
+    const productName = `[Qo'lda qo'shilgan qarz] ${reasonText}`;
+
+    // Mijozni bazadan izlash
+    const foundCustomer = customers.find(c => c.name.toLowerCase() === newDebtCustomer.toLowerCase());
+
+    const newDebtSale = {
+      id: now,
+      customer: foundCustomer ? foundCustomer.name : newDebtCustomer,
+      customerPhone: foundCustomer ? foundCustomer.phone : '',
+      productName: productName,
+      unit: newDebtCurrency === 'usd' ? 'Dona/$' : 'dona', // Valyutani to'g'ri tanish uchun
+      totalSum: amount,
+      paidAmount: 0,
+      isDebt: true,
+      wasDebt: true,
+      isReceived: false,
+      debtDays: days,
+      debtDeadline: days > 0 ? now + (days * 24 * 60 * 60 * 1000) : null,
+    };
+
+    const yangiSales = [...sales, newDebtSale];
+    
+    if (window.confirm(`${newDebtCustomer}ga ${amount.toLocaleString()} ${newDebtCurrency === 'usd' ? '$' : "so'm"} qarz yozamizmi?`)) {
+      setSales(yangiSales);
+
+      if (auth.currentUser) {
+        try {
+          const docRef = doc(db, "stores", auth.currentUser.uid);
+          await setDoc(docRef, { sales: yangiSales }, { merge: true });
+        } catch (error) {
+          console.error("Qarzni saqlashda xato:", error);
+          alert("Internetda muammo bo'lishi mumkin.");
+        }
+      }
+
+      // Formani tozalash va yopish
+      setShowAddForm(false);
+      setNewDebtCustomer('');
+      setNewDebtAmount('');
+      setNewDebtReason('');
+      setNewDebtDays('');
+      setNewDebtCurrency('som');
+    }
+  };
 
   const handleRepay = async (sale, isFull) => {
     const isKv = isUsdProduct(sale.productName, sale.unit);
@@ -102,6 +168,74 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
         </h2>
       </div>
 
+      {/* YANGI QISM: YANGI QARZ YARATISH TUGMASI VA FORMASI */}
+      <div style={{ marginBottom: '20px' }}>
+        {!showAddForm ? (
+          <button 
+            onClick={() => setShowAddForm(true)} 
+            className="btn btn-primary" 
+            style={{ width: '100%', padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', backgroundColor: '#1e3a8a' }}
+          >
+            <PlusCircle size={20} /> Yangi qarz qo'shish (Qo'lda kiritish)
+          </button>
+        ) : (
+          <div className="card fade-in" style={{ border: '2px solid #1e3a8a', padding: '20px', backgroundColor: '#f8fafc' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0, color: '#1e3a8a', fontSize: '18px' }}>Yangi qarz yozish</h3>
+              <button onClick={() => setShowAddForm(false)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}><X size={24} /></button>
+            </div>
+            
+            <form onSubmit={handleAddManualDebt} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              
+              <div>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#4b5563', marginBottom: '5px', display: 'block' }}>Mijoz ismi (yangi yoki bazadan)</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="Mijoz ismini kiriting..." 
+                  list="customerList"
+                  value={newDebtCustomer}
+                  onChange={e => setNewDebtCustomer(e.target.value)}
+                  required
+                  style={{ marginBottom: 0 }}
+                />
+                <datalist id="customerList">
+                  {customers.map((c, i) => <option key={i} value={c.name} />)}
+                </datalist>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ flex: 2 }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#4b5563', marginBottom: '5px', display: 'block' }}>Summasi</label>
+                  <input type="number" className="form-control" placeholder="0" value={newDebtAmount} onChange={e => setNewDebtAmount(e.target.value)} required min="0" step="any" style={{ marginBottom: 0 }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#4b5563', marginBottom: '5px', display: 'block' }}>Valyuta</label>
+                  <select className="form-control" value={newDebtCurrency} onChange={e => setNewDebtCurrency(e.target.value)} style={{ marginBottom: 0 }}>
+                    <option value="som">So'm</option>
+                    <option value="usd">$ (USD)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#4b5563', marginBottom: '5px', display: 'block' }}>Nima sababdan? (Ixtiyoriy)</label>
+                <input type="text" className="form-control" placeholder="Masalan: Naqd pul berildi, eski hisob..." value={newDebtReason} onChange={e => setNewDebtReason(e.target.value)} style={{ marginBottom: 0 }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#4b5563', marginBottom: '5px', display: 'block' }}>Necha kunga? (Ixtiyoriy)</label>
+                <input type="number" className="form-control" placeholder="Muddat (kun)" value={newDebtDays} onChange={e => setNewDebtDays(e.target.value)} min="0" style={{ marginBottom: 0 }} />
+              </div>
+
+              <button type="submit" className="btn btn-primary" style={{ backgroundColor: '#10b981', border: 'none', padding: '12px', fontWeight: 'bold', marginTop: '10px' }}>
+                Qarzni tasdiqlash va yozish
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+
       <div className="card" style={{ marginBottom: '30px', borderTop: '4px solid #ef4444' }}>
         
         <div style={{ position: 'relative', marginBottom: '20px' }}>
@@ -123,7 +257,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
             const currency = isKv ? '$' : "so'm";
             const remaining = sale.totalSum - (sale.paidAmount || 0);
 
-            // YANGI: Raqamni Mijozlar bazasidan qidirish (avvalgidek sale ichidan, yo'q bo'lsa bazadan)
             const foundCustomer = customers.find(c => c.name === sale.customer);
             const phone = sale.customerPhone || (foundCustomer ? foundCustomer.phone : '');
 
@@ -165,7 +298,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
                         </span>
                       )}
                       
-                      {/* O'ZGARDI: SMS tugmasi raqam bo'lsa har doim chiqadi! */}
                       {phone && (
                         <a 
                           href={`sms:${phone}?body=${encodeURIComponent(`Assalomu alaykum, ${sale.customer}. Do'kondan olingan tovarlar bo'yicha qoldiq qarz: ${remaining.toLocaleString()} ${currency}. Iltimos to'lovni amalga oshiring.`)}`} 
