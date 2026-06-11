@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, ArrowLeft, Store, Trash2, ShieldAlert, HelpCircle, Phone, Send } from 'lucide-react';
 import { auth } from '../firebase';
 import { updatePassword } from 'firebase/auth';
 
 const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, setPage }) => {
-  const [newName, setNewName] = useState(storeName);
+  // Xotiradagi nom va raqamni olish (agar yo'q bo'lsa, default qiymat)
+  const [newName, setNewName] = useState(localStorage.getItem('smartStoreName') || storeName || "Smart Do'kon");
+  const [newPhone, setNewPhone] = useState(localStorage.getItem('smartStorePhone') || "");
   
   // Parol o'zgartirish uchun
   const [newPassword, setNewPassword] = useState('');
@@ -13,7 +15,10 @@ const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, 
   const handleSaveName = (e) => {
     e.preventDefault();
     setStoreName(newName);
-    alert("Do'kon nomi muvaffaqiyatli o'zgartirildi!");
+    // Chek uchun xotiraga saqlab qo'yamiz
+    localStorage.setItem('smartStoreName', newName);
+    localStorage.setItem('smartStorePhone', newPhone);
+    alert("Chek sozlamalari muvaffaqiyatli saqlandi!");
   };
 
   const handleClearData = () => {
@@ -58,15 +63,23 @@ const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, 
 
       <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
         
-        {/* DO'KON NOMI */}
+        {/* DO'KON NOMI VA CHEK SOZLAMALARI */}
         <div className="card fade-in" style={{ flex: '1 1 300px', borderTop: '4px solid #1e3a8a' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
-            <Store size={22} /> Do'kon nomini o'zgartirish
+            <Store size={22} /> Chek sozlamalari
           </h3>
-          <form onSubmit={handleSaveName}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#374151' }}>Yangi nom:</label>
-            <input type="text" className="form-control" value={newName} onChange={(e) => setNewName(e.target.value)} required />
-            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Saqlash</button>
+          <form onSubmit={handleSaveName} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#374151', fontSize: '13px' }}>Do'kon nomi (Chek tepasida chiqadi):</label>
+              <input type="text" className="form-control" value={newName} onChange={(e) => setNewName(e.target.value)} required style={{ marginBottom: 0 }} />
+            </div>
+            
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#374151', fontSize: '13px' }}>Telefon raqam (Chek pastida chiqadi):</label>
+              <input type="text" className="form-control" placeholder="Masalan: +998 90 123 45 67" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} style={{ marginBottom: 0 }} />
+            </div>
+
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '5px' }}>Saqlash</button>
           </form>
         </div>
 

@@ -144,11 +144,59 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
   }, [sales, returns, historyType]);
   
+  // --- AQLLI QIDIRUV (SMART SEARCH) FUNKSIYASI ---
+  const smartSearch = (text, query) => {
+    if (!query) return true;
+    const t = String(text).toLowerCase();
+    const q = String(query).toLowerCase().trim();
+    
+    // 1. Aniq moslik (oddiy holat, masalan "bolt" yozsa ichidan qidiradi)
+    if (t.includes(q)) return true; 
+
+    // 2. Harflarning ketma-ketligi (Subsequence - masalan "smt" yozsa -> "sement" ni topadi)
+    if (q.length > 2) {
+      let tIdx = 0, qIdx = 0;
+      while (tIdx < t.length && qIdx < q.length) {
+        if (t[tIdx] === q[qIdx]) qIdx++;
+        tIdx++;
+      }
+      if (qIdx === q.length) return true;
+    }
+
+    // 3. Xato yozishga qarshi (Typos - masalan "cment" yoki "somnt" -> "sement")
+    // Levenshtein masofasini hisoblash algoritmi
+    const distance = (a, b) => {
+      if (!a.length) return b.length;
+      if (!b.length) return a.length;
+      const arr = [];
+      for (let i = 0; i <= b.length; i++) {
+        arr[i] = [i];
+        for (let j = 1; j <= a.length; j++) {
+          arr[i][j] = i === 0 ? j : Math.min(
+            arr[i - 1][j] + 1,
+            arr[i][j - 1] + 1,
+            arr[i - 1][j - 1] + (a[j - 1] === b[i - 1] ? 0 : 1)
+          );
+        }
+      }
+      return arr[b.length][a.length];
+    };
+
+    const words = t.split(/[\s-]+/); 
+    for (let word of words) {
+      // 3 ta harfdan ko'p bo'lsa 1 ta xatoga ruxsat, 5 tadan ko'p bo'lsa 2 ta xatoga ruxsat beramiz
+      const allowedTypos = q.length > 5 ? 2 : (q.length > 3 ? 1 : 0);
+      if (allowedTypos > 0 && distance(word, q) <= allowedTypos) return true;
+    }
+    
+    return false;
+  };
+  // ------------------------------------------------
+
   const filteredProducts = products.filter(p => {
-    const matchName = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCategory = categoryQuery 
-      ? (p.category && p.category.toLowerCase().includes(categoryQuery.toLowerCase())) 
-      : true;
+    // Qidiruv uchun Aqlli qidiruv funksiyasini ishlatamiz
+    const matchName = smartSearch(p.name, searchQuery);
+    const matchCategory = smartSearch(p.category || '', categoryQuery);
     return matchName && matchCategory;
   });
 
@@ -501,7 +549,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                         style={{ marginBottom: 0, flex: 1 }}
                       >
                         <option value="">-- Ro'yxatdan tanlang --</option>
-                        <option value="" disabled style={{color: 'gray'}}>Mavjud tovarlar</option>
+                        <option value="" disabled style={{color: 'gray'}}>Mavjud tovarlar ({filteredProducts.length} ta topildi)</option>
                         {filteredProducts.map(p => (
                           <option key={p.id} value={p.id}>{p.name} (Qoldi: {p.quantity} {p.unit})</option>
                         ))}
@@ -719,7 +767,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
               </span>
             </div>
             
-            {/* --- YANGI KARTALOQ KO'RINISHIDAGI RO'YXAT --- */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               {tableData.map(item => {
                 const isUsd = isUsdProduct(item.productName);
@@ -738,7 +785,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                         <div style={{ fontSize: '12px', color: '#6b7280' }}>Mijoz</div>
                         <div style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '16px' }}>{item.customer}</div>
                         
-                        {/* Status Yorliqlari (Badge) */}
                         {!item.isReceived && !item.isDebt && (
                           <span style={{ fontSize: '11px', backgroundColor: '#fef3c7', color: '#d97706', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold', display: 'inline-block', marginTop: '4px' }}>Kassada kutilmoqda</span>
                         )}
@@ -769,7 +815,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                 );
               })}
             </div>
-            {/* ------------------------------------------- */}
 
           </div>
         )}

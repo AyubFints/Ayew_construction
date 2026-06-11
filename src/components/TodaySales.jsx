@@ -78,34 +78,26 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
 
   // --- AVTOMATIK CHEK CHIQARISH FUNKSIYASI ---
   const handlePrintReceipt = (sale) => {
-    // 1. Xotiradan do'kon nomini qidiramiz
-    let storeName = localStorage.getItem('smartStoreName');
-    
-    // 2. Agar xotirada yo'q bo'lsa (faqat birinchi marta), mijozdan so'raymiz
-    if (!storeName) {
-      storeName = window.prompt("Do'kon nomini kiriting (Bu nom faqat bir marta so'raladi):", "Smart Do'kon");
-      if (!storeName) return; // Agar bekor qilsa to'xtaydi
-      localStorage.setItem('smartStoreName', storeName);
-    }
+    // Endi so'ramaymiz! To'g'ridan-to'g'ri xotiradan (Settings'dan) o'qiymiz
+    let storeName = localStorage.getItem('smartStoreName') || "SMART DO'KON";
+    let storePhone = localStorage.getItem('smartStorePhone') || "";
 
     const isUsd = typeof sale.productName === 'string' && sale.productName.includes('$');
     const currency = isUsd ? '$' : "so'm";
 
     let tableRows = '';
-    // Agar tovarlar aniq ro'yxat (cartItems) bo'lib saqlangan bo'lsa
     if (sale.cartItems && sale.cartItems.length > 0) {
         tableRows = sale.cartItems.map((item, index) => `
             <tr>
-                <td style="padding: 6px 0; border-bottom: 1px dashed #999;">${index + 1}. ${item.product.name}</td>
-                <td style="padding: 6px 0; border-bottom: 1px dashed #999; text-align: center;">${item.qty} ${item.product.unit.replace('$', '').trim()}</td>
-                <td style="padding: 6px 0; border-bottom: 1px dashed #999; text-align: right;">${item.total.toLocaleString()}</td>
+                <td>${index + 1}. ${item.product.name}</td>
+                <td class="center">${item.qty} ${item.product.unit.replace('$', '').trim()}</td>
+                <td class="right">${item.total.toLocaleString()}</td>
             </tr>
         `).join('');
     } else {
-        // Eski saqlangan ma'lumotlar uchun ehtiyot sharti
         tableRows = `
             <tr>
-                <td colspan="3" style="padding: 6px 0; border-bottom: 1px dashed #999; white-space: pre-wrap;">${sale.productName}</td>
+                <td colspan="3" style="white-space: pre-wrap;">${sale.productName}</td>
             </tr>
         `;
     }
@@ -118,16 +110,27 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         <title>Chek</title>
         <style>
             body { font-family: 'Courier New', Courier, monospace; width: 300px; margin: 0 auto; color: #000; padding: 10px; font-size: 13px; }
-            h2 { text-align: center; margin: 0 0 10px 0; font-size: 20px; text-transform: uppercase; border-bottom: 2px dashed #000; padding-bottom: 10px; }
+            /* Do'kon nomi katta harflarda va markazda */
+            h2 { text-align: center; margin: 0 0 10px 0; font-size: 26px; text-transform: uppercase; border-bottom: 2px dashed #000; padding-bottom: 10px; word-break: break-word; }
             .info { margin-bottom: 3px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            
+            /* Jadvalni to'liq moslash va nomlarni qatorga bo'lish */
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
             th { border-bottom: 2px solid #000; padding-bottom: 5px; text-align: left; }
+            th:nth-child(1) { width: 45%; } /* Nomi uchun kengroq joy */
+            th:nth-child(2) { width: 20%; text-align: center; }
+            th:nth-child(3) { width: 35%; text-align: right; }
+            
+            td { padding: 8px 0; border-bottom: 1px dashed #999; vertical-align: top; word-wrap: break-word; }
+            
             .right { text-align: right; }
             .center { text-align: center; }
             .totals { margin-top: 15px; border-top: 2px dashed #000; padding-top: 10px; }
             .total-row { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; }
             .total-row.big { font-size: 16px; margin-bottom: 10px; }
-            .footer { text-align: center; margin-top: 25px; border-top: 1px dashed #000; padding-top: 15px; font-size: 12px; font-weight: bold; }
+            
+            /* Footerda telefon raqam */
+            .footer { text-align: center; margin-top: 25px; border-top: 1px dashed #000; padding-top: 15px; font-size: 13px; font-weight: bold; }
             
             /* Print sozlamalari */
             @media print {
@@ -172,7 +175,8 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         </div>
 
         <div class="footer">
-            Xaridingiz uchun rahmat!<br/><br/>
+            Xaridingiz uchun rahmat!<br/>
+            ${storePhone ? `Murojaat uchun: ${storePhone}<br/><br/>` : '<br/>'}
             <span style="font-size: 11px;">Dastur: Smart Do'kon</span>
         </div>
         
