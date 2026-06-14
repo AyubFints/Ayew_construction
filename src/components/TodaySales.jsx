@@ -109,33 +109,54 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         <meta charset="UTF-8">
         <title>Chek</title>
         <style>
-            body { font-family: 'Courier New', Courier, monospace; width: 300px; margin: 0 auto; color: #000; padding: 10px; font-size: 13px; }
-            /* Do'kon nomi katta harflarda va markazda */
-            h2 { text-align: center; margin: 0 0 10px 0; font-size: 26px; text-transform: uppercase; border-bottom: 2px dashed #000; padding-bottom: 10px; word-break: break-word; }
+            * {
+                box-sizing: border-box; /* Hamma elementlarni qutiga sig'dirish uchun muhim */
+            }
+            body { 
+                font-family: 'Courier New', Courier, monospace; 
+                width: 100%; 
+                max-width: 300px; 
+                margin: 0 auto; 
+                color: #000; 
+                padding: 5px; 
+                font-size: 12px; /* Kichik printerlarga mos shrift o'lchami */
+            }
+            /* Do'kon nomi: o'lchami biroz qisqartirildi to'liq o'rtada sig'ishi uchun */
+            h2 { 
+                text-align: center; 
+                margin: 0 0 10px 0; 
+                font-size: 20px; 
+                text-transform: uppercase; 
+                border-bottom: 2px dashed #000; 
+                padding-bottom: 10px; 
+                word-break: break-word; 
+                white-space: normal;
+            }
             .info { margin-bottom: 3px; }
             
             /* Jadvalni to'liq moslash va nomlarni qatorga bo'lish */
             table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
-            th { border-bottom: 2px solid #000; padding-bottom: 5px; text-align: left; }
-            th:nth-child(1) { width: 45%; } /* Nomi uchun kengroq joy */
-            th:nth-child(2) { width: 20%; text-align: center; }
-            th:nth-child(3) { width: 35%; text-align: right; }
+            th { border-bottom: 2px solid #000; padding-bottom: 5px; text-align: left; font-size: 12px;}
             
-            td { padding: 8px 0; border-bottom: 1px dashed #999; vertical-align: top; word-wrap: break-word; }
+            th:nth-child(1) { width: 45%; } /* Nomi uchun joy */
+            th:nth-child(2) { width: 25%; text-align: center; } /* Miqdor uchun joy */
+            th:nth-child(3) { width: 30%; text-align: right; } /* Summa uchun joy qisqartirildi, qog'ozga sig'ishi uchun */
+            
+            td { padding: 6px 0; border-bottom: 1px dashed #999; vertical-align: top; word-wrap: break-word; word-break: break-all; }
             
             .right { text-align: right; }
             .center { text-align: center; }
             .totals { margin-top: 15px; border-top: 2px dashed #000; padding-top: 10px; }
             .total-row { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; }
-            .total-row.big { font-size: 16px; margin-bottom: 10px; }
+            .total-row.big { font-size: 14px; margin-bottom: 10px; }
             
             /* Footerda telefon raqam */
-            .footer { text-align: center; margin-top: 25px; border-top: 1px dashed #000; padding-top: 15px; font-size: 13px; font-weight: bold; }
+            .footer { text-align: center; margin-top: 20px; border-top: 1px dashed #000; padding-top: 10px; font-size: 12px; font-weight: bold; }
             
-            /* Print sozlamalari */
+            /* Print sozlamalari (qog'ozga to'liq yopishishi uchun padding va marginlar olib tashlandi) */
             @media print {
                 @page { margin: 0; }
-                body { width: 100%; padding: 3mm; }
+                body { width: 100%; max-width: 100%; padding: 2mm; margin: 0; }
             }
         </style>
     </head>
@@ -177,7 +198,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         <div class="footer">
             Xaridingiz uchun rahmat!<br/>
             ${storePhone ? `Murojaat uchun: ${storePhone}<br/><br/>` : '<br/>'}
-            <span style="font-size: 11px;">Dastur: Smart Do'kon</span>
+            <span style="font-size: 18px; color: blue;">Smart Do'kon</span>
         </div>
         
         <script>
