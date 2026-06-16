@@ -63,18 +63,24 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
     }
   };
 
-  // --- FIREBASE'DAN O'CHIRISH QO'SHILDI ---
+  // --- FIREBASE'DAN O'CHIRISH TASDIQLASH BILAN ---
   const handleDelete = async (id) => {
-    const qolganArenda = arenda.filter(i => i.id !== id);
-    setArenda(qolganArenda); // Ekranda o'chirish
+    // Tasdiqlash oynasini ko'rsatish
+    const tasdiqlash = window.confirm("Rostan o'chirmoqchimisiz?");
+    
+    // Agar foydalanuvchi "OK" (Tasdiqlash) ni bosa, kod davom etadi
+    if (tasdiqlash) {
+      const qolganArenda = arenda.filter(i => i.id !== id);
+      setArenda(qolganArenda); // Ekranda o'chirish
 
-    // Bulutdan ham o'chirish
-    if (auth.currentUser) {
-      try {
-        const docRef = doc(db, "stores", auth.currentUser.uid);
-        await setDoc(docRef, { arenda: qolganArenda }, { merge: true });
-      } catch (error) {
-        console.error("Bulutdan o'chirishda xato:", error);
+      // Bulutdan ham o'chirish
+      if (auth.currentUser) {
+        try {
+          const docRef = doc(db, "stores", auth.currentUser.uid);
+          await setDoc(docRef, { arenda: qolganArenda }, { merge: true });
+        } catch (error) {
+          console.error("Bulutdan o'chirishda xato:", error);
+        }
       }
     }
   };
@@ -160,7 +166,7 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
             </div>
             <div style={{textAlign:'right', display:'flex', alignItems:'center', gap:'12px'}}>
               <span style={{fontWeight:'bold', color:'#b91c1c'}}>-{item.amount.toLocaleString()}</span>
-              {/* O'chirish tugmasi endi to'g'ri ishlaydi */}
+              {/* O'chirish tugmasi */}
               <button onClick={() => handleDelete(item.id)} style={deleteBtnStyle}>
                 <Trash2 size={16} />
               </button>

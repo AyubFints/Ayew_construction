@@ -26,6 +26,9 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
   const [changingCostPriceId, setChangingCostPriceId] = useState(null);
   const [newCostPriceAmount, setNewCostPriceAmount] = useState('');
 
+  // AQLLI QIDIRUV UCHUN STATE
+  const [searchQuery, setSearchQuery] = useState('');
+
   // SOTUV NARXI BO'YICHA UMUMIY QIYMAT
   const totalValueSom = products.reduce((acc, curr) => {
     return (curr.unit !== 'kv' && curr.unit !== 'Dona/$') ? acc + (curr.quantity * curr.price) : acc;
@@ -46,9 +49,56 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     return (curr.unit === 'kv' || curr.unit === 'Dona/$') ? acc + (curr.quantity * cost) : acc;
   }, 0);
 
-  const displayedProducts = activeFilter === 'Barchasi' 
+  // AQLLI QIDIRUV (FUZZY MATCH) ALGORITMI - XATOLARNI HAM HISOBLAYDI
+  const getMatchScore = (productName, query) => {
+    if (!query) return 0;
+    const name = (productName || '').toLowerCase().trim();
+    const q = query.toLowerCase().trim();
+    
+    if (name === q) return 100; // Aynan bir xil bo'lsa eng tepaga
+    if (name.startsWith(q)) return 80; // Shundan boshlansa
+    if (name.includes(q)) return 60; // Ichida mavjud bo'lsa
+    
+    // So'zma-so'z va harfiy xatoliklarni tekshirish (Aqlli qism)
+    const nameWords = name.split(/\s+/);
+    const queryWords = q.split(/\s+/);
+    let score = 0;
+
+    queryWords.forEach(qw => {
+      nameWords.forEach(nw => {
+        if (nw === qw) score += 40;
+        else if (nw.startsWith(qw)) score += 30;
+        else if (nw.includes(qw)) score += 20;
+        else {
+          // Kichik harfiy xatolar bilan yozganda (Chala yoki noto'g'ri harf)
+          let qIdx = 0;
+          let matches = 0;
+          for (let i = 0; i < nw.length; i++) {
+            if (nw[i] === qw[qIdx]) {
+              matches++;
+              qIdx++;
+              if (qIdx === qw.length) break;
+            }
+          }
+          if (matches === qw.length) score += 15;
+          else if (matches >= qw.length - 1 && qw.length > 2) score += 10; // 1 ta harf xato bo'lsa ham
+        }
+      });
+    });
+    return score;
+  };
+
+  // TOVARLARNI SARALASH VA FILTRLASH LOGIKASI
+  const filteredByCat = activeFilter === 'Barchasi' 
     ? products 
     : products.filter(p => (p.category || 'Umumiy') === activeFilter);
+
+  const displayedProducts = [...filteredByCat].sort((a, b) => {
+    if (!searchQuery.trim()) return 0; // Qidiruv bo'sh bo'lsa eski tartib saqlanadi
+    const scoreA = getMatchScore(a.name, searchQuery);
+    const scoreB = getMatchScore(b.name, searchQuery);
+    return scoreB - scoreA; // Yuqori moslikdagi tovarlar eng tepaga chiqadi
+  });
 
   const handleAddCategory = (e) => {
     e.preventDefault();
@@ -180,7 +230,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
       <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#1e3a8a', color: '#ffffff', marginBottom: '30px', border: 'none', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         
         {/* SOTUV NARXIDAGI JAMI QIYMAT */}
-        <div style={{ textAlign: 'center', paddingBottom: '20px', borderBottom: '1px solid #475569' }}>
+        <div style={{ textAlignment: 'center', paddingBottom: '20px', borderBottom: '1px solid #475569' }}>
           <p style={{ margin: 0, fontSize: '15px', fontWeight: 'bold', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '10px' }}>Jami ombor qiymati (Sotuv narxida)</p>
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
             <div>
@@ -198,7 +248,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
         </div>
 
         {/* TAN NARXDAGI JAMI QIYMAT */}
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlignment: 'center' }}>
           <p style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', color: '#fca5a5', textTransform: 'uppercase', marginBottom: '10px' }}>Jami ombor qiymati (Tan narxida)</p>
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
             <div>
@@ -216,6 +266,54 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
         </div>
 
       </div>
+
+      {/* ================= AQLLI QIDIRUV (UZUN HOLATDA) JAMI SUMMADAN PASTDA ================= */}
+      <div style={{ marginBottom: '25px', width: '100%' }}>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <input 
+            type="text" 
+            className="form-control" 
+            placeholder="🔍 Aqlli qidiruv (Tovar nomini xato bilan yozsangiz ham qidirib, eng tepaga chiqarib beradi)..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ 
+              width: '100%', 
+              padding: '14px 20px', 
+              fontSize: '16px', 
+              borderRadius: '10px', 
+              border: '2px solid #1e3a8a', 
+              marginBottom: 0,
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+              outline: 'none'
+            }} 
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')} 
+              style={{ 
+                position: 'absolute', 
+                right: '15px', 
+                background: '#ef4444', 
+                border: 'none', 
+                cursor: 'pointer', 
+                color: '#ffffff',
+                fontWeight: 'bold',
+                borderRadius: '50%',
+                width: '24px',
+                height: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px'
+              }}
+              title="Tozalash"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+      {/* =============================================================== */}
 
       <div className="card" style={{ padding: '20px', marginBottom: '30px', borderTop: '4px solid #4b5563', backgroundColor: '#ffffff' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
@@ -312,7 +410,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
             <button type="submit" className="btn btn-primary" style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '14px' }}>
               <PlusCircle size={20} /> Tovar qo'shish
             </button>
-            <p style={{ margin: '10px 0 0 0', fontSize: '13px', color: '#6b7280', textAlign: 'center' }}>
+            <p style={{ margin: '10px 0 0 0', fontSize: '13px', color: '#6b7280', textAlignment: 'center' }}>
               * Tovar avtomatik tarzda tepada tanlangan bo'limga qo'shiladi.
             </p>
           </form>
@@ -328,7 +426,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
             </span>
           </div>
           
-          {displayedProducts.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center', padding: '20px' }}>Bu yerda tovar yo'q.</p> : (
+          {displayedProducts.length === 0 ? <p style={{ color: '#6b7280', textAlignment: 'center', padding: '20px' }}>Bu yerda tovar yo'q.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               {displayedProducts.map(p => (
                 <div key={p.id} className="fade-in" style={{ padding: '15px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px', position: 'relative' }}>
@@ -382,7 +480,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                     </div>
                     
                     <div style={{ color: '#1e3a8a', fontSize: '13px', marginTop: '4px', backgroundColor: '#eff6ff', padding: '6px 10px', borderRadius: '6px', border: '1px solid #bfdbfe', display: 'inline-block', alignSelf: 'flex-start' }}>
-                      Jami summasi: <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{(p.quantity * p.price).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
+                      Umumiy summasi: <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{(p.quantity * p.price).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span>
                     </div>
 
                     {p.costPrice && p.price && (

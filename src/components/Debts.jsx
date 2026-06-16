@@ -9,7 +9,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
   const [repayAmounts, setRepayAmounts] = useState({});
   const [expandedCustomer, setExpandedCustomer] = useState(null);
 
-  // YANGI: Qo'lda qarz qo'shish formasi uchun state'lar
   const [showAddForm, setShowAddForm] = useState(false);
   const [newDebtCustomer, setNewDebtCustomer] = useState('');
   const [newDebtAmount, setNewDebtAmount] = useState('');
@@ -38,10 +37,27 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
     c.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // YANGI: Qo'lda qarz yaratish funksiyasi
+  // YANGI: Raqamlarni 3 xonadan ajratish funksiyasi
+  const handleAmountChange = (e) => {
+    // Faqat raqam va nuqtani qoldiramiz, bo'sh joylarni olib tashlaymiz
+    let rawValue = e.target.value.replace(/\s/g, '').replace(/[^\d.]/g, '');
+    
+    // Nuqtadan keyingi qismini ajratib olamiz (agar decimal bo'lsa)
+    const parts = rawValue.split('.');
+    
+    // Butun qismini har 3 ta raqamdan keyin probel qo'shib formatlaymiz
+    if (parts[0]) {
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    }
+    
+    // Yana birlashtirib state'ga saqlaymiz
+    setNewDebtAmount(parts.join('.'));
+  };
+
   const handleAddManualDebt = async (e) => {
     e.preventDefault();
-    const amount = parseFloat(newDebtAmount);
+    // Saqlashdan oldin bo'sh joylarni olib tashlab, raqamga o'g'iramiz
+    const amount = parseFloat(newDebtAmount.replace(/\s/g, ''));
     
     if (!newDebtCustomer.trim() || isNaN(amount) || amount <= 0) {
       return alert("Iltimos, mijoz ismi va summani to'g'ri kiriting!");
@@ -50,10 +66,8 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
     const days = parseInt(newDebtDays) || 0;
     const now = Date.now();
     const reasonText = newDebtReason.trim() ? `- Sabab: ${newDebtReason}` : '';
-    // Tovar nomi o'rniga qarz sababini yozib qo'yamiz
     const productName = `[Qo'lda qo'shilgan qarz] ${reasonText}`;
 
-    // Mijozni bazadan izlash
     const foundCustomer = customers.find(c => c.name.toLowerCase() === newDebtCustomer.toLowerCase());
 
     const newDebtSale = {
@@ -61,7 +75,7 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
       customer: foundCustomer ? foundCustomer.name : newDebtCustomer,
       customerPhone: foundCustomer ? foundCustomer.phone : '',
       productName: productName,
-      unit: newDebtCurrency === 'usd' ? 'Dona/$' : 'dona', // Valyutani to'g'ri tanish uchun
+      unit: newDebtCurrency === 'usd' ? 'Dona/$' : 'dona', 
       totalSum: amount,
       paidAmount: 0,
       isDebt: true,
@@ -86,7 +100,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
         }
       }
 
-      // Formani tozalash va yopish
       setShowAddForm(false);
       setNewDebtCustomer('');
       setNewDebtAmount('');
@@ -168,7 +181,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
         </h2>
       </div>
 
-      {/* YANGI QISM: YANGI QARZ YARATISH TUGMASI VA FORMASI */}
       <div style={{ marginBottom: '20px' }}>
         {!showAddForm ? (
           <button 
@@ -207,7 +219,15 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 2 }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#4b5563', marginBottom: '5px', display: 'block' }}>Summasi</label>
-                  <input type="number" className="form-control" placeholder="0" value={newDebtAmount} onChange={e => setNewDebtAmount(e.target.value)} required min="0" step="any" style={{ marginBottom: 0 }} />
+                  <input 
+                    type="text" // number dan text ga o'zgartirildi
+                    className="form-control" 
+                    placeholder="0" 
+                    value={newDebtAmount} 
+                    onChange={handleAmountChange} // Maxsus funksiyaga ulandi
+                    required 
+                    style={{ marginBottom: 0 }} 
+                  />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#4b5563', marginBottom: '5px', display: 'block' }}>Valyuta</label>
@@ -250,7 +270,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
           />
         </div>
 
-        {/* 1. AKTIV QARZLAR RO'YXATI */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '40px' }}>
           {filteredDebts.map(sale => {
             const isKv = isUsdProduct(sale.productName, sale.unit);
@@ -336,7 +355,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
           })}
         </div>
 
-        {/* 2. MIJOZLAR TARIXI VA TO'LOVLAR DETALIZATSIYASI */}
         <div style={{ borderTop: '2px dashed #d1d5db', paddingTop: '20px' }}>
           <h3 style={{ fontSize: '18px', color: '#1e3a8a', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
              <History size={20} /> Mijozlar qarzi va to'lovlar tarixi
