@@ -6,12 +6,14 @@ import { doc, setDoc } from 'firebase/firestore';
 
 const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, customers = [] }) => {
   const [customer, setCustomer] = useState('');
+  const [retailCustomerName, setRetailCustomerName] = useState(''); // Chakana xaridor ismi uchun state
   
   const [sellMode, setSellMode] = useState('inventory'); 
   
   const [categoryQuery, setCategoryQuery] = useState(''); 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false); // Floating ro'yxatni boshqarish uchun state
   
   const [priceMode, setPriceMode] = useState('original'); 
   const [inventoryCustomPrice, setInventoryCustomPrice] = useState('');
@@ -144,16 +146,13 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
   }, [sales, returns, historyType]);
   
-  // --- AQLLI QIDIRUV (SMART SEARCH) FUNKSIYASI ---
   const smartSearch = (text, query) => {
     if (!query) return true;
     const t = String(text).toLowerCase();
     const q = String(query).toLowerCase().trim();
     
-    // 1. Aniq moslik (oddiy holat, masalan "bolt" yozsa ichidan qidiradi)
     if (t.includes(q)) return true; 
 
-    // 2. Harflarning ketma-ketligi (Subsequence - masalan "smt" yozsa -> "sement" ni topadi)
     if (q.length > 2) {
       let tIdx = 0, qIdx = 0;
       while (tIdx < t.length && qIdx < q.length) {
@@ -163,8 +162,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
       if (qIdx === q.length) return true;
     }
 
-    // 3. Xato yozishga qarshi (Typos - masalan "cment" yoki "somnt" -> "sement")
-    // Levenshtein masofasini hisoblash algoritmi
     const distance = (a, b) => {
       if (!a.length) return b.length;
       if (!b.length) return a.length;
@@ -184,17 +181,14 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
     const words = t.split(/[\s-]+/); 
     for (let word of words) {
-      // 3 ta harfdan ko'p bo'lsa 1 ta xatoga ruxsat, 5 tadan ko'p bo'lsa 2 ta xatoga ruxsat beramiz
       const allowedTypos = q.length > 5 ? 2 : (q.length > 3 ? 1 : 0);
       if (allowedTypos > 0 && distance(word, q) <= allowedTypos) return true;
     }
     
     return false;
   };
-  // ------------------------------------------------
 
   const filteredProducts = products.filter(p => {
-    // Qidiruv uchun Aqlli qidiruv funksiyasini ishlatamiz
     const matchName = smartSearch(p.name, searchQuery);
     const matchCategory = smartSearch(p.category || '', categoryQuery);
     return matchName && matchCategory;
@@ -214,6 +208,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     setCustomCostPrice('');
     setPriceMode('original');
     setInventoryCustomPrice('');
+    setIsDropdownOpen(false);
   };
 
   const handleAddToCart = (e) => {
@@ -281,6 +276,11 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     if (!customer) return setError("Mijozni tanlang!");
     if (cart.length === 0) return setError("Savat bo'sh! Tovar qo'shing.");
 
+    // Agar Chakana xaridor bo'lsa va ism kiritilgan bo'lsa: "Ism (Chakana xaridor)" ko'rinishida saqlaydi
+    const finalCustomerName = (customer === 'Chakana xaridor' && retailCustomerName.trim())
+      ? `${retailCustomerName.trim()} (Chakana xaridor)`
+      : customer;
+
     let updatedProducts = [...products];
     cart.forEach(cartItem => { 
       if (!cartItem.isCustom) {
@@ -304,7 +304,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         productName: namesSom, 
         unit: 'xil tovar', 
         quantity: cartSom.length, 
-        customer, 
+        customer: finalCustomerName, // Yangilangan mijoz nomi
         totalSum: overallSom, 
         isReceived: false, 
         cartItems: cartSom 
@@ -319,7 +319,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         productName: namesUsd, 
         unit: 'xil tovar ($)', 
         quantity: cartUsd.length, 
-        customer, 
+        customer: finalCustomerName, // Yangilangan mijoz nomi
         totalSum: overallUsd, 
         isReceived: false, 
         cartItems: cartUsd 
@@ -334,7 +334,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     const overallSomAlert = cartSom.reduce((sum, item) => sum + item.total, 0);
     const overallUsdAlert = cartUsd.reduce((sum, item) => sum + item.total, 0);
     
-    setCart([]); setCustomer(''); setError('');
+    setCart([]); setCustomer(''); setRetailCustomerName(''); setError('');
     setSuccessModal({ show: true, som: overallSomAlert, usd: overallUsdAlert });
 
     if (auth.currentUser) {
@@ -354,7 +354,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
   return (
     <div className="fade-in app-container">
       
-      {/* --- TO'Q KO'K MAVZUDAGI MODAL OYNA --- */}
       {successModal.show && (
         <div className="fade-in" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(17, 24, 39, 0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' }}>
           <div className="card fade-in" style={{ width: '100%', maxWidth: '400px', backgroundColor: 'white', borderRadius: '24px', padding: '30px', textAlign: 'center', borderTop: '8px solid #1e3a8a', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
@@ -394,7 +393,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
           </div>
         </div>
       )}
-      {/* ------------------------------------------------ */}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <button onClick={() => setPage('dashboard')} className="btn btn-danger" style={{ width: 'auto' }}>
@@ -475,22 +473,40 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
       )}
 
       <div className="card" style={{ maxWidth: '700px', margin: '0 auto', borderTop: '4px solid #1e3a8a' }}>
+        {/* --- MIJOZNI TANLASH VA INPUT QISMI --- */}
         <div style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '2px dashed #e5e7eb' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 'bold', color: '#111827', fontSize: '16px' }}>
             <User size={20} color="#1e3a8a" /> Mijozni tanlang
           </label>
-          <select 
-            className="form-control" 
-            value={customer} 
-            onChange={(e) => setCustomer(e.target.value)} 
-            style={{ backgroundColor: '#f3f4f6', cursor: 'pointer' }}
-          >
-            <option value="">-- Mijozlar ro'yxatidan tanlang --</option>
-            <option value="Chakana xaridor">Chakana xaridor (Oddiy savdo)</option>
-            {customers.map(c => (
-              <option key={c.id} value={c.name}>{c.name}</option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <select 
+              className="form-control" 
+              value={customer} 
+              onChange={(e) => {
+                setCustomer(e.target.value);
+                if (e.target.value !== 'Chakana xaridor') setRetailCustomerName(''); // Boshqa mijoz tanlansa, ism maydonini tozalaydi
+              }} 
+              style={{ backgroundColor: '#f3f4f6', cursor: 'pointer', flex: 1, minWidth: '200px', marginBottom: 0 }}
+            >
+              <option value="">-- Mijozlar ro'yxatidan tanlang --</option>
+              <option value="Chakana xaridor">Chakana xaridor (Oddiy savdo)</option>
+              {customers.map(c => (
+                <option key={c.id} value={c.name}>{c.name}</option>
+              ))}
+            </select>
+
+            {/* Agar Chakana xaridor tanlansa, ixtiyoriy ism kiritish maydoni ochiladi */}
+            {customer === 'Chakana xaridor' && (
+              <input 
+                type="text"
+                className="form-control"
+                placeholder="Xaridor ismi (Ixtiyoriy)"
+                value={retailCustomerName}
+                onChange={(e) => setRetailCustomerName(e.target.value)}
+                style={{ flex: 1, minWidth: '200px', marginBottom: 0, backgroundColor: '#ffffff' }}
+              />
+            )}
+          </div>
         </div>
 
         <form onSubmit={handleAddToCart}>
@@ -525,30 +541,98 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                       <Filter size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
                       <input 
                         type="text" className="form-control" placeholder="Bo'limi bo'yicha qidirish..." 
-                        value={categoryQuery} onChange={(e) => setCategoryQuery(e.target.value)} 
+                        value={categoryQuery} onChange={(e) => { setCategoryQuery(e.target.value); setIsDropdownOpen(true); }} 
+                        onFocus={() => setIsDropdownOpen(true)}
                         style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
                       />
                     </div>
+                    
+                    {/* NOMI BO'YICHA QIDIRISH VA FLOATING DROPDOWN LIST */}
                     <div style={{ position: 'relative' }}>
-                      <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
+                      <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px', zIndex: 10 }} />
                       <input 
                         type="text" className="form-control" placeholder="Nomi bo'yicha qidirish..." 
-                        value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} 
+                        value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setIsDropdownOpen(true); }} 
+                        onFocus={() => setIsDropdownOpen(true)}
                         style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
                       />
+
+                      {/* AQLLI FLOATING PANEL */}
+                      {isDropdownOpen && (searchQuery || categoryQuery) && (
+                        <>
+                          {/* Ro'yxatdan tashqariga bosganda panelni yopish uchun overlay orqa fon */}
+                          <div 
+                            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }} 
+                            onClick={() => setIsDropdownOpen(false)} 
+                          />
+                          <div style={{ 
+                            position: 'absolute', 
+                            top: '100%', 
+                            left: 0, 
+                            right: 0, 
+                            backgroundColor: 'white', 
+                            border: '1px solid #cbd5e1', 
+                            borderRadius: '8px', 
+                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', 
+                            zIndex: 999, 
+                            maxHeight: '250px', 
+                            overflowY: 'auto', 
+                            marginTop: '4px' 
+                          }}>
+                            {filteredProducts.length === 0 ? (
+                              <div style={{ padding: '12px 15px', color: '#64748b', fontSize: '14px' }}>Tovar topilmadi</div>
+                            ) : (
+                              filteredProducts.map(p => (
+                                <div
+                                  key={p.id}
+                                  onClick={() => {
+                                    setSelectedProductId(p.id.toString());
+                                    setSearchQuery(p.name);
+                                    setIsDropdownOpen(false);
+                                    setPriceMode('original');
+                                    setInventoryCustomPrice('');
+                                  }}
+                                  style={{
+                                    padding: '10px 15px',
+                                    cursor: 'pointer',
+                                    borderBottom: '1px solid #f1f5f9',
+                                    display: 'flex',
+                                    justify: 'space-between',
+                                    alignItems: 'center',
+                                    backgroundColor: selectedProductId === p.id.toString() ? '#eff6ff' : 'white'
+                                  }}
+                                  onMouseEnter={(e) => { if(selectedProductId !== p.id.toString()) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                                  onMouseLeave={(e) => { if(selectedProductId !== p.id.toString()) e.currentTarget.style.backgroundColor = 'white'; }}
+                                >
+                                  <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                                    <span style={{ fontWeight: '500', color: '#1e293b' }}>{p.name}</span>
+                                    {p.category && <span style={{ fontSize: '11px', color: '#64748b' }}>Kategoriya: {p.category}</span>}
+                                  </div>
+                                  <span style={{ fontSize: '12px', backgroundColor: '#e2e8f0', color: '#475569', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold' }}>
+                                    Qoldiq: {p.quantity} {p.unit}
+                                  </span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
+
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                       <select 
                         className="form-control" 
                         value={selectedProductId} 
                         onChange={(e) => {
                           setSelectedProductId(e.target.value);
+                          const prod = products.find(p => p.id.toString() === e.target.value);
+                          if (prod) setSearchQuery(prod.name);
                           setPriceMode('original'); 
                           setInventoryCustomPrice('');
                         }} 
                         style={{ marginBottom: 0, flex: 1 }}
                       >
-                        <option value="">-- Ro'yxatdan tanlang --</option>
+                        <option value="">-- Yoki ro'yxatdan tanlang --</option>
                         <option value="" disabled style={{color: 'gray'}}>Mavjud tovarlar ({filteredProducts.length} ta topildi)</option>
                         {filteredProducts.map(p => (
                           <option key={p.id} value={p.id}>{p.name} (Qoldi: {p.quantity} {p.unit})</option>

@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { ArrowLeft, BookOpen, Search, User, CheckCircle, ChevronDown, ChevronUp, Clock, History, Calendar, DollarSign, MessageCircle, PlusCircle, X } from 'lucide-react';
+import { 
+  ArrowLeft, BookOpen, Search, User, CheckCircle, ChevronDown, ChevronUp, 
+  Clock, History, Calendar, DollarSign, MessageCircle, PlusCircle, X, Trash2, Edit 
+} from 'lucide-react';
 
 import { auth, db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -15,6 +18,9 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
   const [newDebtCurrency, setNewDebtCurrency] = useState('som');
   const [newDebtReason, setNewDebtReason] = useState('');
   const [newDebtDays, setNewDebtDays] = useState('');
+
+  // YANGI: Tahrirlash holati uchun state
+  const [editingDebt, setEditingDebt] = useState(null);
 
   const isUsdUnit = (unit) => {
     if (!unit) return false;
@@ -37,26 +43,28 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
     c.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // YANGI: Raqamlarni 3 xonadan ajratish funksiyasi
+  // Raqamlarni 3 xonadan ajratish funksiyasi (Yangi qarz uchun)
   const handleAmountChange = (e) => {
-    // Faqat raqam va nuqtani qoldiramiz, bo'sh joylarni olib tashlaymiz
     let rawValue = e.target.value.replace(/\s/g, '').replace(/[^\d.]/g, '');
-    
-    // Nuqtadan keyingi qismini ajratib olamiz (agar decimal bo'lsa)
     const parts = rawValue.split('.');
-    
-    // Butun qismini har 3 ta raqamdan keyin probel qo'shib formatlaymiz
     if (parts[0]) {
       parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, " ");
     }
-    
-    // Yana birlashtirib state'ga saqlaymiz
     setNewDebtAmount(parts.join('.'));
+  };
+
+  // YANGI: Tahrirlash oynasidagi summa uchun formatlash funksiyasi
+  const handleEditAmountChange = (e) => {
+    let rawValue = e.target.value.replace(/\s/g, '').replace(/[^\d.]/g, '');
+    const parts = rawValue.split('.');
+    if (parts[0]) {
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    }
+    setEditingDebt({ ...editingDebt, editAmount: parts.join('.') });
   };
 
   const handleAddManualDebt = async (e) => {
     e.preventDefault();
-    // Saqlashdan oldin bo'sh joylarni olib tashlab, raqamga o'g'iramiz
     const amount = parseFloat(newDebtAmount.replace(/\s/g, ''));
     
     if (!newDebtCustomer.trim() || isNaN(amount) || amount <= 0) {
@@ -158,6 +166,78 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
     }
   };
 
+  // YANGI: Qarzni butunlay o'chirish funksiyasi
+  const handleDeleteDebt = async (saleId, customerName) => {
+    if (window.confirm(`${customerName}ning ushbu qarzini ro'yxatdan butunlay o'chirmoqchimisiz?`)) {
+      const yangiSales = sales.filter(s => s.id !== saleId);
+      setSales(yangiSales);
+
+      if (auth.currentUser) {
+        try {
+          const docRef = doc(db, "stores", auth.currentUser.uid);
+          await setDoc(docRef, { sales: yangiSales }, { merge: true });
+        } catch (error) {
+          console.error("Qarzni o'chirishda xato:", error);
+          alert("Xatolik yuz berdi, qaytadan urinib ko'ring.");
+        }
+      }
+    }
+  };
+
+  // YANGI: Tahrirlash rejimini yoqish
+  const startEditing = (sale) => {
+    setEditingDebt({
+      ...sale,
+      editAmount: sale.totalSum.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")
+    });
+  };
+
+  // YANGI: O'zgarishlarni saqlash funksiyasi
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    const cleanAmount = parseFloat(editingDebt.editAmount.replace(/\s/g, ''));
+    const cleanPaidAmount = parseFloat(editingDebt.paidAmount) || 0;
+
+    if (!editingDebt.customer.trim() || isNaN(cleanAmount) || cleanAmount <= 0) {
+      return alert("Mijoz ismi va summani to'g'ri kiriting!");
+    }
+
+    const days = parseInt(editingDebt.debtDays) || 0;
+    const isFullyPaid = Math.abs(cleanPaidAmount - cleanAmount) < 0.1 || cleanPaidAmount >= cleanAmount;
+
+    const yangiSales = sales.map(s => {
+      if (s.id === editingDebt.id) {
+        return {
+          ...s,
+          customer: editingDebt.customer,
+          productName: editingDebt.productName,
+          unit: editingDebt.unit,
+          totalSum: cleanAmount,
+          paidAmount: cleanPaidAmount,
+          isDebt: !isFullyPaid, // Agar to'liq to'langan bo'lsa qarz ro'yxatidan chiqadi
+          debtDays: days,
+          debtDeadline: days > 0 ? s.id + (days * 24 * 60 * 60 * 1000) : null
+        };
+      }
+      return s;
+    });
+
+    if (window.confirm("O'zgarishlarni saqlashni tasdiqlaysizmi?")) {
+      setSales(yangiSales);
+      setEditingDebt(null);
+
+      if (auth.currentUser) {
+        try {
+          const docRef = doc(db, "stores", auth.currentUser.uid);
+          await setDoc(docRef, { sales: yangiSales }, { merge: true });
+        } catch (error) {
+          console.error("Tahrirlashni saqlashda xato:", error);
+          alert("Bulutga saqlashda xatolik bo'ldi.");
+        }
+      }
+    }
+  };
+
   const totalDebtSumSom = debtSales.reduce((acc, s) => !isUsdProduct(s.productName, s.unit) ? acc + (s.totalSum - (s.paidAmount || 0)) : acc, 0);
   const totalDebtSumDollar = debtSales.reduce((acc, s) => isUsdProduct(s.productName, s.unit) ? acc + (s.totalSum - (s.paidAmount || 0)) : acc, 0);
 
@@ -198,7 +278,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
             </div>
             
             <form onSubmit={handleAddManualDebt} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              
               <div>
                 <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#4b5563', marginBottom: '5px', display: 'block' }}>Mijoz ismi (yangi yoki bazadan)</label>
                 <input 
@@ -220,11 +299,11 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
                 <div style={{ flex: 2 }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#4b5563', marginBottom: '5px', display: 'block' }}>Summasi</label>
                   <input 
-                    type="text" // number dan text ga o'zgartirildi
+                    type="text" 
                     className="form-control" 
                     placeholder="0" 
                     value={newDebtAmount} 
-                    onChange={handleAmountChange} // Maxsus funksiyaga ulandi
+                    onChange={handleAmountChange} 
                     required 
                     style={{ marginBottom: 0 }} 
                   />
@@ -257,7 +336,6 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
       </div>
 
       <div className="card" style={{ marginBottom: '30px', borderTop: '4px solid #ef4444' }}>
-        
         <div style={{ position: 'relative', marginBottom: '20px' }}>
           <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
           <input 
@@ -295,6 +373,56 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
               }
             }
 
+            // YANGI: AGAR TAHRIRLANAYOTGAN BO'LSA INLINE FORMANI KO'RSATISH
+            if (editingDebt && editingDebt.id === sale.id) {
+              return (
+                <div key={sale.id} className="fade-in" style={{ padding: '20px', backgroundColor: '#f0fdf4', border: '2px solid #10b981', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                    <h4 style={{ margin: 0, color: '#10b981', fontWeight: 'bold' }}>Qarzni tahrirlash</h4>
+                    <button onClick={() => setEditingDebt(null)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}><X size={20} /></button>
+                  </div>
+                  <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563' }}>Mijoz ismi</label>
+                      <input type="text" className="form-control" value={editingDebt.customer} onChange={e => setEditingDebt({...editingDebt, customer: e.target.value})} required />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563' }}>Sabab / Tovar nomi</label>
+                      <input type="text" className="form-control" value={editingDebt.productName} onChange={e => setEditingDebt({...editingDebt, productName: e.target.value})} required />
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <div style={{ flex: 2 }}>
+                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563' }}>Umumiy summa</label>
+                        <input type="text" className="form-control" value={editingDebt.editAmount} onChange={handleEditAmountChange} required />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563' }}>Valyuta</label>
+                        <select className="form-control" value={editingDebt.unit} onChange={e => setEditingDebt({...editingDebt, unit: e.target.value})}>
+                          <option value="dona">So'm</option>
+                          <option value="Dona/$">$ (USD)</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563' }}>To'langan qismi</label>
+                        <input type="number" className="form-control" value={editingDebt.paidAmount || 0} onChange={e => setEditingDebt({...editingDebt, paidAmount: e.target.value})} min="0" step="any" />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563' }}>Muddati (kun)</label>
+                        <input type="number" className="form-control" value={editingDebt.debtDays || 0} onChange={e => setEditingDebt({...editingDebt, debtDays: e.target.value})} min="0" />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                      <button type="submit" className="btn" style={{ backgroundColor: '#10b981', color: 'white', flex: 1 }}>Saqlash</button>
+                      <button type="button" onClick={() => setEditingDebt(null)} className="btn" style={{ backgroundColor: '#6b7280', color: 'white', flex: 1 }}>Bekor qilish</button>
+                    </div>
+                  </form>
+                </div>
+              );
+            }
+
+            // ESKI: STANDART QARZ KARTASI + TAHRIRLASH VA O'CHIRISH TUGMALARI
             return (
               <div key={sale.id} className="fade-in" style={{ padding: '20px', backgroundColor: '#fff', border: '1px solid #d1d5db', borderLeft: isUrgent ? '5px solid #dc2626' : '5px solid #ef4444', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
@@ -302,6 +430,14 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <User size={18} color="#1e3a8a" />
                       <span style={{ fontWeight: 'bold', fontSize: '18px' }}>{sale.customer}</span>
+                      
+                      {/* YANGI: Kichik tahrirlash va o'chirish tugmalari */}
+                      <button onClick={() => startEditing(sale)} style={{ background: 'none', border: 'none', color: '#f59e0b', cursor: 'pointer', marginLeft: '10px', padding: 2 }} title="Tahrirlash">
+                        <Edit size={16} />
+                      </button>
+                      <button onClick={() => handleDeleteDebt(sale.id, sale.customer)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2 }} title="O'chirish">
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                     <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px', whiteSpace: 'pre-line' }}>{sale.productName}</div>
                     <div style={{ color: '#9ca3af', fontSize: '12px' }}>Sana: {new Date(sale.id).toLocaleDateString()}</div>
@@ -333,6 +469,7 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
                     <div style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '22px' }}>
                       {remaining.toLocaleString()} {currency}
                     </div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>Jami qarz: {sale.totalSum?.toLocaleString()} {currency}</div>
                   </div>
                 </div>
 

@@ -157,9 +157,10 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     }
   };
 
+  // KIRIM QILISH VA AYIRISH LOGIKASI O'ZGARTIRILGAN JOYI
   const handleConfirmAddStock = (id) => {
     const parsedAmount = parseFloat(stockAmount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) return alert("Kiritilgan miqdor xato!");
+    if (isNaN(parsedAmount) || parsedAmount === 0) return alert("Kiritilgan miqdor xato!");
     
     const newProducts = products.map(p => p.id === id ? { ...p, quantity: p.quantity + parsedAmount } : p);
     setProducts(newProducts);
@@ -313,7 +314,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
           )}
         </div>
       </div>
-      {/* =============================================================== */}
 
       <div className="card" style={{ padding: '20px', marginBottom: '30px', borderTop: '4px solid #4b5563', backgroundColor: '#ffffff' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
@@ -496,10 +496,18 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                   {/* --- PASTKI QISM: AMALLAR (TUGMALAR YONMA-YON) --- */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
                     
-                    {/* Kirim qilish */}
+                    {/* Kirim qilish va Ayirish (min olib tashlandi, manfiy son yozsa bo'ladi) */}
                     {addingStockId === p.id ? (
                       <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#eff6ff', padding: '6px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                        <input type="number" placeholder="+ Miqdor" value={stockAmount} onChange={e => setStockAmount(e.target.value)} style={{ width: '80px', padding: '6px', border: '1px solid #93c5fd', borderRadius: '6px', outline: 'none' }} autoFocus min="0.001" step="any" />
+                        <input 
+                          type="number" 
+                          placeholder="Miqdor" 
+                          value={stockAmount} 
+                          onChange={e => setStockAmount(e.target.value)} 
+                          style={{ width: '80px', padding: '6px', border: '1px solid #93c5fd', borderRadius: '6px', outline: 'none' }} 
+                          autoFocus 
+                          step="any" 
+                        />
                         <button onClick={() => handleConfirmAddStock(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto' }}><Check size={16} /></button>
                         <button onClick={() => { setAddingStockId(null); setStockAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }}><X size={16} /></button>
                       </div>
