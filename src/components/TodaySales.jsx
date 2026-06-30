@@ -8,6 +8,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
   const [partialAmounts, setPartialAmounts] = useState({});
   const [historyType, setHistoryType] = useState('daily'); 
   const [selectedHistory, setSelectedHistory] = useState(null); 
+  const [showDebtDetails, setShowDebtDetails] = useState(false); // Qarzlar tafsiloti uchun state
   
   const todayStr = new Date().toLocaleDateString('uz-UZ');
   const isUsdProduct = (productName) => typeof productName === 'string' && productName.includes('$');
@@ -17,6 +18,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
   let todayNewDebtsSom = 0;
   let todayNewDebtsUsd = 0;
   const todaysPayments = [];
+  const todaysDebtsList = []; // Bugungi qarzlar ro'yxati
 
   sales.forEach(sale => {
     const isUsd = isUsdProduct(sale.productName);
@@ -25,6 +27,15 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
       const remainingDebt = sale.totalSum - (sale.paidAmount || 0);
       if (isUsd) todayNewDebtsUsd += remainingDebt;
       else todayNewDebtsSom += remainingDebt;
+
+      // Bugungi qarzdorlarni ro'yxatga qo'shish
+      todaysDebtsList.push({
+        id: sale.id,
+        customer: sale.customer,
+        amount: remainingDebt,
+        isUsd: isUsd,
+        productName: sale.productName
+      });
     }
 
     if (sale.paymentHistory && sale.paymentHistory.length > 0) {
@@ -78,7 +89,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
 
   // --- AVTOMATIK CHEK CHIQARISH FUNKSIYASI ---
   const handlePrintReceipt = (sale) => {
-    // Endi so'ramaymiz! To'g'ridan-to'g'ri xotiradan (Settings'dan) o'qiymiz
     let storeName = localStorage.getItem('smartStoreName') || "SMART DO'KON";
     let storePhone = localStorage.getItem('smartStorePhone') || "";
 
@@ -109,9 +119,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         <meta charset="UTF-8">
         <title>Chek</title>
         <style>
-            * {
-                box-sizing: border-box; /* Hamma elementlarni qutiga sig'dirish uchun muhim */
-            }
+            * { box-sizing: border-box; }
             body { 
                 font-family: 'Courier New', Courier, monospace; 
                 width: 100%; 
@@ -119,9 +127,8 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
                 margin: 0 auto; 
                 color: #000; 
                 padding: 5px; 
-                font-size: 12px; /* Kichik printerlarga mos shrift o'lchami */
+                font-size: 12px; 
             }
-            /* Do'kon nomi: o'lchami biroz qisqartirildi to'liq o'rtada sig'ishi uchun */
             h2 { 
                 text-align: center; 
                 margin: 0 0 10px 0; 
@@ -133,27 +140,18 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
                 white-space: normal;
             }
             .info { margin-bottom: 3px; }
-            
-            /* Jadvalni to'liq moslash va nomlarni qatorga bo'lish */
             table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
             th { border-bottom: 2px solid #000; padding-bottom: 5px; text-align: left; font-size: 12px;}
-            
-            th:nth-child(1) { width: 45%; } /* Nomi uchun joy */
-            th:nth-child(2) { width: 25%; text-align: center; } /* Miqdor uchun joy */
-            th:nth-child(3) { width: 30%; text-align: right; } /* Summa uchun joy qisqartirildi, qog'ozga sig'ishi uchun */
-            
+            th:nth-child(1) { width: 45%; }
+            th:nth-child(2) { width: 25%; text-align: center; }
+            th:nth-child(3) { width: 30%; text-align: right; }
             td { padding: 6px 0; border-bottom: 1px dashed #999; vertical-align: top; word-wrap: break-word; word-break: break-all; }
-            
             .right { text-align: right; }
             .center { text-align: center; }
             .totals { margin-top: 15px; border-top: 2px dashed #000; padding-top: 10px; }
             .total-row { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; }
             .total-row.big { font-size: 14px; margin-bottom: 10px; }
-            
-            /* Footerda telefon raqam */
             .footer { text-align: center; margin-top: 20px; border-top: 1px dashed #000; padding-top: 10px; font-size: 12px; font-weight: bold; }
-            
-            /* Print sozlamalari (qog'ozga to'liq yopishishi uchun padding va marginlar olib tashlandi) */
             @media print {
                 @page { margin: 0; }
                 body { width: 100%; max-width: 100%; padding: 2mm; margin: 0; }
@@ -202,7 +200,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         </div>
         
         <script>
-            // Oyna ochilgandan so'ng avtomatik chop etishga beradi va yopiladi
             window.onload = function() { 
                 setTimeout(function() {
                     window.print(); 
@@ -214,7 +211,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
     </html>
     `;
 
-    // Yashirin oyna ochish va chekni yozish
     const printWindow = window.open('', '_blank', 'width=400,height=600,left=-1000,top=-1000');
     if(printWindow) {
         printWindow.document.write(printContent);
@@ -442,8 +438,18 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
             {netCashUsd !== 0 ? `${netCashUsd.toLocaleString()} $` : ''}
           </h2>
         </div>
+        
+        {/* BUGUNGI QARZLAR KARTASI (TAFSILOT TUGMASI BILAN) */}
         <div className="card" style={{ borderTop: '6px solid #ef4444' }}>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>BUGUNGI QARZLAR</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>BUGUNGI QARZLAR</p>
+            <button 
+              onClick={() => setShowDebtDetails(true)} 
+              style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold', padding: 0 }}
+            >
+              Tafsilot
+            </button>
+          </div>
           <h2 style={{ color: '#ef4444', margin: '5px 0' }}>
             {todayNewDebtsSom > 0 || todayNewDebtsUsd === 0 ? `${todayNewDebtsSom.toLocaleString()} so'm` : ''}
             {todayNewDebtsSom > 0 && todayNewDebtsUsd > 0 && <br/>}
@@ -613,6 +619,43 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
           </div>
         )}
       </div>
+
+      {/* BUGUNGI QARZLAR TAFSILOTI MODAL OYNASI */}
+      {showDebtDetails && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div className="fade-in" style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', width: '90%', maxWidth: '400px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={20} /> Qarzlar tafsiloti
+              </h3>
+              <button onClick={() => setShowDebtDetails(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <XCircle size={24} color="#6b7280" />
+              </button>
+            </div>
+            
+            <div style={{ maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '5px' }}>
+              {todaysDebtsList.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#6b7280', margin: '20px 0' }}>Bugun qarzga savdo qilinmagan.</p>
+              ) : (
+                todaysDebtsList.map(debt => (
+                  <div key={debt.id} style={{ padding: '12px', backgroundColor: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                      <strong style={{ color: '#1f2937' }}>{debt.customer}</strong>
+                      <strong style={{ color: '#ef4444' }}>
+                        {debt.amount.toLocaleString()} {debt.isUsd ? '$' : "so'm"}
+                      </strong>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#6b7280', whiteSpace: 'pre-line' }}>
+                      {debt.productName}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

@@ -1,10 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ShoppingCart, RotateCcw, Package, Wallet, BookOpen, LogOut, Settings as SettingsIcon, AlertTriangle, Users, Landmark, Calendar, Store } from 'lucide-react';
 
 const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
-  
-  // Kam qolgan tovarlarni aniqlash
-  const lowStockProducts = products.filter(p => p.quantity <= 10);
+  // Saralash turini saqlash uchun state: 'quantity' yoki 'name'
+  const [sortBy, setSortBy] = useState('quantity');
+
+  // Kam qolgan tovarlarni aniqlash va saralash
+  const lowStockProducts = products
+    .filter(p => p.quantity <= 10)
+    .sort((a, b) => {
+      if (sortBy === 'name') {
+        return a.name.localeCompare(b.name); // Alifbo bo'yicha A-Z
+      } else {
+        return a.quantity - b.quantity; // Soni bo'yicha kamdan ko'pga
+      }
+    });
 
   // --- BUGUNGI SANANI HISOBLASH VA O'ZBEKCHAGA O'GIRISH ---
   const bugun = new Date();
@@ -165,19 +175,40 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
         </div>
       </div>
 
-      {/* --- KAM QOLGAN TOVARLAR OGOHLANTIRISHI (ENG TAGIGA, YANGI DIZAYNDA OLINDI) --- */}
+      {/* --- KAM QOLGAN TOVARLAR OGOHLANTIRISHI --- */}
       {lowStockProducts.length > 0 && (
         <div className="fade-in card" style={{ padding: '25px', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e5e7eb', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)', position: 'relative', overflow: 'hidden' }}>
           
           {/* Orqa fondagi tepa gradient chiziq */}
           <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '6px', background: 'linear-gradient(90deg, #1e3a8a 0%, #10b981 100%)' }}></div>
           
-          <h3 style={{ margin: '0 0 20px 0', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '18px' }}>
-            <div style={{ background: '#ecfdf5', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <AlertTriangle size={24} color="#10b981" />
-            </div>
-            <span className="gradient-text" style={{ fontWeight: '800' }}>DIQQAT, QUYIDAGI TOVARLAR OMBORDA TUGAMOQDA!</span>
-          </h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '18px' }}>
+              <div style={{ background: '#ecfdf5', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AlertTriangle size={24} color="#10b981" />
+              </div>
+              <span className="gradient-text" style={{ fontWeight: '800' }}>DIQQAT, QUYIDAGI TOVARLAR OMBORDA TUGAMOQDA!</span>
+            </h3>
+
+            {/* --- SARALASH UCHUN SELECT --- */}
+            <select 
+              value={sortBy} 
+              onChange={(e) => setSortBy(e.target.value)}
+              style={{ 
+                padding: '8px 12px', 
+                borderRadius: '8px', 
+                border: '1px solid #cbd5e1', 
+                backgroundColor: '#f8fafc',
+                color: '#1e3a8a',
+                fontWeight: 'bold',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="quantity">Soni bo'yicha (Kamdan ko'pga)</option>
+              <option value="name">Alifbo bo'yicha (A-Z)</option>
+            </select>
+          </div>
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
             {lowStockProducts.map(p => (
