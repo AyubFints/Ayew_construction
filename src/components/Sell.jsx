@@ -7,6 +7,9 @@ import { doc, setDoc } from 'firebase/firestore';
 const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, customers = [] }) => {
   const [customer, setCustomer] = useState('');
   const [retailCustomerName, setRetailCustomerName] = useState(''); // Chakana xaridor ismi uchun state
+
+  const [customerSearchQuery, setCustomerSearchQuery] = useState(''); // Mijozni qidirish uchun state
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false); // Mijozlar floating ro'yxatini boshqarish
   
   const [sellMode, setSellMode] = useState('inventory'); 
   
@@ -194,6 +197,9 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     return matchName && matchCategory;
   });
 
+  // Mijozlarni aqlli qidiruv orqali filtrlash (xato yozilsa ham topadi)
+  const filteredCustomers = customers.filter(c => smartSearch(c.name, customerSearchQuery));
+
   const selectedProduct = products.find(p => p.id.toString() === selectedProductId);
 
   const handleClearSelection = () => {
@@ -334,7 +340,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     const overallSomAlert = cartSom.reduce((sum, item) => sum + item.total, 0);
     const overallUsdAlert = cartUsd.reduce((sum, item) => sum + item.total, 0);
     
-    setCart([]); setCustomer(''); setRetailCustomerName(''); setError('');
+    setCart([]); setCustomer(''); setRetailCustomerName(''); setCustomerSearchQuery(''); setError('');
     setSuccessModal({ show: true, som: overallSomAlert, usd: overallUsdAlert });
 
     if (auth.currentUser) {
@@ -478,6 +484,102 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 'bold', color: '#111827', fontSize: '16px' }}>
             <User size={20} color="#1e3a8a" /> Mijozni tanlang
           </label>
+
+          {/* --- AQLLI QIDIRUV: MIJOZLARNI ISM BO'YICHA QIDIRISH (FLOATING RO'YXAT) --- */}
+          <div style={{ position: 'relative', marginBottom: '10px' }}>
+            <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px', zIndex: 10 }} />
+            <input 
+              type="text" 
+              className="form-control" 
+              placeholder="Mijozni ism bo'yicha qidirish..." 
+              value={customerSearchQuery} 
+              onChange={(e) => { setCustomerSearchQuery(e.target.value); setIsCustomerDropdownOpen(true); }} 
+              onFocus={() => setIsCustomerDropdownOpen(true)}
+              style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
+            />
+
+            {/* AQLLI FLOATING PANEL - MIJOZLAR */}
+            {isCustomerDropdownOpen && customerSearchQuery && (
+              <>
+                {/* Ro'yxatdan tashqariga bosganda panelni yopish uchun overlay orqa fon */}
+                <div 
+                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }} 
+                  onClick={() => setIsCustomerDropdownOpen(false)} 
+                />
+                <div style={{ 
+                  position: 'absolute', 
+                  top: '100%', 
+                  left: 0, 
+                  right: 0, 
+                  backgroundColor: 'white', 
+                  border: '1px solid #cbd5e1', 
+                  borderRadius: '8px', 
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', 
+                  zIndex: 999, 
+                  maxHeight: '250px', 
+                  overflowY: 'auto', 
+                  marginTop: '4px' 
+                }}>
+                  {/* Chakana xaridor ham qidiruvga mos kelsa ko'rsatiladi */}
+                  {smartSearch('Chakana xaridor Oddiy savdo', customerSearchQuery) && (
+                    <div
+                      onClick={() => {
+                        setCustomer('Chakana xaridor');
+                        setRetailCustomerName('');
+                        setCustomerSearchQuery('Chakana xaridor');
+                        setIsCustomerDropdownOpen(false);
+                      }}
+                      style={{
+                        padding: '10px 15px',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid #f1f5f9',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        backgroundColor: customer === 'Chakana xaridor' ? '#eff6ff' : 'white'
+                      }}
+                      onMouseEnter={(e) => { if(customer !== 'Chakana xaridor') e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                      onMouseLeave={(e) => { if(customer !== 'Chakana xaridor') e.currentTarget.style.backgroundColor = 'white'; }}
+                    >
+                      <span style={{ fontWeight: '500', color: '#1e293b' }}>Chakana xaridor <span style={{ fontSize: '11px', color: '#64748b' }}>(Oddiy savdo)</span></span>
+                      <ShoppingCart size={16} color="#94a3b8" />
+                    </div>
+                  )}
+
+                  {filteredCustomers.length === 0 && !smartSearch('Chakana xaridor Oddiy savdo', customerSearchQuery) ? (
+                    <div style={{ padding: '12px 15px', color: '#64748b', fontSize: '14px' }}>Mijoz topilmadi</div>
+                  ) : (
+                    filteredCustomers.map(c => (
+                      <div
+                        key={c.id}
+                        onClick={() => {
+                          setCustomer(c.name);
+                          setRetailCustomerName('');
+                          setCustomerSearchQuery(c.name);
+                          setIsCustomerDropdownOpen(false);
+                        }}
+                        style={{
+                          padding: '10px 15px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #f1f5f9',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          backgroundColor: customer === c.name ? '#eff6ff' : 'white'
+                        }}
+                        onMouseEnter={(e) => { if(customer !== c.name) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                        onMouseLeave={(e) => { if(customer !== c.name) e.currentTarget.style.backgroundColor = 'white'; }}
+                      >
+                        <span style={{ fontWeight: '500', color: '#1e293b' }}>{c.name}</span>
+                        <User size={16} color="#94a3b8" />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <select 
               className="form-control" 
