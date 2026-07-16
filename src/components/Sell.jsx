@@ -917,8 +917,8 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                     alignItems: 'center', 
                     marginBottom: '10px' 
                   }}>
-                    <label style={{ fontWeight: '600', color: '#374151', margin: 0 }}>
-                      Tovarni qidirish va tanlash
+                    <label style={{ fontWeight: '300',fontSize:13, color: '#374151', margin: 0 }}>
+                      Tovarni qidirish
                     </label>
                     <button
                       type="button"
