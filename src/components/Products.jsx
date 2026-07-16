@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Package, ArrowLeft, Trash2, PlusCircle, Check, X, Tags, Filter, FolderPlus, Edit, DollarSign } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Package, ArrowLeft, Trash2, PlusCircle, Check, X, Tags, Filter, FolderPlus, Edit, DollarSign, ScanLine, QrCode, Camera } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
 
 const Products = ({ products, setProducts, categories = [], setCategories, setPage, saveToFirebase }) => {
   const [name, setName] = useState(''); 
@@ -7,6 +8,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
   const [quantity, setQuantity] = useState(''); 
   const [costPrice, setCostPrice] = useState(''); 
   const [price, setPrice] = useState(''); 
+  const [barcode, setBarcode] = useState(''); // YANGI: Skaner kodi (ihtiyoriy)
   
   const [newCategoryName, setNewCategoryName] = useState('');
   const [activeFilter, setActiveFilter] = useState('Barchasi');
@@ -26,10 +28,123 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
   const [changingCostPriceId, setChangingCostPriceId] = useState(null);
   const [newCostPriceAmount, setNewCostPriceAmount] = useState('');
 
-  // AQLLI QIDIRUV UCHUN STATE
   const [searchQuery, setSearchQuery] = useState('');
 
-  // SOTUV NARXI BO'YICHA UMUMIY QIYMAT
+  // YANGI: Skaner uchun state'lar
+  const [showScanner, setShowScanner] = useState(false);
+  const [scannerError, setScannerError] = useState('');
+  const scannerRef = useRef(null);
+  const scannerInstanceRef = useRef(null);
+
+  // ================= SKANER FUNKSIYASI (Telefon + Kompyuter) =================
+  // SUPERMARKET USULIDAGI "PIIP" OVOZI (kod o'qilganda)
+  const playBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'square';
+      osc.frequency.value = 1800;
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.12);
+      osc.onended = () => ctx.close().catch(() => {});
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    if (showScanner) {
+      setScannerError('');
+      let cancelled = false;
+      let alreadyScanned = false; // Bir marta o'qigach qayta ishlamasin
+      
+      // Kichik kechikish, DOM tayyor bo'lishi uchun
+      const timer = setTimeout(() => {
+        if (cancelled) return;
+        try {
+          // FAQAT SHTRIX-KODLAR (QR kod o'qilmaydi)
+          // MUHIM: formatlarni cheklamaymiz - hamma turini urinib ko'radi (yaxshiroq tanish)
+          const html5QrCode = new Html5Qrcode("qr-reader", {
+            verbose: false
+          });
+          scannerInstanceRef.current = html5QrCode;
+
+          html5QrCode.start(
+            { facingMode: "environment" }, // Telefonda orqa kamera
+            {
+              fps: 15, // O'rtacha tezlik - juda yuqori bo'lsa telefon uddalay olmaydi
+              qrbox: undefined, // Butun kadr bo'ylab qidiradi (aniqlik oshadi)
+              aspectRatio: 1.0,
+              disableFlip: false, // Teskari holatda ham o'qiy oladigan qilamiz
+              videoConstraints: {
+                facingMode: "environment",
+                width: { ideal: 1920 }, // Yuqori aniqlik - shtrix-kod aniq ko'rinishi uchun
+                height: { ideal: 1080 },
+                // Fokusni yaqinga sozlash (muhim!)
+                advanced: [
+                  { focusMode: "continuous" },
+                  { focusMode: "auto" }
+                ]
+              }
+            },
+            (decodedText) => {
+              // KOD KO'RINDI = DARHOL SAQLANADI (hech narsa bosilmaydi)
+              if (alreadyScanned) return;
+              // Bo'sh yoki qisqa kodlarni tashlab yuborish
+              if (!decodedText || decodedText.trim().length < 4) return;
+              alreadyScanned = true;
+              playBeep(); // Supermarket "piip"i
+              setBarcode(decodedText.trim());
+              setShowScanner(false); // Kamerani cleanup o'zi to'xtatadi
+            },
+            (errorMessage) => {
+              // Har bir frame'ni "xato" deb hisoblaydi - jim tursin
+            }
+          ).then(() => {
+            // Kamera ishga tushdi - torchni (fonar) yoqishga urinib ko'ramiz agar mumkin bo'lsa
+            if (cancelled) {
+              html5QrCode.stop().catch(() => {});
+            }
+          }).catch(err => {
+            console.error("Kamera xatosi:", err);
+            if (!cancelled) {
+              setScannerError("Kameraga ruxsat berilmadi yoki qurilma topilmadi. Brauzer sozlamalarida kamerani yoqing.");
+            }
+          });
+        } catch (err) {
+          console.error(err);
+          if (!cancelled) setScannerError("Skanerni ishga tushirishda xatolik");
+        }
+      }, 300);
+
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+        const scanner = scannerInstanceRef.current;
+        scannerInstanceRef.current = null;
+        if (scanner) {
+          try {
+            if (scanner.isScanning) {
+              scanner.stop().then(() => {
+                try { scanner.clear(); } catch (e) {}
+              }).catch(() => {});
+            } else {
+              try { scanner.clear(); } catch (e) {}
+            }
+          } catch (e) {}
+        }
+      };
+    }
+  }, [showScanner]);
+
+  // X tugmasi endi darhol yopadi - kamerani useEffect cleanup o'zi to'xtatadi
+  const closeScanner = () => {
+    setShowScanner(false);
+  };
+
+  // ================= HISOB-KITOB =================
   const totalValueSom = products.reduce((acc, curr) => {
     return (curr.unit !== 'kv' && curr.unit !== 'Dona/$') ? acc + (curr.quantity * curr.price) : acc;
   }, 0);
@@ -38,7 +153,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     return (curr.unit === 'kv' || curr.unit === 'Dona/$') ? acc + (curr.quantity * curr.price) : acc;
   }, 0);
 
-  // TAN NARX (OLINGAN NARX) BO'YICHA UMUMIY QIYMAT
   const totalCostValueSom = products.reduce((acc, curr) => {
     const cost = curr.costPrice || 0;
     return (curr.unit !== 'kv' && curr.unit !== 'Dona/$') ? acc + (curr.quantity * cost) : acc;
@@ -49,7 +163,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     return (curr.unit === 'kv' || curr.unit === 'Dona/$') ? acc + (curr.quantity * cost) : acc;
   }, 0);
 
-  // AQLLI QIDIRUV (FUZZY MATCH) ALGORITMI
+  // ================= AQLLI QIDIRUV =================
   const getMatchScore = (productName, query) => {
     if (!query) return 0;
     const name = (productName || '').toLowerCase().trim();
@@ -97,6 +211,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     return scoreB - scoreA;
   });
 
+  // ================= HANDLERS =================
   const handleAddCategory = (e) => {
     e.preventDefault();
     const catName = newCategoryName.trim();
@@ -129,6 +244,16 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     e.preventDefault();
     const productCategory = activeFilter !== 'Barchasi' ? activeFilter : 'Umumiy';
     
+    // Barcode dublikatini tekshirish (agar kiritilgan bo'lsa)
+    if (barcode.trim()) {
+      const duplicate = products.find(p => p.barcode === barcode.trim());
+      if (duplicate) {
+        if (!window.confirm(`Bu shtrix-kod "${duplicate.name}" tovariga tegishli. Baribir qo'shasizmi?`)) {
+          return;
+        }
+      }
+    }
+    
     const newProduct = { 
       id: Date.now().toString(),
       name, 
@@ -136,14 +261,15 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
       category: productCategory, 
       quantity: parseFloat(quantity), 
       costPrice: parseFloat(costPrice), 
-      price: parseFloat(price) 
+      price: parseFloat(price),
+      barcode: barcode.trim() || null // Skaner kodi - ihtiyoriy
     };
 
     const newProducts = [...products, newProduct];
     setProducts(newProducts);
     saveToFirebase({ products: newProducts });
     
-    setName(''); setQuantity(''); setCostPrice(''); setPrice('');
+    setName(''); setQuantity(''); setCostPrice(''); setPrice(''); setBarcode('');
   };
   
   const handleDeleteProduct = (id, productName) => { 
@@ -215,6 +341,131 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
 
   return (
     <div className="fade-in">
+      
+      {/* ================= SKANER MODAL (Kamera oynasi) ================= */}
+      {showScanner && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          zIndex: 9999,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '16px',
+            padding: '20px',
+            maxWidth: '500px',
+            width: '100%',
+            position: 'relative'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0, color: '#1e3a8a', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <Camera size={22} /> Skaner qilish
+              </h3>
+              <button 
+                onClick={closeScanner}
+                style={{ background: '#ef4444', border: 'none', color: 'white', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {scannerError ? (
+              <div style={{ padding: '20px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', textAlign: 'center' }}>
+                {scannerError}
+              </div>
+            ) : (
+              <>
+                <div 
+                  id="qr-reader" 
+                  ref={scannerRef}
+                  style={{ 
+                    width: '100%', 
+                    borderRadius: '12px', 
+                    overflow: 'hidden',
+                    backgroundColor: '#000'
+                  }}
+                ></div>
+                <p style={{ margin: '15px 0 0 0', fontSize: '13px', color: '#6b7280', textAlign: 'center' }}>
+                  📷 Kodni yorug'da, 10-15 sm masofada tuting. Aniq fokus zarur.
+                </p>
+              </>
+            )}
+
+            {/* Qo'lda kiritish / Fizik skaner varianti (Kompyuter uchun asosiy) */}
+            <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '2px solid #1e3a8a' }}>
+              <div style={{ 
+                backgroundColor: '#eff6ff', 
+                border: '2px solid #bfdbfe',
+                borderRadius: '10px', 
+                padding: '12px',
+                marginBottom: '10px'
+              }}>
+                <p style={{ 
+                  margin: '0 0 4px 0', 
+                  fontSize: '14px', 
+                  fontWeight: 'bold',
+                  color: '#1e3a8a'
+                }}>
+                  ⌨️ Kompyuterdan yoki fizik skaner bilan
+                </p>
+                <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>
+                  Kodni yozing va <b>Enter</b> bosing yoki <b>Saqlash</b> tugmasini bosing
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input 
+                  type="text" 
+                  placeholder="Shtrix-kodni bu yerga yozing..." 
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Fizik skaner kod oxirida Enter yuboradi - avtomatik saqlanadi
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (barcode.trim()) closeScanner();
+                    }
+                  }}
+                  autoFocus
+                  style={{ 
+                    flex: 1, 
+                    padding: '14px 16px', 
+                    border: '2px solid #1e3a8a', 
+                    borderRadius: '10px', 
+                    outline: 'none', 
+                    fontSize: '18px',
+                    fontFamily: 'monospace',
+                    fontWeight: 'bold',
+                    letterSpacing: '1px'
+                  }}
+                />
+                <button 
+                  onClick={closeScanner}
+                  disabled={!barcode.trim()}
+                  style={{ 
+                    padding: '14px 24px', 
+                    backgroundColor: barcode.trim() ? '#1e3a8a' : '#94a3b8', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '10px', 
+                    cursor: barcode.trim() ? 'pointer' : 'not-allowed',
+                    fontSize: '15px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Saqlash
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= YUQORI PANEL ================= */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <button onClick={() => setPage('dashboard')} className="btn" style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#e5e7eb', color: '#1f2937', display: 'flex', gap: '8px', alignItems: 'center' }}>
           <ArrowLeft size={18} /> Ortga qaytish
@@ -224,10 +475,9 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
         </h2>
       </div>
 
+      {/* ================= UMUMIY QIYMAT KARTOCHKALARI ================= */}
       <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#1e3a8a', color: '#ffffff', marginBottom: '30px', border: 'none', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        
-        {/* SOTUV NARXIDAGI JAMI QIYMAT */}
-        <div style={{ textAlignment: 'center', paddingBottom: '20px', borderBottom: '1px solid #475569' }}>
+        <div style={{ textAlign: 'center', paddingBottom: '20px', borderBottom: '1px solid #475569' }}>
           <p style={{ margin: 0, fontSize: '15px', fontWeight: 'bold', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '10px' }}>Jami ombor qiymati (Sotuv narxida)</p>
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
             <div>
@@ -244,8 +494,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
           </div>
         </div>
 
-        {/* TAN NARXDAGI JAMI QIYMAT */}
-        <div style={{ textAlignment: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
           <p style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', color: '#fca5a5', textTransform: 'uppercase', marginBottom: '10px' }}>Jami ombor qiymati (Tan narxida)</p>
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
             <div>
@@ -263,7 +512,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
         </div>
       </div>
 
-      {/* BO'LIMLAR TEPAGA CHIQARILDI */}
+      {/* ================= BO'LIMLAR ================= */}
       <div className="card" style={{ padding: '20px', marginBottom: '30px', borderTop: '4px solid #4b5563', backgroundColor: '#ffffff' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           
@@ -291,7 +540,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
             ))}
           </div>
 
-          {/* Qidiruv faol bo'lmaganda Bo'lim qo'shish qismi ko'rinadi */}
           {searchQuery.trim() === '' && (
             <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <input 
@@ -308,11 +556,10 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
               </button>
             </form>
           )}
-
         </div>
       </div>
 
-      {/* ================= AQLLI QIDIRUV (BO'LIMLARDAN PASTDA) ================= */}
+      {/* ================= AQLLI QIDIRUV ================= */}
       <div style={{ marginBottom: '25px', width: '100%' }}>
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
           <input 
@@ -361,7 +608,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
 
       <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
         
-        {/* Qidiruv faol bo'lmaganda Tovar qo'shish paneli ko'rinadi */}
+        {/* ================= YANGI TOVAR QO'SHISH FORMASI ================= */}
         {searchQuery.trim() === '' && (
           <div className="card" style={{ flex: '1 1 350px', borderTop: '4px solid #1e3a8a', alignSelf: 'flex-start' }}>
             <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1e3a8a', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -369,7 +616,101 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
               {activeFilter !== 'Barchasi' && <span style={{ fontSize: '14px', backgroundColor: '#e5e7eb', padding: '2px 8px', borderRadius: '12px', color: '#4b5563' }}>{activeFilter}</span>}
             </h3>
             <form onSubmit={handleAddProduct}>
-              <input type="text" className="form-control" placeholder="Tovar nomi" value={name} onChange={(e) => setName(e.target.value)} required />
+
+              {/* ===== YANGI: SKANER TUGMASI (Tovar nomi tepasida) ===== */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                marginBottom: '8px' 
+              }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#4b5563' }}>
+                  Tovar nomi:
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowScanner(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    backgroundColor: barcode ? '#10b981' : '#1e3a8a',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                  title="Kamera orqali skaner qilish"
+                >
+                  {barcode ? <><Check size={16} /> Skanerlangan</> : <><ScanLine size={16} /> Skaner qilish</>}
+                </button>
+              </div>
+
+              <input 
+                type="text" 
+                className="form-control" 
+                placeholder="Tovar nomi" 
+                value={name} 
+                onChange={(e) => setName(e.target.value)} 
+                required 
+              />
+
+              {/* ===== SKANERLANGAN KOD KO'RSATILADI ===== */}
+              {barcode && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '10px',
+                  padding: '10px 14px',
+                  backgroundColor: '#ecfdf5',
+                  border: '1px solid #a7f3d0',
+                  borderRadius: '8px',
+                  marginBottom: '15px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                    <QrCode size={18} style={{ color: '#059669', flexShrink: 0 }} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '11px', color: '#059669', fontWeight: 'bold' }}>SKANERLANGAN KOD:</div>
+                      <div style={{ 
+                        fontFamily: 'monospace', 
+                        fontSize: '14px', 
+                        color: '#065f46', 
+                        fontWeight: 'bold',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {barcode}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBarcode('')}
+                    style={{
+                      background: '#ef4444',
+                      border: 'none',
+                      color: 'white',
+                      width: '26px',
+                      height: '26px',
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                    title="Kodni o'chirish"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
               
               <div style={{ display: 'flex', gap: '10px' }}>
                 <input type="number" className="form-control" placeholder="Miqdori" value={quantity} onChange={(e) => setQuantity(e.target.value)} required min="0.001" step="any" style={{ flex: 2 }} />
@@ -411,14 +752,14 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
               <button type="submit" className="btn btn-primary" style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '14px' }}>
                 <PlusCircle size={20} /> Tovar qo'shish
               </button>
-              <p style={{ margin: '10px 0 0 0', fontSize: '13px', color: '#6b7280', textAlignment: 'center' }}>
+              <p style={{ margin: '10px 0 0 0', fontSize: '13px', color: '#6b7280', textAlign: 'center' }}>
                 * Tovar avtomatik tarzda tepada tanlangan bo'limga qo'shiladi.
               </p>
             </form>
           </div>
         )}
 
-        {/* Qidiruv holatida 100% joyni egallaydi, aks holda normal */}
+        {/* ================= TOVARLAR RO'YXATI ================= */}
         <div className="card" style={{ flex: searchQuery.trim() ? '1 1 100%' : '2 1 400px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', marginBottom: '20px' }}>
             <h3 style={{ margin: 0, color: '#1e3a8a' }}>
@@ -429,12 +770,11 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
             </span>
           </div>
           
-          {displayedProducts.length === 0 ? <p style={{ color: '#6b7280', textAlignment: 'center', padding: '20px' }}>Bu yerda tovar yo'q yoki topilmadi.</p> : (
+          {displayedProducts.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center', padding: '20px' }}>Bu yerda tovar yo'q yoki topilmadi.</p> : (
             
-            /* TOVARLAR RO'YXATI GRID FORMATIDA (Qidirilganda 2 qator) */
             <div style={{ 
               display: 'grid', 
-              gridTemplateColumns: searchQuery.trim() ? '1fr 1fr' : '1fr', 
+              gridTemplateColumns: searchQuery.trim() ? 'repeat(auto-fill, minmax(400px, 1fr))' : '1fr', 
               gap: '15px' 
             }}>
               
@@ -443,7 +783,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                   
                   <button onClick={() => handleDeleteProduct(p.id, p.name)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }} title="O'chirish"><Trash2 size={20} /></button>
                   
-                  {/* --- YUQORI QISM: NOMI VA TAHRIRLASH --- */}
                   {editingProductId === p.id ? (
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px', paddingRight: '35px' }}>
                       <input 
@@ -473,7 +812,25 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                     </div>
                   )}
 
-                  {/* --- O'RTA QISM: TOVAR HAQIDA MA'LUMOTLAR --- */}
+                  {/* ===== YANGI: SKANER KODI KO'RSATILADI (agar bor bo'lsa) ===== */}
+                  {p.barcode && (
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '4px 10px',
+                      backgroundColor: '#ecfdf5',
+                      border: '1px solid #a7f3d0',
+                      borderRadius: '6px',
+                      marginBottom: '8px'
+                    }}>
+                      <QrCode size={14} style={{ color: '#059669' }} />
+                      <span style={{ fontSize: '12px', color: '#065f46', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                        {p.barcode}
+                      </span>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <span style={{ display: 'inline-block', backgroundColor: '#e5e7eb', color: '#4b5563', fontSize: '12px', fontWeight: 'bold', padding: '4px 10px', borderRadius: '12px', alignSelf: 'flex-start', marginBottom: '4px' }}>
                       Bo'lim: {p.category || 'Umumiy'}
@@ -500,10 +857,8 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                     )}
                   </div>
 
-                  {/* --- AJRATUVCHI CHIZIQ --- */}
                   <div style={{ borderTop: '1px dashed #d1d5db', margin: '15px 0' }}></div>
 
-                  {/* --- PASTKI QISM: AMALLAR --- */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
                     
                     {addingStockId === p.id ? (

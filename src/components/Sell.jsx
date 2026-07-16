@@ -1,22 +1,23 @@
-import React, { useState, useMemo } from 'react';
-import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, Search, X, PackageOpen, Tag, DollarSign, Wallet } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, Search, X, PackageOpen, Tag, DollarSign, Wallet, ScanLine, Camera, QrCode } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
 
 import { auth, db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
 const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, customers = [] }) => {
   const [customer, setCustomer] = useState('');
-  const [retailCustomerName, setRetailCustomerName] = useState(''); // Chakana xaridor ismi uchun state
+  const [retailCustomerName, setRetailCustomerName] = useState('');
 
-  const [customerSearchQuery, setCustomerSearchQuery] = useState(''); // Mijozni qidirish uchun state
-  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false); // Mijozlar floating ro'yxatini boshqarish
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   
   const [sellMode, setSellMode] = useState('inventory'); 
   
   const [categoryQuery, setCategoryQuery] = useState(''); 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false); // Floating ro'yxatni boshqarish uchun state
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   
   const [priceMode, setPriceMode] = useState('original'); 
   const [inventoryCustomPrice, setInventoryCustomPrice] = useState('');
@@ -36,6 +37,13 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
   const [historyType, setHistoryType] = useState('daily');
 
   const [successModal, setSuccessModal] = useState({ show: false, som: 0, usd: 0 });
+
+  // ================= SKANER STATE'LARI =================
+  const [showScanner, setShowScanner] = useState(false);
+  const [scannerError, setScannerError] = useState('');
+  const [scanFeedback, setScanFeedback] = useState(''); // "Topildi!" yoki "Topilmadi" xabari
+  const scannerRef = useRef(null);
+  const scannerInstanceRef = useRef(null);
   
   const d = new Date();
   const currentDayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -49,6 +57,146 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     if (!unit) return false;
     const lowerUnit = unit.toLowerCase();
     return lowerUnit.includes('$') || lowerUnit === 'kv';
+  };
+
+  // ================= SKANER FUNKSIYALARI =================
+  const playBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'square';
+      osc.frequency.value = 1800;
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.12);
+      osc.onended = () => ctx.close().catch(() => {});
+    } catch (e) {}
+  };
+
+  const playErrorBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'square';
+      osc.frequency.value = 400;
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.25);
+      osc.onended = () => ctx.close().catch(() => {});
+    } catch (e) {}
+  };
+
+  // SKANERLANGAN KODNI OMBORDA QIDIRISH
+  const handleBarcodeScanned = (code) => {
+    const found = products.find(p => p.barcode && p.barcode.trim() === code.trim());
+    
+    if (found) {
+      // TOPILDI - tovarni avtomatik tanlash
+      playBeep();
+      setSelectedProductId(found.id.toString());
+      setSearchQuery(found.name);
+      setCategoryQuery('');
+      setPriceMode('original');
+      setInventoryCustomPrice('');
+      setError('');
+      setScanFeedback(`✅ Topildi: ${found.name}`);
+      setTimeout(() => setScanFeedback(''), 2500);
+    } else {
+      // TOPILMADI - ogohlantirish
+      playErrorBeep();
+      setScanFeedback(`❌ Kod "${code}" omborda topilmadi`);
+      setTimeout(() => setScanFeedback(''), 3500);
+    }
+  };
+
+  useEffect(() => {
+    if (showScanner) {
+      setScannerError('');
+      let cancelled = false;
+      let alreadyScanned = false;
+      
+      const timer = setTimeout(() => {
+        if (cancelled) return;
+        try {
+          const html5QrCode = new Html5Qrcode("sell-qr-reader", { verbose: false });
+          scannerInstanceRef.current = html5QrCode;
+
+          html5QrCode.start(
+            { facingMode: "environment" },
+            {
+              fps: 15,
+              qrbox: undefined,
+              aspectRatio: 1.0,
+              disableFlip: false,
+              videoConstraints: {
+                facingMode: "environment",
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
+                advanced: [
+                  { focusMode: "continuous" },
+                  { focusMode: "auto" }
+                ]
+              }
+            },
+            (decodedText) => {
+              if (alreadyScanned) return;
+              if (!decodedText || decodedText.trim().length < 4) return;
+              alreadyScanned = true;
+              handleBarcodeScanned(decodedText.trim());
+              setShowScanner(false);
+            },
+            (errorMessage) => {}
+          ).then(() => {
+            if (cancelled) {
+              html5QrCode.stop().catch(() => {});
+            }
+          }).catch(err => {
+            console.error("Kamera xatosi:", err);
+            if (!cancelled) {
+              setScannerError("Kameraga ruxsat berilmadi yoki qurilma topilmadi.");
+            }
+          });
+        } catch (err) {
+          console.error(err);
+          if (!cancelled) setScannerError("Skanerni ishga tushirishda xatolik");
+        }
+      }, 300);
+
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+        const scanner = scannerInstanceRef.current;
+        scannerInstanceRef.current = null;
+        if (scanner) {
+          try {
+            if (scanner.isScanning) {
+              scanner.stop().then(() => {
+                try { scanner.clear(); } catch (e) {}
+              }).catch(() => {});
+            } else {
+              try { scanner.clear(); } catch (e) {}
+            }
+          } catch (e) {}
+        }
+      };
+    }
+  }, [showScanner]);
+
+  const closeScanner = () => setShowScanner(false);
+
+  // Qo'lda kiritish yoki fizik skaner uchun input
+  const [manualBarcode, setManualBarcode] = useState('');
+  const handleManualScan = () => {
+    if (!manualBarcode.trim()) return;
+    handleBarcodeScanned(manualBarcode.trim());
+    setManualBarcode('');
+    setShowScanner(false);
   };
 
   const handleDetailFilterChange = (type) => {
@@ -197,7 +345,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     return matchName && matchCategory;
   });
 
-  // Mijozlarni aqlli qidiruv orqali filtrlash (xato yozilsa ham topadi)
   const filteredCustomers = customers.filter(c => smartSearch(c.name, customerSearchQuery));
 
   const selectedProduct = products.find(p => p.id.toString() === selectedProductId);
@@ -282,7 +429,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     if (!customer) return setError("Mijozni tanlang!");
     if (cart.length === 0) return setError("Savat bo'sh! Tovar qo'shing.");
 
-    // Agar Chakana xaridor bo'lsa va ism kiritilgan bo'lsa: "Ism (Chakana xaridor)" ko'rinishida saqlaydi
     const finalCustomerName = (customer === 'Chakana xaridor' && retailCustomerName.trim())
       ? `${retailCustomerName.trim()} (Chakana xaridor)`
       : customer;
@@ -310,7 +456,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         productName: namesSom, 
         unit: 'xil tovar', 
         quantity: cartSom.length, 
-        customer: finalCustomerName, // Yangilangan mijoz nomi
+        customer: finalCustomerName,
         totalSum: overallSom, 
         isReceived: false, 
         cartItems: cartSom 
@@ -325,7 +471,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         productName: namesUsd, 
         unit: 'xil tovar ($)', 
         quantity: cartUsd.length, 
-        customer: finalCustomerName, // Yangilangan mijoz nomi
+        customer: finalCustomerName,
         totalSum: overallUsd, 
         isReceived: false, 
         cartItems: cartUsd 
@@ -359,6 +505,138 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
   return (
     <div className="fade-in app-container">
+
+      {/* ================= SKANER MODAL (Kamera oynasi) ================= */}
+      {showScanner && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          zIndex: 9999,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '16px',
+            padding: '20px',
+            maxWidth: '500px',
+            width: '100%',
+            position: 'relative'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0, color: '#1e3a8a', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <Camera size={22} /> Tovarni skaner qilish
+              </h3>
+              <button 
+                onClick={closeScanner}
+                style={{ background: '#ef4444', border: 'none', color: 'white', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {scannerError ? (
+              <div style={{ padding: '20px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', textAlign: 'center' }}>
+                {scannerError}
+              </div>
+            ) : (
+              <>
+                <div 
+                  id="sell-qr-reader" 
+                  ref={scannerRef}
+                  style={{ 
+                    width: '100%', 
+                    borderRadius: '12px', 
+                    overflow: 'hidden',
+                    backgroundColor: '#000'
+                  }}
+                ></div>
+                <p style={{ margin: '15px 0 0 0', fontSize: '13px', color: '#6b7280', textAlign: 'center' }}>
+                  📷 Kodni yorug'da, 10-15 sm masofada tuting. Aniq fokus zarur.
+                </p>
+              </>
+            )}
+
+            {/* ================= QO'LDA KIRITISH / FIZIK SKANER (Kompyuter uchun asosiy) ================= */}
+            <div style={{ 
+              marginTop: '15px', 
+              paddingTop: '15px', 
+              borderTop: '2px solid #1e3a8a' 
+            }}>
+              <div style={{ 
+                backgroundColor: '#eff6ff', 
+                border: '2px solid #bfdbfe',
+                borderRadius: '10px', 
+                padding: '12px',
+                marginBottom: '10px'
+              }}>
+                <p style={{ 
+                  margin: '0 0 4px 0', 
+                  fontSize: '14px', 
+                  fontWeight: 'bold',
+                  color: '#1e3a8a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  ⌨️ Kompyuterdan yoki fizik skaner bilan
+                </p>
+                <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>
+                  Kodni yozing va <b>Enter</b> bosing yoki <b>Qidirish</b> tugmasini bosing
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input 
+                  type="text" 
+                  placeholder="Shtrix-kodni bu yerga yozing..." 
+                  value={manualBarcode}
+                  onChange={(e) => setManualBarcode(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleManualScan();
+                    }
+                  }}
+                  autoFocus
+                  style={{ 
+                    flex: 1, 
+                    padding: '14px 16px', 
+                    border: '2px solid #1e3a8a', 
+                    borderRadius: '10px', 
+                    outline: 'none', 
+                    fontSize: '18px',
+                    fontFamily: 'monospace',
+                    fontWeight: 'bold',
+                    letterSpacing: '1px'
+                  }}
+                />
+                <button 
+                  onClick={handleManualScan}
+                  disabled={!manualBarcode.trim()}
+                  style={{ 
+                    padding: '14px 24px', 
+                    backgroundColor: manualBarcode.trim() ? '#1e3a8a' : '#94a3b8', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '10px', 
+                    cursor: manualBarcode.trim() ? 'pointer' : 'not-allowed',
+                    fontSize: '15px',
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Search size={18} /> Qidirish
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       {successModal.show && (
         <div className="fade-in" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(17, 24, 39, 0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' }}>
@@ -485,7 +763,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
             <User size={20} color="#1e3a8a" /> Mijozni tanlang
           </label>
 
-          {/* --- AQLLI QIDIRUV: MIJOZLARNI ISM BO'YICHA QIDIRISH (FLOATING RO'YXAT) --- */}
           <div style={{ position: 'relative', marginBottom: '10px' }}>
             <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px', zIndex: 10 }} />
             <input 
@@ -498,10 +775,8 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
               style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
             />
 
-            {/* AQLLI FLOATING PANEL - MIJOZLAR */}
             {isCustomerDropdownOpen && customerSearchQuery && (
               <>
-                {/* Ro'yxatdan tashqariga bosganda panelni yopish uchun overlay orqa fon */}
                 <div 
                   style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }} 
                   onClick={() => setIsCustomerDropdownOpen(false)} 
@@ -520,7 +795,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                   overflowY: 'auto', 
                   marginTop: '4px' 
                 }}>
-                  {/* Chakana xaridor ham qidiruvga mos kelsa ko'rsatiladi */}
                   {smartSearch('Chakana xaridor Oddiy savdo', customerSearchQuery) && (
                     <div
                       onClick={() => {
@@ -586,7 +860,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
               value={customer} 
               onChange={(e) => {
                 setCustomer(e.target.value);
-                if (e.target.value !== 'Chakana xaridor') setRetailCustomerName(''); // Boshqa mijoz tanlansa, ism maydonini tozalaydi
+                if (e.target.value !== 'Chakana xaridor') setRetailCustomerName('');
               }} 
               style={{ backgroundColor: '#f3f4f6', cursor: 'pointer', flex: 1, minWidth: '200px', marginBottom: 0 }}
             >
@@ -597,7 +871,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
               ))}
             </select>
 
-            {/* Agar Chakana xaridor tanlansa, ixtiyoriy ism kiritish maydoni ochiladi */}
             {customer === 'Chakana xaridor' && (
               <input 
                 type="text"
@@ -637,7 +910,58 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
               
               {sellMode === 'inventory' ? (
                 <>
-                  <label style={{ fontWeight: '600', display: 'block', marginBottom: '10px', color: '#374151' }}>Tovarni qidirish va tanlash</label>
+                  {/* ===== YANGI: SKANER TUGMASI ===== */}
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    marginBottom: '10px' 
+                  }}>
+                    <label style={{ fontWeight: '600', color: '#374151', margin: 0 }}>
+                      Tovarni qidirish va tanlash
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowScanner(true)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        backgroundColor: '#1e3a8a',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        fontWeight: 'bold',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+                      }}
+                      title="Kamera orqali shtrix-kodni skaner qilish"
+                    >
+                      <ScanLine size={16} /> Skaner qilish
+                    </button>
+                  </div>
+
+                  {/* SKANER NATIJASI (topildi / topilmadi) */}
+                  {scanFeedback && (
+                    <div className="fade-in" style={{
+                      padding: '10px 14px',
+                      backgroundColor: scanFeedback.startsWith('✅') ? '#ecfdf5' : '#fef2f2',
+                      border: `1px solid ${scanFeedback.startsWith('✅') ? '#a7f3d0' : '#fecaca'}`,
+                      borderRadius: '8px',
+                      marginBottom: '10px',
+                      color: scanFeedback.startsWith('✅') ? '#065f46' : '#991b1b',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <QrCode size={16} /> {scanFeedback}
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <div style={{ position: 'relative' }}>
                       <Filter size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px' }} />
@@ -649,7 +973,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                       />
                     </div>
                     
-                    {/* NOMI BO'YICHA QIDIRISH VA FLOATING DROPDOWN LIST */}
                     <div style={{ position: 'relative' }}>
                       <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '12px', top: '14px', zIndex: 10 }} />
                       <input 
@@ -659,10 +982,8 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                         style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
                       />
 
-                      {/* AQLLI FLOATING PANEL */}
                       {isDropdownOpen && (searchQuery || categoryQuery) && (
                         <>
-                          {/* Ro'yxatdan tashqariga bosganda panelni yopish uchun overlay orqa fon */}
                           <div 
                             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }} 
                             onClick={() => setIsDropdownOpen(false)} 
@@ -699,7 +1020,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                                     cursor: 'pointer',
                                     borderBottom: '1px solid #f1f5f9',
                                     display: 'flex',
-                                    justify: 'space-between',
+                                    justifyContent: 'space-between',
                                     alignItems: 'center',
                                     backgroundColor: selectedProductId === p.id.toString() ? '#eff6ff' : 'white'
                                   }}
