@@ -2,13 +2,15 @@ import React, { useState, useMemo } from 'react';
 import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle, FileText, Clock, Tag, XCircle, Banknote, ChevronRight, ShoppingCart, Printer } from 'lucide-react';
 
 import { auth, db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, customers = [] }) => {
   const [partialAmounts, setPartialAmounts] = useState({});
   const [historyType, setHistoryType] = useState('daily'); 
   const [selectedHistory, setSelectedHistory] = useState(null); 
-  const [showDebtDetails, setShowDebtDetails] = useState(false); // Qarzlar tafsiloti uchun state
+  const [showDebtDetails, setShowDebtDetails] = useState(false); 
+  // YANGI: Chiqimlar tafsiloti oynasi uchun state
+  const [showExpenseDetails, setShowExpenseDetails] = useState(false); 
   
   const todayStr = new Date().toLocaleDateString('uz-UZ');
   const isUsdProduct = (productName) => typeof productName === 'string' && productName.includes('$');
@@ -18,7 +20,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
   let todayNewDebtsSom = 0;
   let todayNewDebtsUsd = 0;
   const todaysPayments = [];
-  const todaysDebtsList = []; // Bugungi qarzlar ro'yxati
+  const todaysDebtsList = []; 
 
   sales.forEach(sale => {
     const isUsd = isUsdProduct(sale.productName);
@@ -28,7 +30,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
       if (isUsd) todayNewDebtsUsd += remainingDebt;
       else todayNewDebtsSom += remainingDebt;
 
-      // Bugungi qarzdorlarni ro'yxatga qo'shish
       todaysDebtsList.push({
         id: sale.id,
         customer: sale.customer,
@@ -79,15 +80,28 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
 
   let totalExpenseSom = 0;
   let totalExpenseUsd = 0;
+  // YANGI: Chiqimlar ro'yxatini yig'ish
+  const todaysExpensesList = []; 
+
   returns.filter(r => new Date(r.id).toLocaleDateString('uz-UZ') === todayStr).forEach(r => {
-    if (isUsdProduct(r.productName)) totalExpenseUsd += (r.returnSum || 0);
-    else totalExpenseSom += (r.returnSum || 0);
+    const isUsd = isUsdProduct(r.productName);
+    const rSum = r.returnSum || 0;
+
+    if (isUsd) totalExpenseUsd += rSum;
+    else totalExpenseSom += rSum;
+
+    todaysExpensesList.push({
+      id: r.id,
+      customer: r.customer || "Vozvrat / Chiqim",
+      amount: rSum,
+      isUsd: isUsd,
+      productName: r.productName
+    });
   });
 
   const netCashSom = totalIncomeSom - totalExpenseSom;
   const netCashUsd = totalIncomeUsd - totalExpenseUsd;
 
-  // --- AVTOMATIK CHEK CHIQARISH FUNKSIYASI ---
   const handlePrintReceipt = (sale) => {
     let storeName = localStorage.getItem('smartStoreName') || "SMART DO'KON";
     let storePhone = localStorage.getItem('smartStorePhone') || "";
@@ -120,25 +134,8 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         <title>Chek</title>
         <style>
             * { box-sizing: border-box; }
-            body { 
-                font-family: 'Courier New', Courier, monospace; 
-                width: 100%; 
-                max-width: 300px; 
-                margin: 0 auto; 
-                color: #000; 
-                padding: 5px; 
-                font-size: 12px; 
-            }
-            h2 { 
-                text-align: center; 
-                margin: 0 0 10px 0; 
-                font-size: 20px; 
-                text-transform: uppercase; 
-                border-bottom: 2px dashed #000; 
-                padding-bottom: 10px; 
-                word-break: break-word; 
-                white-space: normal;
-            }
+            body { font-family: 'Courier New', Courier, monospace; width: 100%; max-width: 300px; margin: 0 auto; color: #000; padding: 5px; font-size: 12px; }
+            h2 { text-align: center; margin: 0 0 10px 0; font-size: 20px; text-transform: uppercase; border-bottom: 2px dashed #000; padding-bottom: 10px; word-break: break-word; white-space: normal; }
             .info { margin-bottom: 3px; }
             table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
             th { border-bottom: 2px solid #000; padding-bottom: 5px; text-align: left; font-size: 12px;}
@@ -152,17 +149,13 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
             .total-row { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; }
             .total-row.big { font-size: 14px; margin-bottom: 10px; }
             .footer { text-align: center; margin-top: 20px; border-top: 1px dashed #000; padding-top: 10px; font-size: 12px; font-weight: bold; }
-            @media print {
-                @page { margin: 0; }
-                body { width: 100%; max-width: 100%; padding: 2mm; margin: 0; }
-            }
+            @media print { @page { margin: 0; } body { width: 100%; max-width: 100%; padding: 2mm; margin: 0; } }
         </style>
     </head>
     <body>
         <h2>${storeName}</h2>
         <div class="info"><b>Sana:</b> ${new Date(sale.id).toLocaleString('uz-UZ')}</div>
         <div class="info"><b>Mijoz:</b> ${sale.customer}</div>
-        
         <table>
             <thead>
                 <tr>
@@ -175,7 +168,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
                 ${tableRows}
             </tbody>
         </table>
-        
         <div class="totals">
             <div class="total-row big">
                 <span>JAMI:</span>
@@ -192,20 +184,13 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
             </div>
             ` : ''}
         </div>
-
         <div class="footer">
             Xaridingiz uchun rahmat!<br/>
             ${storePhone ? `Murojaat uchun: ${storePhone}<br/><br/>` : '<br/>'}
             <span style="font-size: 18px; color: blue;">Smart Do'kon</span>
         </div>
-        
         <script>
-            window.onload = function() { 
-                setTimeout(function() {
-                    window.print(); 
-                    window.close();
-                }, 500);
-            }
+            window.onload = function() { setTimeout(function() { window.print(); window.close(); }, 500); }
         </script>
     </body>
     </html>
@@ -219,7 +204,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         alert("Brauzerda pop-up oynalar bloklangan. Iltimos, ruxsat bering.");
     }
   };
-  // ------------------------------------------
 
   const handleReceive = async (id, customer) => {
     const sale = sales.find(s => s.id === id);
@@ -230,28 +214,28 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
       const correctedSales = sales.map(s => s.id === id ? { ...s, isReceived: true, isDebt: false } : s);
       setSales(correctedSales);
       if (auth.currentUser) {
-        await setDoc(doc(db, "stores", auth.currentUser.uid), { sales: correctedSales }, { merge: true });
+        const saleRef = doc(db, "stores", auth.currentUser.uid, "sales", id.toString());
+        await updateDoc(saleRef, { isReceived: true, isDebt: false }).catch(e => console.log(e));
       }
       return;
     }
 
     if (window.confirm(`${customer} qolgan ${remaining.toLocaleString()} summani to'liq to'ladimi?`)) {
       const now = Date.now();
+      const newPaymentHistory = [...(sale.paymentHistory || []), { amount: remaining, date: now }];
       const yangiSales = sales.map(s => s.id === id ? { 
-        ...s, 
-        isReceived: true, 
-        paidAmount: s.totalSum, 
-        isDebt: false, 
-        receivedAt: now, 
-        paymentHistory: [...(s.paymentHistory || []), { amount: remaining, date: now }] 
+        ...s, isReceived: true, paidAmount: s.totalSum, isDebt: false, receivedAt: now, paymentHistory: newPaymentHistory 
       } : s);
 
       setSales(yangiSales);
 
       if (auth.currentUser) {
         try {
-          const docRef = doc(db, "stores", auth.currentUser.uid);
-          await setDoc(docRef, { sales: yangiSales }, { merge: true });
+          const storeUid = auth.currentUser.uid;
+          const saleRef = doc(db, "stores", storeUid, "sales", id.toString());
+          await updateDoc(saleRef, { 
+            isReceived: true, paidAmount: sale.totalSum, isDebt: false, receivedAt: now, paymentHistory: newPaymentHistory 
+          });
         } catch (error) {
           console.error("Kassani bulutga saqlashda xato:", error);
           alert("Internet bilan muammo bor! Saqlanmadi.");
@@ -274,13 +258,11 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
     const now = Date.now();
     
     if (window.confirm(`${sale.customer}dan ${inputAmount.toLocaleString()} ${currency} qabul qilinmoqda.\nBu savdo hali to'liq yopilmadi va kutilayotganlar ro'yxatida qoladi. Davom etamizmi?`)) {
-      
       const newPaidAmount = currentPaid + inputAmount;
+      const newPaymentHistory = [...(sale.paymentHistory || []), { amount: inputAmount, date: now }];
 
       const yangiSales = sales.map(s => s.id === sale.id ? { 
-        ...s, 
-        paidAmount: newPaidAmount, 
-        paymentHistory: [...(s.paymentHistory || []), { amount: inputAmount, date: now }]
+        ...s, paidAmount: newPaidAmount, paymentHistory: newPaymentHistory
       } : s);
 
       setSales(yangiSales); 
@@ -288,8 +270,11 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
 
       if (auth.currentUser) {
         try {
-          const docRef = doc(db, "stores", auth.currentUser.uid);
-          await setDoc(docRef, { sales: yangiSales }, { merge: true });
+          const storeUid = auth.currentUser.uid;
+          const saleRef = doc(db, "stores", storeUid, "sales", sale.id.toString());
+          await updateDoc(saleRef, { 
+            paidAmount: newPaidAmount, paymentHistory: newPaymentHistory
+          });
         } catch (error) {
           console.error("Qism to'lovni bulutga saqlashda xato:", error);
         }
@@ -302,7 +287,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
     const remaining = sale.totalSum - (sale.paidAmount || 0);
 
     if (window.confirm(`${customerName}ning to'lanmagan ${remaining.toLocaleString()} qoldig'ini qarzga yozamizmi?`)) {
-      
       const daysStr = window.prompt("Necha kunga berilyapti? (Masalan: 10)", "10");
       if (daysStr === null) return;
       
@@ -313,19 +297,18 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
       const debtDeadline = debtDays > 0 ? Date.now() + (debtDays * 24 * 60 * 60 * 1000) : null;
 
       const yangiSales = sales.map(s => s.id === id ? { 
-        ...s, 
-        isDebt: true, 
-        debtDays,
-        debtDeadline,
-        customerPhone: phoneStr || '' 
+        ...s, isDebt: true, debtDays, debtDeadline, customerPhone: phoneStr || '' 
       } : s);
       
       setSales(yangiSales);
 
       if (auth.currentUser) {
         try {
-          const docRef = doc(db, "stores", auth.currentUser.uid);
-          await setDoc(docRef, { sales: yangiSales }, { merge: true });
+          const storeUid = auth.currentUser.uid;
+          const saleRef = doc(db, "stores", storeUid, "sales", id.toString());
+          await updateDoc(saleRef, { 
+            isDebt: true, debtDays, debtDeadline, customerPhone: phoneStr || '' 
+          });
         } catch (error) {
           console.error("Qarzni bulutga saqlashda xato:", error);
         }
@@ -349,11 +332,19 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
 
       if (auth.currentUser) {
         try {
-          const docRef = doc(db, "stores", auth.currentUser.uid);
-          await setDoc(docRef, { 
-            products: updatedProducts, 
-            sales: yangiSales 
-          }, { merge: true });
+          const storeUid = auth.currentUser.uid;
+          const saleRef = doc(db, "stores", storeUid, "sales", saleToCancel.id.toString());
+          await deleteDoc(saleRef);
+          
+          if (saleToCancel.cartItems) {
+            for (let item of saleToCancel.cartItems) {
+              const p = updatedProducts.find(prod => prod.id === item.product.id);
+              if (p) {
+                const prodRef = doc(db, "stores", storeUid, "products", p.id.toString());
+                updateDoc(prodRef, { quantity: p.quantity }).catch(e => console.log(e));
+              }
+            }
+          }
         } catch (error) {
           console.error("Bekor qilishni bulutga saqlashda xato:", error);
         }
@@ -422,14 +413,25 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
             {totalIncomeUsd > 0 ? `+${totalIncomeUsd.toLocaleString()} $` : ''}
           </h2>
         </div>
+        
+        {/* YANGI: Chiqimlar kartasiga Tafsilot tugmasi */}
         <div className="card" style={{ borderTop: '6px solid #4b5563' }}>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>JAMI CHIQIM</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>JAMI CHIQIM</p>
+            <button 
+              onClick={() => setShowExpenseDetails(true)} 
+              style={{ background: 'none', border: 'none', color: '#4b5563', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold', padding: 0 }}
+            >
+              Tafsilot
+            </button>
+          </div>
           <h2 style={{ color: '#4b5563', margin: '5px 0' }}>
             {totalExpenseSom > 0 || totalExpenseUsd === 0 ? `-${totalExpenseSom.toLocaleString()} so'm` : ''}
             {totalExpenseSom > 0 && totalExpenseUsd > 0 && <br/>}
             {totalExpenseUsd > 0 ? `-${totalExpenseUsd.toLocaleString()} $` : ''}
           </h2>
         </div>
+        
         <div className="card" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)', color: 'white', border: 'none' }}>
           <p style={{ margin: 0, opacity: 0.8, fontSize: '13px', fontWeight: 'bold' }}>SOF KASSA</p>
           <h2 style={{ margin: '5px 0' }}>
@@ -439,7 +441,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
           </h2>
         </div>
         
-        {/* BUGUNGI QARZLAR KARTASI (TAFSILOT TUGMASI BILAN) */}
         <div className="card" style={{ borderTop: '6px solid #ef4444' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>BUGUNGI QARZLAR</p>
@@ -460,7 +461,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
         
-        {/* KUTILAYOTGAN TO'LOVLAR QISMI */}
         <div className="card" style={{ borderTop: '4px solid #4b5563' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px' }}><Clock size={20} color="#4b5563" /> Kutilayotgan to'lovlar</h3>
           {pendingSales.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Kutilayotganlar yo'q.</p> : (
@@ -532,7 +532,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
           )}
         </div>
 
-        {/* BUGUNGI KASSAGA TUSHGAN PULLAR */}
         <div className="card" style={{ borderTop: '4px solid #1e3a8a' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px' }}><CheckCircle size={20} color="#1e3a8a" /> Bugun kassaga tushgan pullar</h3>
           {todaysPayments.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center' }}>Hali pul tushmadi.</p> : (
@@ -566,7 +565,6 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         </div>
       </div>
 
-      {/* TARIX QISMI */}
       <div className="card" style={{ marginTop: '30px', borderTop: '4px solid #1e3a8a' }}>
         {!selectedHistory ? (
           <>
@@ -620,7 +618,7 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
         )}
       </div>
 
-      {/* BUGUNGI QARZLAR TAFSILOTI MODAL OYNASI */}
+      {/* QARZLAR MODALI */}
       {showDebtDetails && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
           <div className="fade-in" style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', width: '90%', maxWidth: '400px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
@@ -647,6 +645,42 @@ const TodaySales = ({ products, setProducts, sales, setSales, returns, setPage, 
                     </div>
                     <div style={{ fontSize: '12px', color: '#6b7280', whiteSpace: 'pre-line' }}>
                       {debt.productName}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* YANGI: CHIQIM (VOZVRAT)LAR MODALI */}
+      {showExpenseDetails && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div className="fade-in" style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', width: '90%', maxWidth: '400px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0, color: '#4b5563', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={20} /> Chiqimlar tafsiloti
+              </h3>
+              <button onClick={() => setShowExpenseDetails(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <XCircle size={24} color="#6b7280" />
+              </button>
+            </div>
+            
+            <div style={{ maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '5px' }}>
+              {todaysExpensesList.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#6b7280', margin: '20px 0' }}>Bugun chiqim yoki vozvrat qilinmagan.</p>
+              ) : (
+                todaysExpensesList.map(exp => (
+                  <div key={exp.id} style={{ padding: '12px', backgroundColor: '#f3f4f6', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                      <strong style={{ color: '#1f2937' }}>{exp.customer}</strong>
+                      <strong style={{ color: '#4b5563' }}>
+                        -{exp.amount.toLocaleString()} {exp.isUsd ? '$' : "so'm"}
+                      </strong>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#6b7280', whiteSpace: 'pre-line' }}>
+                      {exp.productName}
                     </div>
                   </div>
                 ))

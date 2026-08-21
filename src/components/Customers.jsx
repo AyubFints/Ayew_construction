@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { Users, ArrowLeft, UserPlus, History, Phone, ShoppingBag, Banknote, BarChart3, CheckCircle, Trash2, PackageMinus, Landmark, ChevronDown, ChevronUp, ShoppingCart, RotateCcw, CreditCard, RefreshCcw, Clock, Edit, Check, X } from 'lucide-react';
 
+// YANGI: updateDoc va deleteDoc chaqirildi
 import { auth, db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns = [], setReturns, setPage }) => {
   const [newCustomerName, setNewCustomerName] = useState('');
@@ -11,14 +12,15 @@ const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns
   
   const [historyType, setHistoryType] = useState('monthly');
   const [expandedPeriod, setExpandedPeriod] = useState(null);
-  
   const [showReturnsDetails, setShowReturnsDetails] = useState(false);
 
-  // YANGI: Tahrirlash uchun state'lar
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
 
+  // ==========================================
+  // YANGI: Mijozni alohida hujjat sifatida yozish
+  // ==========================================
   const handleAddCustomer = async (e) => {
     e.preventDefault();
     if (!newCustomerName.trim()) return;
@@ -34,14 +36,19 @@ const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns
 
     if (auth.currentUser) {
       try {
-        const docRef = doc(db, "stores", auth.currentUser.uid);
-        await setDoc(docRef, { customers: yangiMijozlar }, { merge: true });
+        const storeUid = auth.currentUser.uid;
+        // Yangi mijoz customers papkasiga o'z ID si bilan tushadi
+        const customerRef = doc(db, "stores", storeUid, "customers", newCustomer.id.toString());
+        await setDoc(customerRef, newCustomer);
       } catch (error) {
         console.error("Mijozni bulutga saqlashda xato:", error);
       }
     }
   };
 
+  // ==========================================
+  // YANGI: Mijozni alohida hujjatdan o'chirish
+  // ==========================================
   const handleDeleteCustomer = async (id, name, e) => {
     e.stopPropagation(); 
     const confirmDelete = window.confirm(`"${name}" ismli mijozni o'chirmoqchimisiz?`);
@@ -51,8 +58,9 @@ const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns
 
       if (auth.currentUser) {
         try {
-          const docRef = doc(db, "stores", auth.currentUser.uid);
-          await setDoc(docRef, { customers: qolganMijozlar }, { merge: true });
+          const storeUid = auth.currentUser.uid;
+          const customerRef = doc(db, "stores", storeUid, "customers", id.toString());
+          await deleteDoc(customerRef);
         } catch (error) {
           console.error("Mijozni bulutdan o'chirishda xato:", error);
         }
@@ -60,12 +68,14 @@ const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns
     }
   };
 
-  // YANGI: Mijoz ma'lumotlarini tahrirlashni saqlash funksiyasi
+  // ==========================================
+  // YANGI: Mijoz ma'lumotlarini (ism, nomini) yangilash 
+  // va Kassa/Vozvratdagi ismlarini ham to'g'irlab ketish
+  // ==========================================
   const handleSaveEdit = async () => {
     const trimmedName = editName.trim();
     if (!trimmedName) return alert("Ism bo'sh bo'lishi mumkin emas!");
 
-    // Agar ism o'zgargan bo'lsa va shunday ism boshqa birovda bo'lsa, xato beradi
     if (trimmedName.toLowerCase() !== selectedCustomer.name.toLowerCase()) {
        const exists = customers.find(c => c.name.toLowerCase() === trimmedName.toLowerCase());
        if (exists) return alert("Bunday ismli mijoz allaqachon mavjud!");
@@ -77,31 +87,45 @@ const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns
 
     setCustomers(updatedCustomers);
     
-    // Ochiq turgan mijozning o'zini ham yangilash
     const updatedSelectedCustomer = { ...selectedCustomer, name: trimmedName, phone: editPhone.trim() };
     setSelectedCustomer(updatedSelectedCustomer);
     setIsEditing(false);
 
     if (auth.currentUser) {
       try {
-        const docRef = doc(db, "stores", auth.currentUser.uid);
-        const updates = { customers: updatedCustomers };
+        const storeUid = auth.currentUser.uid;
         
-        // Agar ism o'zgargan bo'lsa, xaridlar va vozvratlar tarixidagi ismini ham to'g'rilaymiz!
+        // 1. Mijozning o'z ma'lumotlarini bazada yangilaymiz
+        const customerRef = doc(db, "stores", storeUid, "customers", selectedCustomer.id.toString());
+        await updateDoc(customerRef, { name: trimmedName, phone: editPhone.trim() });
+        
+        // 2. Agar ismi o'zgargan bo'lsa, xaridlar va vozvratlardagi eski ismini ham topib o'zgartirib qo'yamiz
         if (trimmedName !== selectedCustomer.name) {
            if (setSales) {
-              const updatedSales = sales.map(s => s.customer === selectedCustomer.name ? { ...s, customer: trimmedName } : s);
-              setSales(updatedSales);
-              updates.sales = updatedSales;
+             const updatedSales = sales.map(s => s.customer === selectedCustomer.name ? { ...s, customer: trimmedName } : s);
+             setSales(updatedSales);
+             
+             // Firebase dagi barcha savdolarni tekshirib yangilaydi
+             sales.forEach(s => {
+               if (s.customer === selectedCustomer.name) {
+                 const saleRef = doc(db, "stores", storeUid, "sales", s.id.toString());
+                 updateDoc(saleRef, { customer: trimmedName }).catch(e => console.log(e));
+               }
+             });
            }
            if (setReturns) {
-              const updatedReturns = returns.map(r => r.customer === selectedCustomer.name ? { ...r, customer: trimmedName } : r);
-              setReturns(updatedReturns);
-              updates.returns = updatedReturns;
+             const updatedReturns = returns.map(r => r.customer === selectedCustomer.name ? { ...r, customer: trimmedName } : r);
+             setReturns(updatedReturns);
+             
+             // Firebase dagi barcha vozvratlarni tekshirib yangilaydi
+             returns.forEach(r => {
+               if (r.customer === selectedCustomer.name) {
+                 const returnRef = doc(db, "stores", storeUid, "returns", r.id.toString());
+                 updateDoc(returnRef, { customer: trimmedName }).catch(e => console.log(e));
+               }
+             });
            }
         }
-
-        await setDoc(docRef, updates, { merge: true });
       } catch (error) {
         console.error("Tahrirni saqlashda xato:", error);
       }
@@ -123,15 +147,10 @@ const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns
     const mySales = sales.filter(s => s.customer === customerName);
     const myReturns = returns.filter(r => r.customer === customerName);
     
-    let totalBoughtSom = 0;
-    let totalBoughtUsd = 0;
-    let totalDebtSom = 0;
-    let totalDebtUsd = 0;
-    let totalReturnedSom = 0;
-    let totalReturnedUsd = 0;
-    
-    let todayReturnedSom = 0;
-    let todayReturnedUsd = 0;
+    let totalBoughtSom = 0; let totalBoughtUsd = 0;
+    let totalDebtSom = 0; let totalDebtUsd = 0;
+    let totalReturnedSom = 0; let totalReturnedUsd = 0;
+    let todayReturnedSom = 0; let todayReturnedUsd = 0;
     const todayStr = new Date().toLocaleDateString('uz-UZ');
 
     mySales.forEach(s => {
@@ -139,33 +158,21 @@ const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns
       const sum = Number(s.totalSum) || 0;
       const remainingDebt = s.isDebt ? (sum - (Number(s.paidAmount) || 0)) : 0;
 
-      if (isKv) {
-        totalBoughtUsd += sum;
-        totalDebtUsd += remainingDebt;
-      } else {
-        totalBoughtSom += sum;
-        totalDebtSom += remainingDebt;
-      }
+      if (isKv) { totalBoughtUsd += sum; totalDebtUsd += remainingDebt; } 
+      else { totalBoughtSom += sum; totalDebtSom += remainingDebt; }
     });
 
     myReturns.forEach(r => {
-      let rSom = 0;
-      let rUsd = 0;
-      
+      let rSom = 0; let rUsd = 0;
       if (r.returnSumSom !== undefined || r.returnSumUsd !== undefined) {
-        rSom = (Number(r.returnSumSom) || 0);
-        rUsd = (Number(r.returnSumUsd) || 0);
+        rSom = (Number(r.returnSumSom) || 0); rUsd = (Number(r.returnSumUsd) || 0);
       } else {
         if (isUsdProduct(r.productName, r.unit)) rUsd = (Number(r.returnSum) || 0);
         else rSom = (Number(r.returnSum) || 0);
       }
-      
-      totalReturnedSom += rSom;
-      totalReturnedUsd += rUsd;
-
+      totalReturnedSom += rSom; totalReturnedUsd += rUsd;
       if (new Date(r.id).toLocaleDateString('uz-UZ') === todayStr) {
-        todayReturnedSom += rSom;
-        todayReturnedUsd += rUsd;
+        todayReturnedSom += rSom; todayReturnedUsd += rUsd;
       }
     });
 
@@ -212,18 +219,11 @@ const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns
         const sum = Number(item.totalSum) || 0;
         const remainingDebt = item.isDebt ? (sum - (Number(item.paidAmount) || 0)) : 0;
 
-        if (isKv) {
-          map[key].boughtUsd += sum;
-          map[key].debtUsd += remainingDebt;
-        } else {
-          map[key].boughtSom += sum;
-          map[key].debtSom += remainingDebt;
-        }
+        if (isKv) { map[key].boughtUsd += sum; map[key].debtUsd += remainingDebt; } 
+        else { map[key].boughtSom += sum; map[key].debtSom += remainingDebt; }
 
-        let currentCostSom = 0;
-        let currentCostUsd = 0;
-        let currentProfitSom = 0;
-        let currentProfitUsd = 0;
+        let currentCostSom = 0; let currentCostUsd = 0;
+        let currentProfitSom = 0; let currentProfitUsd = 0;
 
         if (item.cartItems && item.cartItems.length > 0) {
            item.cartItems.forEach(cartItem => {
@@ -232,20 +232,13 @@ const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns
               const itemRevenue = Number(cartItem.total) || 0;
               const itemProfit = itemRevenue - itemCost;
 
-              if (isItemUsd) {
-                 currentCostUsd += itemCost;
-                 currentProfitUsd += itemProfit;
-              } else {
-                 currentCostSom += itemCost;
-                 currentProfitSom += itemProfit;
-              }
+              if (isItemUsd) { currentCostUsd += itemCost; currentProfitUsd += itemProfit; } 
+              else { currentCostSom += itemCost; currentProfitSom += itemProfit; }
            });
         }
 
-        map[key].costSom += currentCostSom;
-        map[key].costUsd += currentCostUsd;
-        map[key].profitSom += currentProfitSom;
-        map[key].profitUsd += currentProfitUsd;
+        map[key].costSom += currentCostSom; map[key].costUsd += currentCostUsd;
+        map[key].profitSom += currentProfitSom; map[key].profitUsd += currentProfitUsd;
 
         map[key].details.push({ type: 'sale', name: item.productName, sum, isKv, costSom: currentCostSom, costUsd: currentCostUsd, profitSom: currentProfitSom, profitUsd: currentProfitUsd });
       } 
@@ -253,9 +246,7 @@ const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns
         const rSom = item.returnSumSom !== undefined ? item.returnSumSom : (!isUsdProduct(item.productName, item.unit) ? (item.returnSum || 0) : 0);
         const rUsd = item.returnSumUsd !== undefined ? item.returnSumUsd : (isUsdProduct(item.productName, item.unit) ? (item.returnSum || 0) : 0);
         
-        map[key].returnedSom += rSom;
-        map[key].returnedUsd += rUsd;
-
+        map[key].returnedSom += rSom; map[key].returnedUsd += rUsd;
         map[key].details.push({ type: 'return', name: item.productName, rSom, rUsd });
       }
     });
@@ -263,9 +254,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns
     return Object.values(map).sort((a, b) => b.timestamp - a.timestamp);
   }, [selectedCustomer, sales, returns, historyType]);
 
-  // =====================
-  // MIJOZ ICHKI SAHIFASI
-  // =====================
   if (selectedCustomer) {
     const stats = getCustomerStats(selectedCustomer.name);
     const returnedItems = stats.history.filter(h => h.itemType === 'return');
@@ -281,7 +269,6 @@ const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns
             {selectedCustomer.name.charAt(0).toUpperCase()}
           </div>
           
-          {/* YANGI QISM: TAHRIRLASH YOKI KO'RISH HOLATI */}
           <div style={{ flex: 1 }}>
             {isEditing ? (
               <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -595,9 +582,7 @@ const Customers = ({ customers = [], setCustomers, sales = [], setSales, returns
     );
   }
 
-  // =====================
   // ASOSIY MIJOZLAR RO'YXATI
-  // =====================
   return (
     <div className="fade-in app-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>

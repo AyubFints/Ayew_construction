@@ -2,8 +2,9 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, Search, X, PackageOpen, Tag, DollarSign, Wallet, ScanLine, Camera, QrCode } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
+// YANGI: Firestore dan updateDoc va collection import qilindi
 import { auth, db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 
 const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, customers = [] }) => {
   const [customer, setCustomer] = useState('');
@@ -38,10 +39,9 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
   const [successModal, setSuccessModal] = useState({ show: false, som: 0, usd: 0 });
 
-  // ================= SKANER STATE'LARI =================
   const [showScanner, setShowScanner] = useState(false);
   const [scannerError, setScannerError] = useState('');
-  const [scanFeedback, setScanFeedback] = useState(''); // "Topildi!" yoki "Topilmadi" xabari
+  const [scanFeedback, setScanFeedback] = useState(''); 
   const scannerRef = useRef(null);
   const scannerInstanceRef = useRef(null);
   
@@ -59,7 +59,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     return lowerUnit.includes('$') || lowerUnit === 'kv';
   };
 
-  // ================= SKANER FUNKSIYALARI =================
   const playBeep = () => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -92,12 +91,10 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     } catch (e) {}
   };
 
-  // SKANERLANGAN KODNI OMBORDA QIDIRISH
   const handleBarcodeScanned = (code) => {
     const found = products.find(p => p.barcode && p.barcode.trim() === code.trim());
     
     if (found) {
-      // TOPILDI - tovarni avtomatik tanlash
       playBeep();
       setSelectedProductId(found.id.toString());
       setSearchQuery(found.name);
@@ -108,7 +105,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
       setScanFeedback(`✅ Topildi: ${found.name}`);
       setTimeout(() => setScanFeedback(''), 2500);
     } else {
-      // TOPILMADI - ogohlantirish
       playErrorBeep();
       setScanFeedback(`❌ Kod "${code}" omborda topilmadi`);
       setTimeout(() => setScanFeedback(''), 3500);
@@ -190,7 +186,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
   const closeScanner = () => setShowScanner(false);
 
-  // Qo'lda kiritish yoki fizik skaner uchun input
   const [manualBarcode, setManualBarcode] = useState('');
   const handleManualScan = () => {
     if (!manualBarcode.trim()) return;
@@ -425,7 +420,10 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
   const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
 
-  const handleFinalSell = () => {
+  // ==========================================
+  // YANGI MANTIQ: Xaridlarni Subcollection'ga alohida saqlash va omborni to'g'irlash
+  // ==========================================
+  const handleFinalSell = async () => {
     if (!customer) return setError("Mijozni tanlang!");
     if (cart.length === 0) return setError("Savat bo'sh! Tovar qo'shing.");
 
@@ -480,6 +478,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
 
     const yangiSales = [...sales, ...newSales];
 
+    // Avval mahalliy stateni o'zgartiramizki (0 soniyada ishlashi uchun)
     setProducts(updatedProducts);
     setSales(yangiSales);
 
@@ -489,14 +488,30 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
     setCart([]); setCustomer(''); setRetailCustomerName(''); setCustomerSearchQuery(''); setError('');
     setSuccessModal({ show: true, som: overallSomAlert, usd: overallUsdAlert });
 
+    // Orqa fonda Firebase ga yozib yuboramiz (Internet kelishi bilan ketadi)
     if (auth.currentUser) {
-      const docRef = doc(db, "stores", auth.currentUser.uid);
-      setDoc(docRef, { 
-        products: updatedProducts,
-        sales: yangiSales
-      }, { merge: true }).catch(error => {
+      try {
+        const storeUid = auth.currentUser.uid;
+        
+        // 1. Yangi sotuvlarni `sales` papkasiga alohida yozish
+        for (let newSale of newSales) {
+          const saleRef = doc(db, "stores", storeUid, "sales", newSale.id.toString());
+          await setDoc(saleRef, newSale);
+        }
+
+        // 2. Ombordagi mahsulot qoldiqlarini alohida yangilash
+        cart.forEach(cartItem => {
+          if (!cartItem.isCustom) {
+            const p = updatedProducts.find(prod => prod.id === cartItem.product.id);
+            if (p) {
+              const prodRef = doc(db, "stores", storeUid, "products", p.id.toString());
+              updateDoc(prodRef, { quantity: p.quantity }).catch(e => console.log(e));
+            }
+          }
+        });
+      } catch (error) {
         console.error("Savdoni bulutga saqlashda xato:", error);
-      });
+      }
     }
   };
 
@@ -560,7 +575,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
               </>
             )}
 
-            {/* ================= QO'LDA KIRITISH / FIZIK SKANER (Kompyuter uchun asosiy) ================= */}
+            {/* ================= QO'LDA KIRITISH / FIZIK SKANER ================= */}
             <div style={{ 
               marginTop: '15px', 
               paddingTop: '15px', 
@@ -757,7 +772,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
       )}
 
       <div className="card" style={{ maxWidth: '700px', margin: '0 auto', borderTop: '4px solid #1e3a8a' }}>
-        {/* --- MIJOZNI TANLASH VA INPUT QISMI --- */}
         <div style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '2px dashed #e5e7eb' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 'bold', color: '#111827', fontSize: '16px' }}>
             <User size={20} color="#1e3a8a" /> Mijozni tanlang
@@ -910,7 +924,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
               
               {sellMode === 'inventory' ? (
                 <>
-                  {/* ===== YANGI: SKANER TUGMASI ===== */}
+                  {/* ===== SKANER TUGMASI ===== */}
                   <div style={{ 
                     display: 'flex', 
                     justifyContent: 'space-between', 
@@ -943,7 +957,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                     </button>
                   </div>
 
-                  {/* SKANER NATIJASI (topildi / topilmadi) */}
+                  {/* SKANER NATIJASI */}
                   {scanFeedback && (
                     <div className="fade-in" style={{
                       padding: '10px 14px',

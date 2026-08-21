@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { ArrowLeft, Plus, Trash2, Calendar, BarChart3, Clock, TrendingDown, ChevronRight } from 'lucide-react';
 // --- FIREBASE IMPORTLARI QO'SHILDI ---
 import { auth, db } from "../firebase";
-import { doc, setDoc } from 'firebase/firestore';
+// YANGI: deleteDoc qo'shildi (alohida faylni o'chirish uchun)
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 const Arenda = ({ arenda = [], setArenda, setPage }) => {
   const [type, setType] = useState('');
@@ -34,7 +35,7 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
                 .reduce((s, i) => s + i.amount, 0),
   };
 
-  // --- FIREBASE'GA SAQLASH QO'SHILDI ---
+  // --- FIREBASE'GA SAQLASH (SUBCOLLECTION) ---
   const handleAdd = async (e) => {
     e.preventDefault();
     if (!type || !amount) return alert("Ma'lumotlarni to'liq kiriting!");
@@ -49,35 +50,37 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
     };
 
     const yangiArenda = [newExpense, ...arenda];
-    setArenda(yangiArenda); // Ekranda ko'rsatish
+    setArenda(yangiArenda); // Ekranda darhol ko'rsatish
     setType(''); setAmount(''); setNote('');
 
-    // Bulutga (Firebase) yuborish
+    // Bulutga (Firebase) alohida fayl qilib yuborish
     if (auth.currentUser) {
       try {
-        const docRef = doc(db, "stores", auth.currentUser.uid);
-        await setDoc(docRef, { arenda: yangiArenda }, { merge: true });
+        const storeUid = auth.currentUser.uid;
+        // YANGI: "arenda" degan alohida papkaga yozamiz
+        const expenseRef = doc(db, "stores", storeUid, "arenda", newExpense.id.toString());
+        await setDoc(expenseRef, newExpense);
       } catch (error) {
         console.error("Bulutga yozishda xato:", error);
       }
     }
   };
 
-  // --- FIREBASE'DAN O'CHIRISH TASDIQLASH BILAN ---
+  // --- FIREBASE'DAN O'CHIRISH (SUBCOLLECTION) ---
   const handleDelete = async (id) => {
-    // Tasdiqlash oynasini ko'rsatish
     const tasdiqlash = window.confirm("Rostan o'chirmoqchimisiz?");
     
-    // Agar foydalanuvchi "OK" (Tasdiqlash) ni bosa, kod davom etadi
     if (tasdiqlash) {
       const qolganArenda = arenda.filter(i => i.id !== id);
-      setArenda(qolganArenda); // Ekranda o'chirish
+      setArenda(qolganArenda); // Ekranda darhol o'chirish
 
-      // Bulutdan ham o'chirish
+      // Bulutdan o'sha bitta hujjatni o'chirish
       if (auth.currentUser) {
         try {
-          const docRef = doc(db, "stores", auth.currentUser.uid);
-          await setDoc(docRef, { arenda: qolganArenda }, { merge: true });
+          const storeUid = auth.currentUser.uid;
+          // YANGI: Faqat o'sha id ga teng bo'lgan faylni o'chiradi
+          const expenseRef = doc(db, "stores", storeUid, "arenda", id.toString());
+          await deleteDoc(expenseRef);
         } catch (error) {
           console.error("Bulutdan o'chirishda xato:", error);
         }
@@ -145,9 +148,27 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
           <Plus size={18} color="#1e3a8a"/> Yangi xarajat
         </h4>
         <form onSubmit={handleAdd} style={formInputGrid}>
-          <input type="text" placeholder="Turi (Gaz, Suv...)" value={type} onChange={e => setType(e.target.value)} style={inputFieldStyle} />
-          <input type="number" placeholder="Summa" value={amount} onChange={e => setAmount(e.target.value)} style={inputFieldStyle} />
-          <input type="text" placeholder="Izoh" value={note} onChange={e => setNote(e.target.value)} style={inputFieldStyle} />
+          <input 
+            type="text" 
+            placeholder="Turi (Gaz, Suv...)" 
+            value={type} 
+            onChange={e => setType(e.target.value)} 
+            style={inputFieldStyle} 
+          />
+          <input 
+            type="number" 
+            placeholder="Summa" 
+            value={amount} 
+            onChange={e => setAmount(e.target.value)} 
+            style={inputFieldStyle} 
+          />
+          <input 
+            type="text" 
+            placeholder="Izoh" 
+            value={note} 
+            onChange={e => setNote(e.target.value)} 
+            style={inputFieldStyle} 
+          />
           <button type="submit" style={saveBtnStyle} className="card-hover">Saqlash</button>
         </form>
       </div>
@@ -181,22 +202,144 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
 };
 
 // --- MODERN STILLAR ---
-const containerStyle = { padding: '20px', maxWidth: '500px', margin: '0 auto', background: '#f8fafc', minHeight: '100vh' };
-const headerStyle = { display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' };
-const backBtnStyle = { border: 'none', background: '#fff', width: '40px', height: '40px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' };
-const statsGridStyle = { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '20px' };
-const statCardStyle = (bg, color) => ({ background: bg, padding: '12px', borderRadius: '16px', border: `1px solid ${bg}`, textAlign: 'center' });
-const statLabelStyleText = { fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '4px', fontWeight: '600' };
-const statValueStyle = { margin: 0, fontSize: '14px', color: '#1e293b' };
-const tabBoxStyle = { display: 'flex', background: '#e2e8f0', padding: '4px', borderRadius: '12px', marginBottom: '20px' };
-const tabItemStyle = { flex: 1, padding: '8px', border: 'none', borderRadius: '8px', background: 'transparent', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', transition: '0.3s', color: '#475569' };
-const formBoxStyle = { background: '#fff', padding: '20px', borderRadius: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' };
-const formInputGrid = { display: 'flex', flexDirection: 'column', gap: '10px' };
-const inputFieldStyle = { padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', outline: 'none', background: '#fcfcfc' };
-const saveBtnStyle = { padding: '12px', background: '#1e3a8a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' };
-const listItemStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px', background: '#fff', borderRadius: '16px', marginBottom: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' };
-const iconBoxStyle = { background: '#fff1f2', padding: '10px', borderRadius: '12px' };
-const deleteBtnStyle = { border: 'none', background: 'none', color: '#cbd5e1', cursor: 'pointer' };
-const emptyStateStyle = { textAlign: 'center', padding: '40px', color: '#94a3b8', fontSize: '14px' };
+const containerStyle = { 
+  padding: '20px', 
+  maxWidth: '500px', 
+  margin: '0 auto', 
+  background: '#f8fafc', 
+  minHeight: '100vh' 
+};
+
+const headerStyle = { 
+  display: 'flex', 
+  alignItems: 'center', 
+  gap: '15px', 
+  marginBottom: '25px' 
+};
+
+const backBtnStyle = { 
+  border: 'none', 
+  background: '#fff', 
+  width: '40px', 
+  height: '40px', 
+  borderRadius: '12px', 
+  cursor: 'pointer', 
+  display: 'flex', 
+  alignItems: 'center', 
+  justifyContent: 'center', 
+  boxShadow: '0 4px 12px rgba(0,0,0,0.05)' 
+};
+
+const statsGridStyle = { 
+  display: 'grid', 
+  gridTemplateColumns: 'repeat(3, 1fr)', 
+  gap: '10px', 
+  marginBottom: '20px' 
+};
+
+const statCardStyle = (bg, color) => ({ 
+  background: bg, 
+  padding: '12px', 
+  borderRadius: '16px', 
+  border: `1px solid ${bg}`, 
+  textAlign: 'center' 
+});
+
+const statLabelStyleText = { 
+  fontSize: '11px', 
+  color: '#64748b', 
+  display: 'block', 
+  marginBottom: '4px', 
+  fontWeight: '600' 
+};
+
+const statValueStyle = { 
+  margin: 0, 
+  fontSize: '14px', 
+  color: '#1e293b' 
+};
+
+const tabBoxStyle = { 
+  display: 'flex', 
+  background: '#e2e8f0', 
+  padding: '4px', 
+  borderRadius: '12px', 
+  marginBottom: '20px' 
+};
+
+const tabItemStyle = { 
+  flex: 1, 
+  padding: '8px', 
+  border: 'none', 
+  borderRadius: '8px', 
+  background: 'transparent', 
+  cursor: 'pointer', 
+  fontSize: '12px', 
+  fontWeight: 'bold', 
+  transition: '0.3s', 
+  color: '#475569' 
+};
+
+const formBoxStyle = { 
+  background: '#fff', 
+  padding: '20px', 
+  borderRadius: '20px', 
+  boxShadow: '0 4px 20px rgba(0,0,0,0.03)' 
+};
+
+const formInputGrid = { 
+  display: 'flex', 
+  flexDirection: 'column', 
+  gap: '10px' 
+};
+
+const inputFieldStyle = { 
+  padding: '12px', 
+  borderRadius: '10px', 
+  border: '1px solid #e2e8f0', 
+  outline: 'none', 
+  background: '#fcfcfc' 
+};
+
+const saveBtnStyle = { 
+  padding: '12px', 
+  background: '#1e3a8a', 
+  color: 'white', 
+  border: 'none', 
+  borderRadius: '10px', 
+  cursor: 'pointer', 
+  fontWeight: 'bold' 
+};
+
+const listItemStyle = { 
+  display: 'flex', 
+  justifyContent: 'space-between', 
+  alignItems: 'center', 
+  padding: '14px', 
+  background: '#fff', 
+  borderRadius: '16px', 
+  marginBottom: '10px', 
+  boxShadow: '0 2px 8px rgba(0,0,0,0.02)' 
+};
+
+const iconBoxStyle = { 
+  background: '#fff1f2', 
+  padding: '10px', 
+  borderRadius: '12px' 
+};
+
+const deleteBtnStyle = { 
+  border: 'none', 
+  background: 'none', 
+  color: '#cbd5e1', 
+  cursor: 'pointer' 
+};
+
+const emptyStateStyle = { 
+  textAlign: 'center', 
+  padding: '40px', 
+  color: '#94a3b8', 
+  fontSize: '14px' 
+};
 
 export default Arenda;

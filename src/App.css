@@ -1,27 +1,145 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
-body { margin: 0; padding: 0; background-color: #f3f4f6; color: #1f2937; } /* Ochiq kulrang fon */
+
+/* ========================================================
+   1. YORUG' REJIM (O'zingizning asl oq va yorqin dizayningiz)
+   ======================================================== */
+body { 
+  margin: 0; padding: 0; 
+  background-color: #f3f4f6; /* Och kulrang asosiy fon */
+  color: #1f2937; 
+  transition: background-color 0.3s ease, color 0.3s ease; 
+} 
 .fade-in { animation: fadeIn 0.4s ease-in-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
 
 .app-container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
-.card { background: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); padding: 30px; width: 100%; border: 1px solid #e5e7eb; }
 
-.form-control { width: 100%; padding: 14px 16px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 16px; margin-bottom: 20px; background-color: #f9fafb; color: #111827; }
-.form-control:focus { outline: none; border-color: #1e3a8a; background-color: #ffffff; box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1); }
+/* Asosiy oq bloklar va kartalar */
+.card, .modal-content, .popup { 
+  background-color: #ffffff; 
+  border-radius: 12px; 
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); 
+  padding: 30px; 
+  width: 100%; 
+  border: 1px solid #e5e7eb; 
+}
 
-/* Asosiy To'q Ko'k tugma */
+/* Yozish (Poisk) maydonlari */
+.form-control, input, select, textarea { 
+  width: 100%; padding: 14px 16px; 
+  border: 1px solid #d1d5db; 
+  border-radius: 8px; font-size: 16px; margin-bottom: 20px; 
+  background-color: #f9fafb; color: #111827; 
+  transition: all 0.3s ease; 
+}
+.form-control:focus, input:focus, select:focus, textarea:focus { 
+  outline: none; border-color: #1e3a8a; background-color: #ffffff; box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1); 
+}
+
+/* Tugmalar */
 .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
 .btn-primary { background-color: #1e3a8a; color: #ffffff; }
 .btn-primary:hover { background-color: #172554; }
+.btn-danger {
+  background-color: #525050;
 
-/* Kulrang tugma (O'chirish, Chiqish uchun) */
-.btn-danger { background-color: #4b5563; color: #ffffff; }
-.btn-danger:hover { background-color: #374151; }
+  border-bottom: 2px solid rgba(255, 0, 0, 0.6); 
+
+  box-shadow: 0 4px 6px -2px rgba(255, 0, 0, 0.4); 
+  color: #ffffff; 
+}
+.btn-danger:hover { background-color: #552828; }
+
 
 .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 30px; }
 .menu-card { background: #ffffff; padding: 30px 20px; border-radius: 12px; text-align: center; cursor: pointer; border: 1px solid #e5e7eb; transition: all 0.2s; }
 .menu-card:hover { border-color: #1e3a8a; box-shadow: 0 10px 15px rgba(30, 58, 138, 0.1); transform: translateY(-3px); }
-.menu-icon { font-size: 36px; margin-bottom: 15px; color: #1e3a8a; }
-.menu-title { font-size: 16px; font-weight: 600; color: #1f2937; }
+.menu-icon { font-size: 36px; margin-bottom: 15px; color: #1e3a8a; transition: color 0.3s ease; }
+.menu-title { font-size: 16px; font-weight: 600; color: #1f2937; transition: color 0.3s ease; }
+
+/* Pastki menyu */
+.bottom-nav-container { background-color: rgba(255, 255, 255, 0.95); border: 1px solid #e0e7ff; }
+.bottom-nav-item-bg { background-color: #f1f5f9; color: #1e3a8a;}
+.bottom-nav-item-text { color: #1e3a8a; }
+
+
+/* ========================================================
+   2. TUNGI REJIM (DARK MODE) - FAQAT SHU YERGA TA'SIR QILADI
+   (Oq bo'lib qolgan hamma joy majburan qorayadi)
+   ======================================================== */
+body.dark-mode {
+  background-color: #0f172a !important; /* Tyomniy siniy asosiy fon */
+  color: #cbd5e1 !important; 
+}
+
+/* Oq kartalar, ro'yxatlar, ombordagi tovarlar qatori */
+body.dark-mode .card,
+body.dark-mode .modal-content,
+body.dark-mode .popup,
+body.dark-mode .menu-card,
+body.dark-mode table, 
+body.dark-mode th, 
+body.dark-mode td, 
+body.dark-mode tr,
+body.dark-mode ul, 
+body.dark-mode li,
+body.dark-mode .list-group-item,
+body.dark-mode .product-item {
+  background-color: #1e293b !important; /* Sal yorug'roq ko'k (kartalar uchun) */
+  border-color: #334155 !important; 
+  color: #cbd5e1 !important;
+}
+
+/* Tovar qidirish (Poisk) va barcha inputlar oq bo'lib qolmasligi uchun */
+body.dark-mode input, 
+body.dark-mode select, 
+body.dark-mode textarea, 
+body.dark-mode .form-control {
+  background-color: #334155 !important; /* Ichki foni to'q kulrang */
+  color: #f1f5f9 !important; /* Yozgan yozuvingiz oppoq ko'rinadi */
+  border-color: #475569 !important; 
+}
+body.dark-mode input::placeholder, 
+body.dark-mode textarea::placeholder {
+  color: #9ca3af !important; /* Poisk ichidagi yordamchi yozuv */
+}
+body.dark-mode input:focus, 
+body.dark-mode select:focus, 
+body.dark-mode textarea:focus,
+body.dark-mode .form-control:focus {
+  border-color: #38bdf8 !important; 
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2) !important;
+  background-color: #1e293b !important;
+}
+
+/* KODNING ICHIDA TO'G'RIDAN TO'G'RI OQ RANG BERILGAN BO'LSA (Masalan style={{background: 'white'}}) - MAJBURAN EZIB TASHLAYMIZ */
+body.dark-mode [style*="background: white"],
+body.dark-mode [style*="background-color: white"],
+body.dark-mode [style*="background: #fff"],
+body.dark-mode [style*="background-color: #fff"],
+body.dark-mode [style*="background-color: #ffffff"] {
+  background-color: #1e293b !important; 
+  color: #cbd5e1 !important;
+}
+
+/* Barcha matnlar Tungi rejimda ko'rinishi uchun */
+body.dark-mode h1, 
+body.dark-mode h2, 
+body.dark-mode h3, 
+body.dark-mode h4, 
+body.dark-mode h5, 
+body.dark-mode h6, 
+body.dark-mode p, 
+body.dark-mode span, 
+body.dark-mode div {
+  color: #cbd5e1 !important; 
+}
+
+body.dark-mode .menu-icon { color: #38bdf8 !important; }
+
+/* Pastki menyu */
+body.dark-mode .bottom-nav-container { background-color: rgba(30, 41, 59, 0.95) !important; border-color: #475569 !important; }
+body.dark-mode .bottom-nav-item-bg { background-color: #334155 !important; color: #38bdf8 !important; }
+body.dark-mode .bottom-nav-item-text { color: #cbd5e1 !important; }

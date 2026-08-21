@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { RotateCcw, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, PackageMinus, Search, X, TrendingDown, Landmark } from 'lucide-react';
 
+// YANGI: Firestore'dan doc, setDoc, updateDoc import qilindi
 import { auth, db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 
 const Return = ({ products, setProducts, returns, setReturns, setPage, customers = [] }) => {
   const [customer, setCustomer] = useState('');
@@ -10,7 +11,6 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
   const [selectedProductId, setSelectedProductId] = useState('');
   const [returnQty, setReturnQty] = useState('');
   
-  // YANGI: Qaytish narxi uchun state
   const [returnPrice, setReturnPrice] = useState(''); 
   
   const [cart, setCart] = useState([]); 
@@ -118,7 +118,7 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
     setSearchQuery('');
     setSelectedProductId('');
     setReturnQty('');
-    setReturnPrice(''); // Tozalanadi
+    setReturnPrice(''); 
     setError('');
   };
 
@@ -128,18 +128,18 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
     if (!selectedProduct) return setError("Iltimos, avval tovarni tanlang!");
     
     const qty = parseFloat(returnQty);
-    const customPrice = parseFloat(returnPrice); // YANGI: Kiritilgan narx
+    const customPrice = parseFloat(returnPrice); 
 
     if (qty <= 0 || isNaN(qty)) return setError("Miqdor to'g'ri emas!");
     if (customPrice < 0 || isNaN(customPrice)) return setError("Narx to'g'ri emas!");
     
-    const itemTotal = qty * customPrice; // O'ZGARDI: Maxsus narxga ko'paytiriladi
+    const itemTotal = qty * customPrice; 
     
     setCart([...cart, { 
       id: Date.now(), 
       product: selectedProduct, 
       qty: qty, 
-      price: customPrice, // YANGI: Savatga maxsus narx qo'shildi
+      price: customPrice, 
       total: itemTotal 
     }]);
     
@@ -148,6 +148,9 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
 
   const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
 
+  // ==========================================
+  // YANGI MANTIQ: Qaytishni saqlash va omborni yangilash
+  // ==========================================
   const handleFinalReturn = async () => {
     if (!customer) return setError("Mijozni tanlang!");
     if (cart.length === 0) return setError("Savat bo'sh! Tovar qo'shing.");
@@ -160,7 +163,6 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
     const totalSom = cart.filter(item => !isUsdUnit(item.product.unit)).reduce((sum, item) => sum + item.total, 0);
     const totalUsd = cart.filter(item => isUsdUnit(item.product.unit)).reduce((sum, item) => sum + item.total, 0);
 
-    // O'ZGARDI: Tarixga endi mahsulotning haqiqiy narxi emas, balki qaytarib olingan maxsus narxi (item.price) yoziladi
     const combinedProductNames = cart.map(item => 
       `• ${item.product.name} — ${item.qty} ${item.product.unit} (1 ${item.product.unit} = ${item.price.toLocaleString()} ${isUsdUnit(item.product.unit) ? '$' : "so'm"})`
     ).join('\n');
@@ -183,13 +185,23 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
     setCustomer(''); 
     setError('');
 
+    // Orqa fonda (Internet bo'lsa) saqlanadi
     if (auth.currentUser) {
       try {
-        const docRef = doc(db, "stores", auth.currentUser.uid);
-        await setDoc(docRef, { 
-          products: updatedProducts,
-          returns: yangiReturns
-        }, { merge: true });
+        const storeUid = auth.currentUser.uid;
+        
+        // 1. Qaytarilgan tovarni `returns` papkasiga alohida yozish
+        const returnRef = doc(db, "stores", storeUid, "returns", newReturnData.id.toString());
+        await setDoc(returnRef, newReturnData);
+        
+        // 2. Ombordagi tovarlar qoldig'ini alohida-alohida yangilab chiqish
+        cart.forEach(cartItem => {
+           const p = updatedProducts.find(prod => prod.id === cartItem.product.id);
+           if (p) {
+             const prodRef = doc(db, "stores", storeUid, "products", p.id.toString());
+             updateDoc(prodRef, { quantity: p.quantity }).catch(console.error);
+           }
+        });
       } catch (error) {
         console.error("Vozvratni bulutga saqlashda xato:", error);
       }
@@ -283,7 +295,6 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
               <input className="form-control" style={{ paddingLeft: '38px' }} placeholder="Tovarni qidiring..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
             
-            {/* O'ZGARDI: Tovar tanlanganda narx avtomatik chiqishi uchun */}
             <select 
               className="form-control" 
               value={selectedProductId} 
@@ -292,7 +303,7 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
                 setSelectedProductId(pId);
                 const prod = products.find(p => p.id.toString() === pId);
                 if (prod) {
-                  setReturnPrice(prod.price); // Asl narxi joylanadi
+                  setReturnPrice(prod.price); 
                 } else {
                   setReturnPrice('');
                 }
@@ -302,7 +313,6 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
               {filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name} ({p.quantity} {p.unit})</option>)}
             </select>
 
-            {/* YANGI: Maxsus qaytarish narxi uchun kiritish maydonlari */}
             {selectedProduct && (
               <div className="fade-in" style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1 }}>
@@ -338,7 +348,6 @@ const Return = ({ products, setProducts, returns, setReturns, setPage, customers
                   <div style={{ flex: 1 }}>
                     <p style={{ margin: 0, fontWeight: 'bold' }}>{index + 1}. {item.product.name}</p>
                     <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#6b7280' }}>
-                      {/* O'ZGARDI: Qaytarilgan narx item.price dan olinmoqda */}
                       {item.qty} {item.product.unit} x {item.price.toLocaleString()} {isUsd ? '$' : "so'm"}
                     </p>
                   </div>

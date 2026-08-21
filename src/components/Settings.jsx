@@ -1,34 +1,131 @@
-import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, ArrowLeft, Store, Trash2, ShieldAlert, HelpCircle, Phone, Send } from 'lucide-react';
-import { auth } from '../firebase';
+import React, { useState } from 'react';
+import { Settings as SettingsIcon, ArrowLeft, Store, Trash2, ShieldAlert, HelpCircle, Phone, Send, RefreshCcw } from 'lucide-react';
+
+// Firebase importlari (getDoc qo'shildi)
+import { auth, db } from '../firebase';
 import { updatePassword } from 'firebase/auth';
+import { doc, updateDoc, collection, getDocs, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
 
 const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, setPage }) => {
-  // Xotiradagi nom va raqamni olish (agar yo'q bo'lsa, default qiymat)
   const [newName, setNewName] = useState(localStorage.getItem('smartStoreName') || storeName || "Smart Do'kon");
   const [newPhone, setNewPhone] = useState(localStorage.getItem('smartStorePhone') || "");
   
-  // Parol o'zgartirish uchun
   const [newPassword, setNewPassword] = useState('');
   const [passwordMsg, setPasswordMsg] = useState('');
+  const [isMigrating, setIsMigrating] = useState(false);
 
-  const handleSaveName = (e) => {
+  const handleSaveName = async (e) => {
     e.preventDefault();
     setStoreName(newName);
-    // Chek uchun xotiraga saqlab qo'yamiz
     localStorage.setItem('smartStoreName', newName);
     localStorage.setItem('smartStorePhone', newPhone);
-    alert("Chek sozlamalari muvaffaqiyatli saqlandi!");
+    
+    if (auth.currentUser) {
+      try {
+        const storeRef = doc(db, "stores", auth.currentUser.uid);
+        await updateDoc(storeRef, { storeName: newName });
+      } catch (error) {
+        console.error("Nomni saqlashda xato", error);
+      }
+    }
+    alert("Chek va do'kon sozlamalari muvaffaqiyatli saqlandi!");
   };
 
-  const handleClearData = () => {
-    if (window.confirm("DIQQAT! Barcha tovarlar, sotuvlar va qarzlar o'chib ketadi. Buni orqaga qaytarib bo'lmaydi! Rozimisiz?")) {
-      const pass = window.prompt("Tasdiqlash uchun parolingizni yoki '1234' ni kiriting:");
+  // ===============================================
+  // YANGI: ESKI BAZANI YANGI TIZIMGA KO'CHIRISH
+  // ===============================================
+  const handleMigrateOldData = async () => {
+    if (!window.confirm("Eski ma'lumotlarni yangi tizimga ko'chiramizmi? Buni faqat bir marta qilish yetarli!")) return;
+    
+    setIsMigrating(true);
+    try {
+      if (auth.currentUser) {
+        const storeUid = auth.currentUser.uid;
+        const docRef = doc(db, "stores", storeUid);
+        
+        // Eski hujjatni o'qiymiz
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          const oldData = docSnap.data();
+          let count = 0;
+
+          // 1. Mijozlarni ko'chirish
+          if (oldData.customers && oldData.customers.length > 0) {
+            for (let c of oldData.customers) {
+              await setDoc(doc(db, "stores", storeUid, "customers", c.id.toString()), c);
+              count++;
+            }
+          }
+          // 2. Tovarlarni ko'chirish
+          if (oldData.products && oldData.products.length > 0) {
+            for (let p of oldData.products) {
+              await setDoc(doc(db, "stores", storeUid, "products", p.id.toString()), p);
+              count++;
+            }
+          }
+          // 3. Savdolarni ko'chirish
+          if (oldData.sales && oldData.sales.length > 0) {
+            for (let s of oldData.sales) {
+              await setDoc(doc(db, "stores", storeUid, "sales", s.id.toString()), s);
+              count++;
+            }
+          }
+          // 4. Vozvratlarni ko'chirish
+          if (oldData.returns && oldData.returns.length > 0) {
+            for (let r of oldData.returns) {
+              await setDoc(doc(db, "stores", storeUid, "returns", r.id.toString()), r);
+              count++;
+            }
+          }
+          // 5. Arenda va chiqimlarni ko'chirish
+          if (oldData.arenda && oldData.arenda.length > 0) {
+            for (let a of oldData.arenda) {
+              await setDoc(doc(db, "stores", storeUid, "arenda", a.id.toString()), a);
+              count++;
+            }
+          }
+
+          alert(`Ajoyib! Jami ${count} ta eski ma'lumot muvaffaqiyatli yangi tizimga ko'chirildi. Iltimos, o'zgarishlar ko'rinishi uchun sahifani yangilang (F5) yoki dasturga qaytadan kiring!`);
+        } else {
+          alert("Eski ma'lumotlar topilmadi.");
+        }
+      }
+    } catch (error) {
+      console.error("Ko'chirishda xato:", error);
+      alert("Xatolik yuz berdi: " + error.message);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
+  const handleClearData = async () => {
+    if (window.confirm("DIQQAT! Barcha tovarlar, sotuvlar, mijozlar va qarzlar o'chib ketadi. Buni orqaga qaytarib bo'lmaydi! Rozimisiz?")) {
+      const pass = window.prompt("Tasdiqlash uchun parolingizni yoki maxfiy kodni kiriting:");
       if (pass) {
         setProducts([]);
         setSales([]);
         setReturns([]);
-        alert("Barcha ma'lumotlar tozalandi!");
+        
+        if (auth.currentUser) {
+          const storeUid = auth.currentUser.uid;
+          const collectionsToClear = ['products', 'sales', 'returns', 'customers', 'arenda'];
+          
+          try {
+            collectionsToClear.forEach(async (colName) => {
+              const querySnapshot = await getDocs(collection(db, "stores", storeUid, colName));
+              querySnapshot.forEach((document) => {
+                deleteDoc(doc(db, "stores", storeUid, colName, document.id));
+              });
+            });
+            alert("Barcha ma'lumotlar muvaffaqiyatli tozalandi!");
+          } catch (error) {
+            console.error("O'chirishda xatolik:", error);
+            alert("Ba'zi ma'lumotlarni o'chirishda xatolik yuz berdi.");
+          }
+        } else {
+          alert("Barcha ma'lumotlar tozalandi!");
+        }
       }
     }
   };
@@ -63,10 +160,27 @@ const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, 
 
       <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
         
-        {/* DO'KON NOMI VA CHEK SOZLAMALARI */}
+        {/* ESKI BAZANI TIKLASH (MIGRATSIYA) TUGMASI */}
+        <div className="card fade-in" style={{ flex: '1 1 100%', borderTop: '4px solid #f59e0b', backgroundColor: '#fffbeb' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#d97706', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <RefreshCcw size={22} /> Eski Bazani Tiklash (Migratsiya)
+          </h3>
+          <p style={{ color: '#92400e', fontSize: '14px', marginBottom: '15px', lineHeight: '1.5' }}>
+            Agar dastur yangilangandan keyin eski tovarlaringiz yoki mijozlaringiz ko'rinmay qolgan bo'lsa, ushbu tugmani <b>bir marta</b> bosing. Barcha ma'lumotlaringiz yangi tizimga avtomatik ko'chirib o'tkaziladi.
+          </p>
+          <button 
+            onClick={handleMigrateOldData} 
+            disabled={isMigrating}
+            className="btn" 
+            style={{ width: 'auto', padding: '12px 24px', backgroundColor: '#f59e0b', color: 'white', border: 'none', fontWeight: 'bold' }}
+          >
+            {isMigrating ? "Kuting, ko'chirilmoqda..." : "Eski ma'lumotlarni ko'chirib o'tkazish"}
+          </button>
+        </div>
+
         <div className="card fade-in" style={{ flex: '1 1 300px', borderTop: '4px solid #1e3a8a' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
-            <Store size={22} /> Chek sozlamalari
+            <Store size={22} /> Chek va Do'kon sozlamalari
           </h3>
           <form onSubmit={handleSaveName} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             <div>
@@ -83,7 +197,6 @@ const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, 
           </form>
         </div>
 
-        {/* PAROLNI O'ZGARTIRISH */}
         <div className="card fade-in" style={{ flex: '1 1 300px', borderTop: '4px solid #10b981' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
             <ShieldAlert size={22} /> Parolni o'zgartirish
@@ -98,7 +211,6 @@ const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, 
           </form>
         </div>
 
-        {/* DASTURCHI BILAN ALOQA (YORDAM BO'LIMI) */}
         <div className="card fade-in" style={{ flex: '1 1 300px', borderTop: '4px solid #0ea5e9' }}>
           <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
             <HelpCircle size={22} /> Yordam va Aloqa
@@ -108,7 +220,6 @@ const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, 
           </p>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {/* Telefon raqam */}
             <a href="tel:+998772781808" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: '#1f2937', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', transition: '0.2s', cursor: 'pointer' }}>
               <Phone size={20} color="#10b981" /> 
               <div>
@@ -117,7 +228,6 @@ const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, 
               </div>
             </a>
             
-            {/* Telegram */}
             <a href="https://t.me/xaamiitov" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: '#1f2937', padding: '12px', backgroundColor: '#f0f9ff', borderRadius: '8px', border: '1px solid #bae6fd', transition: '0.2s', cursor: 'pointer' }}>
               <Send size={20} color="#0284c7" /> 
               <div>
@@ -128,7 +238,6 @@ const Settings = ({ storeName, setStoreName, setProducts, setSales, setReturns, 
           </div>
         </div>
 
-        {/* BAZANI TOZALASH */}
         <div className="card fade-in" style={{ flex: '1 1 300px', borderTop: '4px solid #ef4444' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
             <Trash2 size={22} /> Xavfli hudud
