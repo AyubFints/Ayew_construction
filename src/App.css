@@ -143,3 +143,58 @@ body.dark-mode .menu-icon { color: #38bdf8 !important; }
 body.dark-mode .bottom-nav-container { background-color: rgba(30, 41, 59, 0.95) !important; border-color: #475569 !important; }
 body.dark-mode .bottom-nav-item-bg { background-color: #334155 !important; color: #38bdf8 !important; }
 body.dark-mode .bottom-nav-item-text { color: #cbd5e1 !important; }
+/* ========================================================
+   MAXSUS RO'YXATLAR VA QATORLAR UCHUN (Dashboard, Savdolar)
+   ======================================================== */
+/* Yorug' rejimda (Kunduzi) qanday turishi */
+.theme-list-item {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+/* Tungi rejimda qanday turishi */
+body.dark-mode .theme-list-item {
+  background-color: #334155 !important;
+  border-color: #475569 !important;
+}
+
+/* Tungi rejimda ichidagi hamma yozuvlar oppoq bo'lishi uchun */
+body.dark-mode .theme-list-item * {
+  color: #f8fafc !important;
+}
+/* ========================================================
+   SANA VA STATUSLAR UCHUN YASHIL BELGILAR
+   ======================================================== */
+/* Yorug' rejimda */
+.theme-date-badge {
+  background-color: #ecfdf5;
+  color: #10b981;
+}
+
+/* Tungi rejimda */
+body.dark-mode .theme-date-badge {
+  background-color: rgba(16, 185, 129, 0.15) !important; /* Foni xira va qorong'i yashil bo'ladi */
+  color: #10b981 !important; /* Yozuvi o'zining yashil rangida qoladi */
+}
+/* ========================================================
+   SOTUV VA ERKIN SAVDO BLOKLARI UCHUN
+   ======================================================== */
+   .sell-bg-gray { background-color: #f3f4f6; border: 1px solid #e5e7eb; }
+   .sell-bg-white { background-color: #ffffff; }
+   .sell-bg-blue { background-color: #eff6ff; border: 1px solid #bfdbfe; }
+   
+   /* Tungi rejimda bular qorayadi */
+   body.dark-mode .sell-bg-gray,
+   body.dark-mode .sell-bg-white,
+   body.dark-mode .sell-bg-blue {
+     background-color: #334155 !important;
+     border-color: #475569 !important;
+     color: #f8fafc !important;
+   }
+   
+   /* Tungi rejimda ichidagi hamma yozuvlar oppoq bo'ladi */
+   body.dark-mode .sell-bg-gray *,
+   body.dark-mode .sell-bg-white *,
+   body.dark-mode .sell-bg-blue * {
+     color: #f8fafc !important;
+   }

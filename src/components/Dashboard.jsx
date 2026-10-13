@@ -55,9 +55,10 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
           <div style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '2px dashed #e5e7eb' }}>
             <h1 className="smart-logo"><Store size={46} color="#1e3a8a" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.1))' }} /> SMART DO'KON</h1>
             <p className="smart-subtitle">Avtomatlashtirilgan Tizim</p>
-            <p className="smart-subtitle">Do'koningiz endi Smartfonda!</p>
+            <p className="smart-subtitle">Do'koningiz endi Smartfonda!"0700"</p>
+
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', backgroundColor: '#ecfdf5', padding: '5px 12px', borderRadius: '20px', width: 'fit-content' }}>
+          <div className="theme-date-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', padding: '5px 12px', borderRadius: '20px', width: 'fit-content' }}>
             <Calendar size={16} /> {sanaMatni}
           </div>
           <h2 style={{ fontSize: '24px', color: '#111827', margin: 0 }}>
@@ -126,8 +127,7 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
             {lowStockProducts.map(p => (
-              <div key={p.id} style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>{p.name}</span>
+              <div key={p.id} className="theme-list-item" style={{ padding: '15px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>                <span style={{ fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>{p.name}</span>
                 <span style={{ fontWeight: 'bold', color: 'white', background: 'linear-gradient(135deg, #1e3a8a 0%, #10b981 100%)', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)' }}>
                   {p.quantity} {p.unit}
                 </span>

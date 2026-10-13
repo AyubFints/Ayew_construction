@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Package, ArrowLeft, Trash2, PlusCircle, Check, X, Tags, Filter, FolderPlus, Edit, DollarSign, ScanLine, QrCode, Camera } from 'lucide-react';
+import { Package, ArrowLeft, Trash2, PlusCircle, Check, X, Tags, Filter, FolderPlus, Edit, DollarSign, ScanLine, QrCode, Camera, Layers, CheckCircle, Clock } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 import { auth, db } from '../firebase';
-import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 const Products = ({ products, setProducts, categories = [], setCategories, setPage }) => {
   const [name, setName] = useState(''); 
@@ -37,6 +37,44 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
   const [scannerError, setScannerError] = useState('');
   const scannerRef = useRef(null);
   const scannerInstanceRef = useRef(null);
+
+  // ================= TAYYORLANAYOTGAN TOVARLAR STATE'LARI =================
+  const [activeTab, setActiveTab] = useState('inventory'); 
+  const [processingProducts, setProcessingProducts] = useState([]); 
+  const [processingHistory, setProcessingHistory] = useState([]); 
+  
+  const [procName, setProcName] = useState('');
+  const [procUnit, setProcUnit] = useState('metr');
+  const [procInitialQty, setProcInitialQty] = useState('');
+  const [procCostPrice, setProcCostPrice] = useState('');
+  const [procCategory, setProcCategory] = useState('Umumiy');
+
+  const [confirmingProcId, setConfirmingProcId] = useState(null);
+  const [procFinalQty, setProcFinalQty] = useState('');
+  const [procSellPrice, setProcSellPrice] = useState('');
+
+  const [editingProcId, setEditingProcId] = useState(null);
+  const [editProcName, setEditProcName] = useState('');
+  const [editProcQty, setEditProcQty] = useState('');
+  const [editProcCost, setEditProcCost] = useState('');
+
+  // TAYYORLANAYOTGAN TOVARLARNI BAZADAN AVTOMATIK O'QISH
+  useEffect(() => {
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (user) {
+        const storeRef = doc(db, "stores", user.uid);
+        const unsubscribeSnap = onSnapshot(storeRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.processingProducts) setProcessingProducts(data.processingProducts);
+            if (data.processingHistory) setProcessingHistory(data.processingHistory);
+          }
+        });
+        return () => unsubscribeSnap();
+      }
+    });
+    return () => unsubscribeAuth();
+  }, []);
 
   const playBeep = () => {
     try {
@@ -115,7 +153,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
 
   const closeScanner = () => setShowScanner(false);
 
-  // 1. Umumiy Ombor Qoldig'i
   const totalValueSom = products.reduce((acc, curr) => (curr.unit !== 'kv' && curr.unit !== 'Dona/$') ? acc + (curr.quantity * curr.price) : acc, 0);
   const totalValueUsd = products.reduce((acc, curr) => (curr.unit === 'kv' || curr.unit === 'Dona/$') ? acc + (curr.quantity * curr.price) : acc, 0);
   const totalCostValueSom = products.reduce((acc, curr) => {
@@ -126,6 +163,9 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     const cost = curr.costPrice || 0;
     return (curr.unit === 'kv' || curr.unit === 'Dona/$') ? acc + (curr.quantity * cost) : acc;
   }, 0);
+
+  // YANGI QO'SHILGAN QISM: Tayyorlanayotgan barcha tovarlarning jami umumiy summasi
+  const totalProcessingValueSom = processingProducts.reduce((sum, p) => sum + (p.initialQuantity * p.costPrice), 0);
 
   const getMatchScore = (productName, query) => {
     if (!query) return 0;
@@ -165,7 +205,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     return getMatchScore(b.name, searchQuery) - getMatchScore(a.name, searchQuery);
   });
 
-  // 2. Faqat joriy tanlangan bo'limdagi (kategoriyadagi) tovarlar qiymatini hisoblash
   const categoryTotalValueSom = filteredByCat.reduce((acc, curr) => (curr.unit !== 'kv' && curr.unit !== 'Dona/$') ? acc + (curr.quantity * curr.price) : acc, 0);
   const categoryTotalValueUsd = filteredByCat.reduce((acc, curr) => (curr.unit === 'kv' || curr.unit === 'Dona/$') ? acc + (curr.quantity * curr.price) : acc, 0);
   const categoryTotalCostValueSom = filteredByCat.reduce((acc, curr) => {
@@ -177,7 +216,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     return (curr.unit === 'kv' || curr.unit === 'Dona/$') ? acc + (curr.quantity * cost) : acc;
   }, 0);
 
-  // ================= BO'LIM QO'SHISH =================
   const handleAddCategory = async (e) => {
     e.preventDefault();
     const catName = newCategoryName.trim();
@@ -196,7 +234,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     }
   };
 
-  // ================= BO'LIM O'CHIRISH =================
   const handleDeleteCategory = async (catToDelete) => {
     if (window.confirm(`"${catToDelete}" bo'limini o'chirasizmi?\n\n(Bu yerdagi tovarlar o'chmaydi, shunchaki "Umumiy" ro'yxatga qaytadi)`)) {
       const newCategories = categories.filter(c => c !== catToDelete);
@@ -220,7 +257,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     }
   };
 
-  // ================= TOVAR QO'SHISH =================
   const handleAddProduct = async (e) => {
     e.preventDefault();
     const productCategory = activeFilter !== 'Barchasi' ? activeFilter : 'Umumiy';
@@ -247,7 +283,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     }
   };
   
-  // ================= TOVAR O'CHIRISH =================
   const handleDeleteProduct = async (id, productName) => { 
     if (window.confirm(`O'chirasizmi: ${productName}?`)) {
       setProducts(products.filter(p => p.id !== id));
@@ -259,7 +294,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     }
   };
 
-  // ================= QOLDIQ QO'SHISH (KIRIM) =================
   const handleConfirmAddStock = async (id) => {
     const parsedAmount = parseFloat(stockAmount);
     if (isNaN(parsedAmount) || parsedAmount === 0) return alert("Kiritilgan miqdor xato!");
@@ -277,7 +311,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     }
   };
 
-  // ================= BO'LIMGA KO'CHIRISH =================
   const handleAssignCategory = async (id) => {
     if (!selectedCat) return alert("Iltimos, bo'limni tanlang!");
     
@@ -291,7 +324,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     }
   };
 
-  // ================= NOMINI O'ZGARTIRISH =================
   const handleSaveEditName = async (id) => {
     if (!editingName.trim()) return alert("Tovar nomi bo'sh bo'lishi mumkin emas!");
     
@@ -305,7 +337,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     }
   };
 
-  // ================= SOTUV NARXINI O'ZGARTIRISH =================
   const handleConfirmChangePrice = async (id) => {
     const parsedPrice = parseFloat(newPriceAmount);
     if (isNaN(parsedPrice) || parsedPrice < 0) return alert("Narxni to'g'ri kiriting!");
@@ -320,7 +351,6 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     }
   };
 
-  // ================= TAN NARXNI O'ZGARTIRISH =================
   const handleConfirmChangeCostPrice = async (id) => {
     const parsedCostPrice = parseFloat(newCostPriceAmount);
     if (isNaN(parsedCostPrice) || parsedCostPrice < 0) return alert("Olingan narxni to'g'ri kiriting!");
@@ -335,273 +365,559 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
     }
   };
 
+  // ================= TAYYORLANAYOTGAN TOVARLAR MANTIQI =================
+
+  const handleAddProcessingProduct = async (e) => {
+    e.preventDefault();
+    if (!procName.trim() || !procInitialQty || !procCostPrice) return alert("Ma'lumotlarni to'liq kiriting!");
+
+    const newProcProd = {
+      id: `proc_${Date.now()}`,
+      name: procName,
+      unit: procUnit,
+      initialQuantity: parseFloat(procInitialQty),
+      costPrice: parseFloat(procCostPrice),
+      category: procCategory,
+      createdAt: Date.now()
+    };
+
+    const updatedList = [newProcProd, ...processingProducts];
+    setProcessingProducts(updatedList);
+    
+    setProcName('');
+    setProcInitialQty('');
+    setProcCostPrice('');
+
+    if (auth.currentUser) {
+      try {
+        await setDoc(doc(db, "stores", auth.currentUser.uid), { processingProducts: updatedList }, { merge: true });
+      } catch (err) { console.error(err); }
+    }
+  };
+
+  const handleCancelProcessing = async (id, name) => {
+    if (window.confirm(`"${name}" jarayonini bekor qilib, o'chirib yubormoqchimisiz?`)) {
+      const updatedList = processingProducts.filter(p => p.id !== id);
+      setProcessingProducts(updatedList);
+      
+      if (auth.currentUser) {
+        try {
+          await setDoc(doc(db, "stores", auth.currentUser.uid), { processingProducts: updatedList }, { merge: true });
+        } catch (err) { console.error(err); }
+      }
+    }
+  };
+
+  const handleSaveEditedProc = async () => {
+    if (!editProcName.trim() || !editProcQty || !editProcCost) return alert("To'liq kiriting!");
+    
+    const updatedList = processingProducts.map(p => p.id === editingProcId ? {
+      ...p,
+      name: editProcName,
+      initialQuantity: parseFloat(editProcQty),
+      costPrice: parseFloat(editProcCost)
+    } : p);
+    
+    setProcessingProducts(updatedList);
+    setEditingProcId(null);
+
+    if (auth.currentUser) {
+      try {
+        await setDoc(doc(db, "stores", auth.currentUser.uid), { processingProducts: updatedList }, { merge: true });
+      } catch (err) { console.error(err); }
+    }
+  };
+
+  const handleConfirmProcessingFinal = async (e) => {
+    e.preventDefault();
+    if (!procFinalQty || !procSellPrice) return alert("Yangi qoldiq va narxni kiriting!");
+    
+    const procItem = processingProducts.find(p => p.id === confirmingProcId);
+    if (!procItem) return;
+
+    const finalQ = parseFloat(procFinalQty);
+    const finalP = parseFloat(procSellPrice);
+    const loss = procItem.initialQuantity - finalQ;
+
+    const newProductForStore = {
+      id: Date.now().toString(),
+      name: procItem.name,
+      unit: procItem.unit,
+      category: procItem.category,
+      quantity: finalQ,
+      costPrice: procItem.costPrice,
+      price: finalP,
+      barcode: null
+    };
+
+    setProducts([newProductForStore, ...products]);
+
+    const historyRecord = {
+      id: `hist_${Date.now()}`,
+      name: procItem.name,
+      unit: procItem.unit,
+      initialQuantity: procItem.initialQuantity,
+      finalQuantity: finalQ,
+      loss: loss,
+      costPrice: procItem.costPrice,
+      sellPrice: finalP,
+      startedAt: procItem.createdAt,
+      finishedAt: Date.now()
+    };
+
+    const updatedHistory = [historyRecord, ...processingHistory];
+    const updatedProcessing = processingProducts.filter(p => p.id !== confirmingProcId);
+
+    setProcessingHistory(updatedHistory);
+    setProcessingProducts(updatedProcessing);
+
+    setConfirmingProcId(null);
+    setProcFinalQty('');
+    setProcSellPrice('');
+
+    if (auth.currentUser) {
+      try {
+        await setDoc(doc(db, "stores", auth.currentUser.uid, "products", newProductForStore.id), newProductForStore);
+        await setDoc(doc(db, "stores", auth.currentUser.uid), { 
+          processingProducts: updatedProcessing,
+          processingHistory: updatedHistory
+        }, { merge: true });
+      } catch (err) { console.error(err); }
+    }
+  };
+
   const getUnitText = (u) => (!u || u === 'Dona/$') ? 'dona' : u;
 
   return (
     <div className="fade-in">
       
-      {/* ================= SKANER MODAL ================= */}
-      {showScanner && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
-          <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '20px', maxWidth: '500px', width: '100%', position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 style={{ margin: 0, color: '#1e3a8a', display: 'flex', gap: '8px', alignItems: 'center' }}><Camera size={22} /> Skaner qilish</h3>
-              <button onClick={closeScanner} style={{ background: '#ef4444', border: 'none', color: 'white', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={20} /></button>
-            </div>
-            {scannerError ? (
-              <div style={{ padding: '20px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', textAlign: 'center' }}>{scannerError}</div>
-            ) : (
-              <>
-                <div id="qr-reader" ref={scannerRef} style={{ width: '100%', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#000' }}></div>
-                <p style={{ margin: '15px 0 0 0', fontSize: '13px', color: '#6b7280', textAlign: 'center' }}>📷 Kodni yorug'da, 10-15 sm masofada tuting.</p>
-              </>
-            )}
-            <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '2px solid #1e3a8a' }}>
-              <div style={{ backgroundColor: '#eff6ff', border: '2px solid #bfdbfe', borderRadius: '10px', padding: '12px', marginBottom: '10px' }}>
-                <p style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a' }}>⌨️ Kompyuterdan yoki fizik skaner bilan</p>
-                <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>Kodni yozing va <b>Enter</b> yoki <b>Saqlash</b> bosing</p>
+      <div style={{ display: 'flex', gap: '15px', marginBottom: '25px' }}>
+        <button 
+          onClick={() => setActiveTab('inventory')} 
+          style={{ flex: 1, padding: '15px', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', border: 'none', backgroundColor: activeTab === 'inventory' ? '#1e3a8a' : '#e5e7eb', color: activeTab === 'inventory' ? 'white' : '#4b5563', transition: 'all 0.2s' }}
+        >
+          <Package size={20} /> Asosiy Ombor
+        </button>
+        <button 
+          onClick={() => setActiveTab('processing')} 
+          style={{ flex: 1, padding: '15px', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', border: 'none', backgroundColor: activeTab === 'processing' ? '#f59e0b' : '#e5e7eb', color: activeTab === 'processing' ? 'white' : '#4b5563', transition: 'all 0.2s' }}
+        >
+          <Layers size={20} /> Tayyorlanayotgan tovarlar
+        </button>
+      </div>
+
+      {activeTab === 'inventory' ? (
+        <div className="fade-in">
+          {showScanner && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '20px', maxWidth: '500px', width: '100%', position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h3 style={{ margin: 0, color: '#1e3a8a', display: 'flex', gap: '8px', alignItems: 'center' }}><Camera size={22} /> Skaner qilish</h3>
+                  <button onClick={closeScanner} style={{ background: '#ef4444', border: 'none', color: 'white', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={20} /></button>
+                </div>
+                {scannerError ? (
+                  <div style={{ padding: '20px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', textAlign: 'center' }}>{scannerError}</div>
+                ) : (
+                  <>
+                    <div id="qr-reader" ref={scannerRef} style={{ width: '100%', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#000' }}></div>
+                    <p style={{ margin: '15px 0 0 0', fontSize: '13px', color: '#6b7280', textAlign: 'center' }}>Kodni yorug'da, 10-15 sm masofada tuting.</p>
+                  </>
+                )}
+                <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '2px solid #1e3a8a' }}>
+                  <div style={{ backgroundColor: '#eff6ff', border: '2px solid #bfdbfe', borderRadius: '10px', padding: '12px', marginBottom: '10px' }}>
+                    <p style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a' }}>Kompyuterdan yoki fizik skaner bilan</p>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>Kodni yozing va <b>Enter</b> yoki <b>Saqlash</b> bosing</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input type="text" placeholder="Shtrix-kodni bu yerga yozing..." value={barcode} onChange={(e) => setBarcode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && barcode.trim()) closeScanner(); }} autoFocus style={{ flex: 1, padding: '14px 16px', border: '2px solid #1e3a8a', borderRadius: '10px', outline: 'none', fontSize: '18px', fontFamily: 'monospace', fontWeight: 'bold' }} />
+                    <button onClick={closeScanner} disabled={!barcode.trim()} style={{ padding: '14px 24px', backgroundColor: barcode.trim() ? '#1e3a8a' : '#94a3b8', color: 'white', border: 'none', borderRadius: '10px', cursor: barcode.trim() ? 'pointer' : 'not-allowed', fontSize: '15px', fontWeight: 'bold' }}>Saqlash</button>
+                  </div>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input type="text" placeholder="Shtrix-kodni bu yerga yozing..." value={barcode} onChange={(e) => setBarcode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && barcode.trim()) closeScanner(); }} autoFocus style={{ flex: 1, padding: '14px 16px', border: '2px solid #1e3a8a', borderRadius: '10px', outline: 'none', fontSize: '18px', fontFamily: 'monospace', fontWeight: 'bold' }} />
-                <button onClick={closeScanner} disabled={!barcode.trim()} style={{ padding: '14px 24px', backgroundColor: barcode.trim() ? '#1e3a8a' : '#94a3b8', color: 'white', border: 'none', borderRadius: '10px', cursor: barcode.trim() ? 'pointer' : 'not-allowed', fontSize: '15px', fontWeight: 'bold' }}>Saqlash</button>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <button onClick={() => setPage('dashboard')} className="btn" style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#e5e7eb', color: '#1f2937', display: 'flex', gap: '8px', alignItems: 'center' }}><ArrowLeft size={18} /> Ortga</button>
+            <h2 style={{ fontSize: '24px', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>Tovarlar ombori <Package size={28} /></h2>
+          </div>
+
+          <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#1e3a8a', color: '#ffffff', marginBottom: '30px', border: 'none', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ textAlign: 'center', paddingBottom: '20px', borderBottom: '1px solid #475569' }}>
+              <p style={{ margin: 0, fontSize: '15px', fontWeight: 'bold', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '10px' }}>Jami ombor qiymati (Sotuv narxida)</p>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
+                <h2 style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: '#ffffff' }}>{totalValueSom.toLocaleString()} <span style={{ fontSize: '18px', color: '#9ca3af' }}>so'm</span></h2>
+                <div style={{ width: '2px', height: '30px', backgroundColor: '#4b5563' }}></div>
+                <h2 style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: '#10b981' }}>{totalValueUsd.toLocaleString()} <span style={{ fontSize: '18px', color: '#9ca3af' }}>$</span></h2>
+              </div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', color: '#fca5a5', textTransform: 'uppercase', marginBottom: '10px' }}>Jami ombor qiymati (Tan narxida)</p>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
+                <h2 style={{ margin: 0, fontSize: '28px', fontWeight: 'bold', color: '#fecaca' }}>{totalCostValueSom.toLocaleString()} <span style={{ fontSize: '16px', color: '#fca5a5' }}>so'm</span></h2>
+                <div style={{ width: '2px', height: '25px', backgroundColor: '#4b5563' }}></div>
+                <h2 style={{ margin: 0, fontSize: '28px', fontWeight: 'bold', color: '#fecaca' }}>{totalCostValueUsd.toLocaleString()} <span style={{ fontSize: '16px', color: '#fca5a5' }}>$</span></h2>
               </div>
             </div>
           </div>
+
+          <div className="card" style={{ padding: '20px', marginBottom: '30px', borderTop: '4px solid #4b5563', backgroundColor: '#ffffff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', flex: '1 1 auto' }}>
+                <span style={{ color: '#4b5563', fontWeight: 'bold', marginRight: '5px', display: 'flex', alignItems: 'center', gap: '6px' }}><Filter size={18}/> Bo'limlar:</span>
+                <button onClick={() => setActiveFilter('Barchasi')} className="btn" style={{ width: 'auto', padding: '8px 16px', fontSize: '14px', borderRadius: '20px', backgroundColor: activeFilter === 'Barchasi' ? '#1e3a8a' : '#e5e7eb', color: activeFilter === 'Barchasi' ? 'white' : '#1f2937', fontWeight: '500' }}>Barchasi</button>
+                <button onClick={() => setActiveFilter('Umumiy')} className="btn" style={{ width: 'auto', padding: '8px 16px', fontSize: '14px', borderRadius: '20px', backgroundColor: activeFilter === 'Umumiy' ? '#1e3a8a' : '#e5e7eb', color: activeFilter === 'Umumiy' ? 'white' : '#1f2937', fontWeight: '500' }}>Umumiy</button>
+                {categories.map((cat, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', backgroundColor: activeFilter === cat ? '#1e3a8a' : '#f3f4f6', color: activeFilter === cat ? 'white' : '#1f2937', borderRadius: '20px', border: `1px solid ${activeFilter === cat ? '#1e3a8a' : '#d1d5db'}` }}>
+                    <button onClick={() => setActiveFilter(cat)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '8px 14px', fontSize: '14px', fontWeight: '500' }}>{cat}</button>
+                    <button onClick={() => handleDeleteCategory(cat)} style={{ background: 'none', border: 'none', color: activeFilter === cat ? '#fca5a5' : '#ef4444', cursor: 'pointer', padding: '8px 12px', borderLeft: `1px solid ${activeFilter === cat ? '#3b82f6' : '#d1d5db'}` }} title="Bo'limni o'chirish"><X size={14} /></button>
+                  </div>
+                ))}
+              </div>
+              {searchQuery.trim() === '' && (
+                <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input type="text" className="form-control" placeholder="Yangi bo'lim qo'shish..." value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} style={{ width: '220px', marginBottom: 0, padding: '10px', fontSize: '14px' }} required />
+                  <button type="submit" className="btn btn-primary" style={{ width: 'auto', padding: '10px 15px', display: 'flex', gap: '6px', alignItems: 'center' }}><FolderPlus size={18} /> Qo'shish</button>
+                </form>
+              )}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '25px', width: '100%' }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input type="text" className="form-control" placeholder="Aqlli qidiruv (Tovar nomini yozing)..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ width: '100%', padding: '14px 20px', fontSize: '16px', borderRadius: '10px', border: '2px solid #1e3a8a', marginBottom: 0, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', outline: 'none' }} />
+              {searchQuery && <button onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: '15px', background: '#ef4444', border: 'none', cursor: 'pointer', color: '#ffffff', fontWeight: 'bold', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }} title="Tozalash"><X size={14} /></button>}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
+            {searchQuery.trim() === '' && (
+              <div className="card" style={{ flex: '1 1 350px', borderTop: '4px solid #1e3a8a', alignSelf: 'flex-start' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1e3a8a', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  Yangi tovar ro'yxatga olish 
+                  {activeFilter !== 'Barchasi' && <span style={{ fontSize: '14px', backgroundColor: '#e5e7eb', padding: '2px 8px', borderRadius: '12px', color: '#4b5563' }}>{activeFilter}</span>}
+                </h3>
+                <form onSubmit={handleAddProduct}>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#4b5563' }}>Tovar nomi:</label>
+                    <button type="button" onClick={() => setShowScanner(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', backgroundColor: barcode ? '#10b981' : '#1e3a8a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} title="Kamera orqali skaner qilish">
+                      {barcode ? <><Check size={16} /> Skanerlangan</> : <><ScanLine size={16} /> Skaner qilish</>}
+                    </button>
+                  </div>
+
+                  <input type="text" className="form-control" placeholder="Tovar nomi" value={name} onChange={(e) => setName(e.target.value)} required />
+                  
+                  {barcode && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '10px 14px', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '8px', marginBottom: '15px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                        <QrCode size={18} style={{ color: '#059669', flexShrink: 0 }} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '11px', color: '#059669', fontWeight: 'bold' }}>SKANERLANGAN KOD:</div>
+                          <div style={{ fontFamily: 'monospace', fontSize: '14px', color: '#065f46', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{barcode}</div>
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => setBarcode('')} style={{ background: '#ef4444', border: 'none', color: 'white', width: '26px', height: '26px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} title="Kodni o'chirish"><X size={14} /></button>
+                    </div>
+                  )}
+                  
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <input type="number" className="form-control" placeholder="Miqdori" value={quantity} onChange={(e) => setQuantity(e.target.value)} required min="0.001" step="any" style={{ flex: 2 }} />
+                    <select className="form-control" value={unit} onChange={(e) => setUnit(e.target.value)} style={{ flex: 1 }}>
+                      <option value="metr">Metr</option><option value="kv">KV($)</option><option value="Dona/$">Dona($)</option><option value="dona">Dona</option><option value="pachka">Pachka</option><option value="kg">KG</option><option value="qop">Qop</option>
+                    </select>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block', fontWeight: 'bold' }}>Olingan narxi (1 {getUnitText(unit)}):</label>
+                      <input type="number" className="form-control" placeholder="Masalan: 10000" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} required min="0" step="any" style={{ width: '100%', marginBottom: 0 }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block', fontWeight: 'bold' }}>Sotilish narxi (1 {getUnitText(unit)}):</label>
+                      <input type="number" className="form-control" placeholder="Masalan: 12000" value={price} onChange={(e) => setPrice(e.target.value)} required min="0" step="any" style={{ width: '100%', marginBottom: 0 }} />
+                    </div>
+                  </div>
+                  
+                  {quantity && price && (
+                    <div style={{ padding: '15px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '20px', color: '#1e3a8a' }}>
+                      <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Umumiy qiymat (Sotuv): {(parseFloat(quantity) * parseFloat(price)).toLocaleString()} {(unit === 'kv' || unit === 'Dona/$') ? '$' : "so'm"}</div>
+                      {costPrice && <div style={{ fontSize: '13px', color: '#10b981', fontWeight: 'bold' }}>Kutilayotgan sof foyda: {((parseFloat(price) - parseFloat(costPrice)) * parseFloat(quantity)).toLocaleString()} {(unit === 'kv' || unit === 'Dona/$') ? '$' : "so'm"}</div>}
+                    </div>
+                  )}
+                  
+                  <button type="submit" className="btn btn-primary" style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '14px' }}><PlusCircle size={20} /> Tovar qo'shish</button>
+                </form>
+              </div>
+            )}
+
+            <div className="card" style={{ flex: searchQuery.trim() ? '1 1 100%' : '2 1 400px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', marginBottom: '20px' }}>
+                <h3 style={{ margin: 0, color: '#1e3a8a' }}>{searchQuery.trim() ? "Qidiruv natijalari" : (activeFilter === 'Barchasi' ? "Barcha tovarlar ro'yxati" : `"${activeFilter}" bo'limidagi tovarlar`)}</h3>
+                <span style={{ backgroundColor: '#e0e7ff', color: '#4338ca', padding: '4px 10px', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold' }}>{displayedProducts.length} xil tovar</span>
+              </div>
+
+              {!searchQuery.trim() && displayedProducts.length > 0 && (
+                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '15px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'space-between' }}>
+                  <div>
+                    <p style={{ margin: '0 0 5px 0', fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>{activeFilter === 'Barchasi' ? 'Barcha tovarlar' : `"${activeFilter}" bo'limi`} tan narxi:</p>
+                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#ef4444' }}>{categoryTotalCostValueSom.toLocaleString()} <span style={{fontSize: '14px', fontWeight: 'normal'}}>so'm</span></span>
+                      {categoryTotalCostValueUsd > 0 && <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#ef4444' }}>{categoryTotalCostValueUsd.toLocaleString()} <span style={{fontSize: '14px', fontWeight: 'normal'}}>$</span></span>}
+                    </div>
+                  </div>
+                  <div style={{ width: '1px', backgroundColor: '#cbd5e1' }}></div>
+                  <div>
+                    <p style={{ margin: '0 0 5px 0', fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>{activeFilter === 'Barchasi' ? 'Barcha tovarlar' : `"${activeFilter}" bo'limi`} sotuv narxi:</p>
+                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#10b981' }}>{categoryTotalValueSom.toLocaleString()} <span style={{fontSize: '14px', fontWeight: 'normal'}}>so'm</span></span>
+                      {categoryTotalValueUsd > 0 && <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#10b981' }}>{categoryTotalValueUsd.toLocaleString()} <span style={{fontSize: '14px', fontWeight: 'normal'}}>$</span></span>}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {displayedProducts.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center', padding: '20px' }}>Bu yerda tovar yo'q yoki topilmadi.</p> : (
+                <div style={{ display: 'grid', gridTemplateColumns: searchQuery.trim() ? 'repeat(auto-fill, minmax(400px, 1fr))' : '1fr', gap: '15px' }}>
+                  {displayedProducts.map(p => (
+                    <div key={p.id} className="fade-in" style={{ padding: '15px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px', position: 'relative' }}>
+                      <button onClick={() => handleDeleteProduct(p.id, p.name)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }} title="O'chirish"><Trash2 size={20} /></button>
+                      
+                      {editingProductId === p.id ? (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px', paddingRight: '35px' }}>
+                          <input type="text" value={editingName} onChange={(e) => setEditingName(e.target.value)} style={{ flex: 1, padding: '8px 12px', border: '1px solid #6366f1', borderRadius: '8px', outline: 'none', fontSize: '16px' }} autoFocus />
+                          <button onClick={() => handleSaveEditName(p.id)} className="btn btn-primary" style={{ padding: '8px', width: 'auto' }} title="Saqlash"><Check size={18} /></button>
+                          <button onClick={() => setEditingProductId(null)} className="btn btn-danger" style={{ padding: '8px', width: 'auto' }} title="Bekor qilish"><X size={18} /></button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingRight: '35px', marginBottom: '10px' }}>
+                          <h4 style={{ margin: 0, color: '#111827', fontSize: '18px' }}>{p.name}</h4>
+                          <button onClick={() => { setEditingProductId(p.id); setEditingName(p.name); setAddingStockId(null); setAssigningCatId(null); setChangingPriceId(null); setChangingCostPriceId(null); }} style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }} title="Nomini o'zgartirish"><Edit size={18} /></button>
+                        </div>
+                      )}
+
+                      {p.barcode && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', marginBottom: '8px' }}>
+                          <QrCode size={14} style={{ color: '#059669' }} />
+                          <span style={{ fontSize: '12px', color: '#065f46', fontFamily: 'monospace', fontWeight: 'bold' }}>{p.barcode}</span>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <span style={{ display: 'inline-block', backgroundColor: '#e5e7eb', color: '#4b5563', fontSize: '12px', fontWeight: 'bold', padding: '4px 10px', borderRadius: '12px', alignSelf: 'flex-start', marginBottom: '4px' }}>Bo'lim: {p.category || 'Umumiy'}</span>
+                        <div style={{ color: '#6b7280', fontSize: '14px' }}>Qoldiq: <span style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '16px' }}>{p.quantity} {p.unit}</span></div>
+                        <div style={{ color: '#6b7280', fontSize: '13px' }}>1 {getUnitText(p.unit)} olingan narxi: <span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '14px' }}>{p.costPrice ? p.costPrice.toLocaleString() : 'Kiritilmagan'} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span></div>
+                        <div style={{ color: '#6b7280', fontSize: '13px' }}>1 {getUnitText(p.unit)} sotilish narxi: <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>{p.price.toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span></div>
+                        <div style={{ color: '#1e3a8a', fontSize: '13px', marginTop: '4px', backgroundColor: '#eff6ff', padding: '6px 10px', borderRadius: '6px', border: '1px solid #bfdbfe', display: 'inline-block', alignSelf: 'flex-start' }}>Umumiy summasi: <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{(p.quantity * p.price).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span></div>
+                        {p.costPrice && p.price && <div style={{ color: '#059669', fontSize: '13px', marginTop: '2px', backgroundColor: '#ecfdf5', padding: '4px 8px', borderRadius: '6px', display: 'inline-block', alignSelf: 'flex-start' }}>Foyda (1 {getUnitText(p.unit)} uchun): <span style={{ fontWeight: 'bold' }}>{(p.price - p.costPrice).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span></div>}
+                      </div>
+
+                      <div style={{ borderTop: '1px dashed #d1d5db', margin: '15px 0' }}></div>
+
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                        {addingStockId === p.id ? (
+                          <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#eff6ff', padding: '6px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                            <input type="number" placeholder="Miqdor" value={stockAmount} onChange={e => setStockAmount(e.target.value)} style={{ width: '80px', padding: '6px', border: '1px solid #93c5fd', borderRadius: '6px', outline: 'none' }} autoFocus step="any" />
+                            <button onClick={() => handleConfirmAddStock(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto' }}><Check size={16} /></button>
+                            <button onClick={() => { setAddingStockId(null); setStockAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }}><X size={16} /></button>
+                          </div>
+                        ) : (
+                          <button onClick={() => { setAddingStockId(p.id); setAssigningCatId(null); setEditingProductId(null); setChangingPriceId(null); setChangingCostPriceId(null); }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#e0e7ff', color: '#4338ca', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #c7d2fe' }}><PlusCircle size={16} /> Kirim</button>
+                        )}
+
+                        {assigningCatId === p.id ? (
+                          <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#f3f4f6', padding: '6px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
+                            <select value={selectedCat} onChange={e => setSelectedCat(e.target.value)} style={{ padding: '6px', border: '1px solid #d1d5db', borderRadius: '6px', outline: 'none', fontSize: '13px' }}>
+                              <option value="">-- Bo'lim --</option>
+                              <option value="Umumiy">Umumiy</option>
+                              {categories.map((c, i) => <option key={i} value={c}>{c}</option>)}
+                            </select>
+                            <button onClick={() => handleAssignCategory(p.id)} className="btn" style={{ backgroundColor: '#10b981', color: 'white', padding: '6px 10px', width: 'auto' }}><Check size={16} /></button>
+                            <button onClick={() => setAssigningCatId(null)} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }}><X size={16} /></button>
+                          </div>
+                        ) : (
+                          <button onClick={() => { setAssigningCatId(p.id); setAddingStockId(null); setSelectedCat(p.category || 'Umumiy'); setEditingProductId(null); setChangingPriceId(null); setChangingCostPriceId(null); }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#f3f4f6', color: '#4b5563', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #d1d5db' }}><Tags size={16} /> Ko'chirish</button>
+                        )}
+
+                        {changingCostPriceId === p.id ? (
+                          <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#fef2f2', padding: '6px', borderRadius: '8px', border: '1px solid #fecaca' }}>
+                            <input type="number" placeholder="Yangi olingan narx" value={newCostPriceAmount} onChange={e => setNewCostPriceAmount(e.target.value)} style={{ width: '110px', padding: '6px', border: '1px solid #fca5a5', borderRadius: '6px', outline: 'none' }} autoFocus min="0" step="any" />
+                            <button onClick={() => handleConfirmChangeCostPrice(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#ef4444', border: 'none' }} title="Saqlash"><Check size={16} /></button>
+                            <button onClick={() => { setChangingCostPriceId(null); setNewCostPriceAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#991b1b' }} title="Bekor qilish"><X size={16} /></button>
+                          </div>
+                        ) : (
+                          <button onClick={() => { setChangingCostPriceId(p.id); setChangingPriceId(null); setAddingStockId(null); setAssigningCatId(null); setEditingProductId(null); setNewCostPriceAmount(p.costPrice || ''); }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#fef2f2', color: '#991b1b', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #fecaca' }}><DollarSign size={16} /> Tan narxi</button>
+                        )}
+
+                        {changingPriceId === p.id ? (
+                          <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#f0fdf4', padding: '6px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                            <input type="number" placeholder="Yangi sotuv narxi" value={newPriceAmount} onChange={e => setNewPriceAmount(e.target.value)} style={{ width: '110px', padding: '6px', border: '1px solid #86efac', borderRadius: '6px', outline: 'none' }} autoFocus min="0" step="any" />
+                            <button onClick={() => handleConfirmChangePrice(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#10b981', border: 'none' }} title="Saqlash"><Check size={16} /></button>
+                            <button onClick={() => { setChangingPriceId(null); setNewPriceAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }} title="Bekor qilish"><X size={16} /></button>
+                          </div>
+                        ) : (
+                          <button onClick={() => { setChangingPriceId(p.id); setChangingCostPriceId(null); setAddingStockId(null); setAssigningCatId(null); setEditingProductId(null); setNewPriceAmount(p.price); }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#f0fdf4', color: '#166534', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #bbf7d0' }}><DollarSign size={16} /> Sotuv narxi</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        // ================= TAYYORLANAYOTGAN TOVARLAR =================
+        <div className="fade-in">
+          
+          <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            
+            <div className="card" style={{ flex: '1 1 350px', borderTop: '4px solid #f59e0b' }}>
+              <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#b45309', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Yangi xom-ashyo kiritish
+              </h3>
+              <form onSubmit={handleAddProcessingProduct}>
+                <input type="text" className="form-control" placeholder="Tovar nomi (M-n: Taxta, Xom g'isht...)" value={procName} onChange={(e) => setProcName(e.target.value)} required />
+                
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input type="number" className="form-control" placeholder="Dastlabki miqdor" value={procInitialQty} onChange={(e) => setProcInitialQty(e.target.value)} required min="0.001" step="any" style={{ flex: 2 }} />
+                  <select className="form-control" value={procUnit} onChange={(e) => setProcUnit(e.target.value)} style={{ flex: 1 }}>
+                    <option value="metr">Metr</option><option value="dona">Dona</option><option value="kg">KG</option><option value="kub">Kub</option>
+                  </select>
+                </div>
+                
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block', fontWeight: 'bold' }}>1 {getUnitText(procUnit)} olingan tan narxi:</label>
+                  <input type="number" className="form-control" placeholder="Masalan: 10000" value={procCostPrice} onChange={(e) => setProcCostPrice(e.target.value)} required min="0" step="any" style={{ width: '100%', marginBottom: 0 }} />
+                </div>
+
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block', fontWeight: 'bold' }}>Tayyor bo'lgach tushadigan bo'lim:</label>
+                  <select className="form-control" value={procCategory} onChange={(e) => setProcCategory(e.target.value)} style={{ marginBottom: 0 }}>
+                    <option value="Umumiy">Umumiy</option>
+                    {categories.map((c, i) => <option key={i} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                
+                <button type="submit" className="btn" style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '14px', backgroundColor: '#f59e0b', color: 'white', border: 'none', fontWeight: 'bold' }}><PlusCircle size={20} /> Jarayonga qo'shish</button>
+              </form>
+            </div>
+
+            <div className="card" style={{ flex: '2 1 400px' }}>
+              
+              {/* O'ZGARISH: Eng tepadagi Jami summa qo'shildi */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+                <h3 style={{ margin: 0, color: '#1e3a8a' }}>Hozirda tayyorlanayotganlar</h3>
+                {processingProducts.length > 0 && (
+                  <div style={{ backgroundColor: '#f0fdf4', color: '#15803d', padding: '6px 12px', borderRadius: '8px', fontWeight: 'bold', border: '1px solid #bbf7d0', fontSize: '14px' }}>
+                    Jami sarmoya: {totalProcessingValueSom.toLocaleString()} so'm
+                  </div>
+                )}
+              </div>
+              
+              {processingProducts.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center', padding: '20px' }}>Jarayonda hech qanday tovar yo'q.</p> : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
+                  {processingProducts.map(p => {
+                    // O'ZGARISH: Tovar uchun sarflangan jami summa hisoblandi
+                    const itemTotalCost = p.initialQuantity * p.costPrice;
+
+                    return (
+                      <div key={p.id} className="fade-in" style={{ padding: '15px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '12px' }}>
+                        
+                        {editingProcId === p.id ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+                            <input type="text" value={editProcName} onChange={e => setEditProcName(e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #fbbf24' }} />
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <input type="number" placeholder="Miqdor" value={editProcQty} onChange={e => setEditProcQty(e.target.value)} style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #fbbf24', width: '50%' }} />
+                              <input type="number" placeholder="Tan narx" value={editProcCost} onChange={e => setEditProcCost(e.target.value)} style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #fbbf24', width: '50%' }} />
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '5px' }}>
+                              <button onClick={handleSaveEditedProc} className="btn" style={{ flex: 1, padding: '6px', backgroundColor: '#10b981', color: 'white', border: 'none' }}>Saqlash</button>
+                              <button onClick={() => setEditingProcId(null)} className="btn btn-danger" style={{ flex: 1, padding: '6px' }}>Bekor</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {/* O'ZGARISH: Tovar ichida jami summa ko'rsatiladigan qism */}
+                            <h4 style={{ margin: '0 0 10px 0', color: '#92400e', fontSize: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <span>{p.name}</span>
+                              <span style={{ fontSize: '11px', backgroundColor: '#fef3c7', padding: '2px 6px', borderRadius: '4px', color: '#d97706', border: '1px solid #fde68a' }}>Jarayonda</span>
+                            </h4>
+                            <div style={{ fontSize: '14px', color: '#b45309', marginBottom: '4px' }}>Dastlabki miqdor: <b>{p.initialQuantity} {p.unit}</b></div>
+                            <div style={{ fontSize: '13px', color: '#d97706', marginBottom: '8px' }}>1 {getUnitText(p.unit)} tan narxi: <b>{p.costPrice.toLocaleString()} so'm</b></div>
+                            
+                            <div style={{ fontSize: '14px', color: '#1e3a8a', backgroundColor: '#eff6ff', padding: '6px', borderRadius: '6px', border: '1px solid #bfdbfe', marginTop: '8px', marginBottom: '15px', fontWeight: 'bold' }}>
+                               Jami qiymati: {itemTotalCost.toLocaleString()} so'm
+                            </div>
+                          </>
+                        )}
+
+                        {confirmingProcId === p.id ? (
+                          <div className="fade-in" style={{ padding: '12px', backgroundColor: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0', marginTop: '10px' }}>
+                            <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#166534', fontWeight: 'bold' }}>Tayyor bo'lgan miqdor va narxni kiriting:</p>
+                            <form onSubmit={handleConfirmProcessingFinal} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <input type="number" placeholder="Haqiqiy (qolgan) miqdor" value={procFinalQty} onChange={e => setProcFinalQty(e.target.value)} required step="any" style={{ padding: '8px', borderRadius: '6px', border: '1px solid #86efac' }} />
+                              <input type="number" placeholder="Sotuv narxi (1 birlik uchun)" value={procSellPrice} onChange={e => setProcSellPrice(e.target.value)} required step="any" style={{ padding: '8px', borderRadius: '6px', border: '1px solid #86efac' }} />
+                              <div style={{ display: 'flex', gap: '8px', marginTop: '5px' }}>
+                                <button type="submit" className="btn" style={{ flex: 1, padding: '8px', backgroundColor: '#10b981', color: 'white', border: 'none', fontWeight: 'bold' }}>Tasdiqlash</button>
+                                <button type="button" onClick={() => setConfirmingProcId(null)} className="btn btn-danger" style={{ flex: 1, padding: '8px' }}>Bekor</button>
+                              </div>
+                            </form>
+                          </div>
+                        ) : (
+                          !editingProcId && (
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '15px' }}>
+                              <button onClick={() => setConfirmingProcId(p.id)} className="btn" style={{ flex: 1, padding: '8px', backgroundColor: '#10b981', color: 'white', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}><CheckCircle size={16} /> Tayyor</button>
+                              <button onClick={() => { setEditingProcId(p.id); setEditProcName(p.name); setEditProcQty(p.initialQuantity); setEditProcCost(p.costPrice); }} className="btn" style={{ flex: 1, padding: '8px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}><Edit size={16} /> Tahrir</button>
+                              <button onClick={() => handleCancelProcessing(p.id, p.name)} className="btn btn-danger" style={{ flex: 1, padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}><X size={16} /> O'chirish</button>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="card" style={{ marginTop: '30px', borderTop: '4px solid #10b981' }}>
+            <h3 style={{ margin: '0 0 20px 0', color: '#065f46', display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={20} /> Tayyorlash tarixi</h3>
+            
+            {processingHistory.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center', padding: '10px' }}>Hozircha tarix yo'q.</p> : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f1f5f9', textAlign: 'left', fontSize: '13px' }}>
+                      <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Sana</th>
+                      <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Nomi</th>
+                      <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Dastlabki miqdor</th>
+                      <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Qolgan miqdor</th>
+                      <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1', color: '#ef4444' }}>Yo'qotish</th>
+                      <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Olingan narxi</th>
+                      <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Sotuv narxi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {processingHistory.map(h => (
+                      <tr key={h.id} style={{ borderBottom: '1px solid #e2e8f0', fontSize: '14px' }}>
+                        <td style={{ padding: '12px' }}>{new Date(h.finishedAt).toLocaleDateString('uz-UZ')}</td>
+                        <td style={{ padding: '12px', fontWeight: 'bold' }}>{h.name}</td>
+                        <td style={{ padding: '12px' }}>{h.initialQuantity} {h.unit}</td>
+                        <td style={{ padding: '12px', color: '#10b981', fontWeight: 'bold' }}>{h.finalQuantity} {h.unit}</td>
+                        <td style={{ padding: '12px', color: '#ef4444', fontWeight: 'bold' }}>{h.loss > 0 ? `-${h.loss} ${h.unit}` : '0'}</td>
+                        <td style={{ padding: '12px' }}>{h.costPrice.toLocaleString()}</td>
+                        <td style={{ padding: '12px', color: '#1e3a8a', fontWeight: 'bold' }}>{h.sellPrice.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
         </div>
       )}
-
-      {/* ================= YUQORI PANEL ================= */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <button onClick={() => setPage('dashboard')} className="btn" style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#e5e7eb', color: '#1f2937', display: 'flex', gap: '8px', alignItems: 'center' }}><ArrowLeft size={18} /> Ortga</button>
-        <h2 style={{ fontSize: '24px', color: '#1e3a8a', margin: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>Tovarlar ombori <Package size={28} /></h2>
-      </div>
-
-      <div className="card fade-in" style={{ padding: '30px', backgroundColor: '#1e3a8a', color: '#ffffff', marginBottom: '30px', border: 'none', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <div style={{ textAlign: 'center', paddingBottom: '20px', borderBottom: '1px solid #475569' }}>
-          <p style={{ margin: 0, fontSize: '15px', fontWeight: 'bold', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '10px' }}>Jami ombor qiymati (Sotuv narxida)</p>
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
-            <h2 style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: '#ffffff' }}>{totalValueSom.toLocaleString()} <span style={{ fontSize: '18px', color: '#9ca3af' }}>so'm</span></h2>
-            <div style={{ width: '2px', height: '30px', backgroundColor: '#4b5563' }}></div>
-            <h2 style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: '#10b981' }}>{totalValueUsd.toLocaleString()} <span style={{ fontSize: '18px', color: '#9ca3af' }}>$</span></h2>
-          </div>
-        </div>
-        <div style={{ textAlign: 'center' }}>
-          <p style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', color: '#fca5a5', textTransform: 'uppercase', marginBottom: '10px' }}>Jami ombor qiymati (Tan narxida)</p>
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
-            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: 'bold', color: '#fecaca' }}>{totalCostValueSom.toLocaleString()} <span style={{ fontSize: '16px', color: '#fca5a5' }}>so'm</span></h2>
-            <div style={{ width: '2px', height: '25px', backgroundColor: '#4b5563' }}></div>
-            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: 'bold', color: '#fecaca' }}>{totalCostValueUsd.toLocaleString()} <span style={{ fontSize: '16px', color: '#fca5a5' }}>$</span></h2>
-          </div>
-        </div>
-      </div>
-
-      <div className="card" style={{ padding: '20px', marginBottom: '30px', borderTop: '4px solid #4b5563', backgroundColor: '#ffffff' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', flex: '1 1 auto' }}>
-            <span style={{ color: '#4b5563', fontWeight: 'bold', marginRight: '5px', display: 'flex', alignItems: 'center', gap: '6px' }}><Filter size={18}/> Bo'limlar:</span>
-            <button onClick={() => setActiveFilter('Barchasi')} className="btn" style={{ width: 'auto', padding: '8px 16px', fontSize: '14px', borderRadius: '20px', backgroundColor: activeFilter === 'Barchasi' ? '#1e3a8a' : '#e5e7eb', color: activeFilter === 'Barchasi' ? 'white' : '#1f2937', fontWeight: '500' }}>Barchasi</button>
-            <button onClick={() => setActiveFilter('Umumiy')} className="btn" style={{ width: 'auto', padding: '8px 16px', fontSize: '14px', borderRadius: '20px', backgroundColor: activeFilter === 'Umumiy' ? '#1e3a8a' : '#e5e7eb', color: activeFilter === 'Umumiy' ? 'white' : '#1f2937', fontWeight: '500' }}>Umumiy</button>
-            {categories.map((cat, idx) => (
-              <div key={idx} style={{ display: 'flex', alignItems: 'center', backgroundColor: activeFilter === cat ? '#1e3a8a' : '#f3f4f6', color: activeFilter === cat ? 'white' : '#1f2937', borderRadius: '20px', border: `1px solid ${activeFilter === cat ? '#1e3a8a' : '#d1d5db'}` }}>
-                <button onClick={() => setActiveFilter(cat)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '8px 14px', fontSize: '14px', fontWeight: '500' }}>{cat}</button>
-                <button onClick={() => handleDeleteCategory(cat)} style={{ background: 'none', border: 'none', color: activeFilter === cat ? '#fca5a5' : '#ef4444', cursor: 'pointer', padding: '8px 12px', borderLeft: `1px solid ${activeFilter === cat ? '#3b82f6' : '#d1d5db'}` }} title="Bo'limni o'chirish"><X size={14} /></button>
-              </div>
-            ))}
-          </div>
-          {searchQuery.trim() === '' && (
-            <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <input type="text" className="form-control" placeholder="Yangi bo'lim qo'shish..." value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} style={{ width: '220px', marginBottom: 0, padding: '10px', fontSize: '14px' }} required />
-              <button type="submit" className="btn btn-primary" style={{ width: 'auto', padding: '10px 15px', display: 'flex', gap: '6px', alignItems: 'center' }}><FolderPlus size={18} /> Qo'shish</button>
-            </form>
-          )}
-        </div>
-      </div>
-
-      <div style={{ marginBottom: '25px', width: '100%' }}>
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <input type="text" className="form-control" placeholder="🔍 Aqlli qidiruv (Tovar nomini yozing)..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ width: '100%', padding: '14px 20px', fontSize: '16px', borderRadius: '10px', border: '2px solid #1e3a8a', marginBottom: 0, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', outline: 'none' }} />
-          {searchQuery && <button onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: '15px', background: '#ef4444', border: 'none', cursor: 'pointer', color: '#ffffff', fontWeight: 'bold', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }} title="Tozalash"><X size={14} /></button>}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
-        {searchQuery.trim() === '' && (
-          <div className="card" style={{ flex: '1 1 350px', borderTop: '4px solid #1e3a8a', alignSelf: 'flex-start' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#1e3a8a', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Yangi tovar ro'yxatga olish 
-              {activeFilter !== 'Barchasi' && <span style={{ fontSize: '14px', backgroundColor: '#e5e7eb', padding: '2px 8px', borderRadius: '12px', color: '#4b5563' }}>{activeFilter}</span>}
-            </h3>
-            <form onSubmit={handleAddProduct}>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#4b5563' }}>Tovar nomi:</label>
-                <button type="button" onClick={() => setShowScanner(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', backgroundColor: barcode ? '#10b981' : '#1e3a8a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} title="Kamera orqali skaner qilish">
-                  {barcode ? <><Check size={16} /> Skanerlangan</> : <><ScanLine size={16} /> Skaner qilish</>}
-                </button>
-              </div>
-
-              <input type="text" className="form-control" placeholder="Tovar nomi" value={name} onChange={(e) => setName(e.target.value)} required />
-              
-              {barcode && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '10px 14px', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '8px', marginBottom: '15px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                    <QrCode size={18} style={{ color: '#059669', flexShrink: 0 }} />
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '11px', color: '#059669', fontWeight: 'bold' }}>SKANERLANGAN KOD:</div>
-                      <div style={{ fontFamily: 'monospace', fontSize: '14px', color: '#065f46', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{barcode}</div>
-                    </div>
-                  </div>
-                  <button type="button" onClick={() => setBarcode('')} style={{ background: '#ef4444', border: 'none', color: 'white', width: '26px', height: '26px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} title="Kodni o'chirish"><X size={14} /></button>
-                </div>
-              )}
-              
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <input type="number" className="form-control" placeholder="Miqdori" value={quantity} onChange={(e) => setQuantity(e.target.value)} required min="0.001" step="any" style={{ flex: 2 }} />
-                <select className="form-control" value={unit} onChange={(e) => setUnit(e.target.value)} style={{ flex: 1 }}>
-                  <option value="metr">Metr</option><option value="kv">KV($)</option><option value="Dona/$">Dona($)</option><option value="dona">Dona</option><option value="pachka">Pachka</option><option value="kg">KG</option><option value="qop">Qop</option>
-                </select>
-              </div>
-              
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block', fontWeight: 'bold' }}>Olingan narxi (1 {getUnitText(unit)}):</label>
-                  <input type="number" className="form-control" placeholder="Masalan: 10000" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} required min="0" step="any" style={{ width: '100%', marginBottom: 0 }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block', fontWeight: 'bold' }}>Sotilish narxi (1 {getUnitText(unit)}):</label>
-                  <input type="number" className="form-control" placeholder="Masalan: 12000" value={price} onChange={(e) => setPrice(e.target.value)} required min="0" step="any" style={{ width: '100%', marginBottom: 0 }} />
-                </div>
-              </div>
-              
-              {quantity && price && (
-                <div style={{ padding: '15px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '20px', color: '#1e3a8a' }}>
-                  <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Umumiy qiymat (Sotuv): {(parseFloat(quantity) * parseFloat(price)).toLocaleString()} {(unit === 'kv' || unit === 'Dona/$') ? '$' : "so'm"}</div>
-                  {costPrice && <div style={{ fontSize: '13px', color: '#10b981', fontWeight: 'bold' }}>Kutilayotgan sof foyda: {((parseFloat(price) - parseFloat(costPrice)) * parseFloat(quantity)).toLocaleString()} {(unit === 'kv' || unit === 'Dona/$') ? '$' : "so'm"}</div>}
-                </div>
-              )}
-              
-              <button type="submit" className="btn btn-primary" style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '14px' }}><PlusCircle size={20} /> Tovar qo'shish</button>
-            </form>
-          </div>
-        )}
-
-        <div className="card" style={{ flex: searchQuery.trim() ? '1 1 100%' : '2 1 400px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', marginBottom: '20px' }}>
-            <h3 style={{ margin: 0, color: '#1e3a8a' }}>{searchQuery.trim() ? "Qidiruv natijalari" : (activeFilter === 'Barchasi' ? "Barcha tovarlar ro'yxati" : `"${activeFilter}" bo'limidagi tovarlar`)}</h3>
-            <span style={{ backgroundColor: '#e0e7ff', color: '#4338ca', padding: '4px 10px', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold' }}>{displayedProducts.length} xil tovar</span>
-          </div>
-
-          {/* YANGI QO'SHILGAN BO'LIM: Tanlangan kategoriya bo'yicha jami summalar */}
-          {!searchQuery.trim() && displayedProducts.length > 0 && (
-            <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '15px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'space-between' }}>
-              <div>
-                <p style={{ margin: '0 0 5px 0', fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>{activeFilter === 'Barchasi' ? 'Barcha tovarlar' : `"${activeFilter}" bo'limi`} tan narxi:</p>
-                <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#ef4444' }}>{categoryTotalCostValueSom.toLocaleString()} <span style={{fontSize: '14px', fontWeight: 'normal'}}>so'm</span></span>
-                  {categoryTotalCostValueUsd > 0 && <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#ef4444' }}>{categoryTotalCostValueUsd.toLocaleString()} <span style={{fontSize: '14px', fontWeight: 'normal'}}>$</span></span>}
-                </div>
-              </div>
-              
-              <div style={{ width: '1px', backgroundColor: '#cbd5e1' }}></div>
-              
-              <div>
-                <p style={{ margin: '0 0 5px 0', fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>{activeFilter === 'Barchasi' ? 'Barcha tovarlar' : `"${activeFilter}" bo'limi`} sotuv narxi:</p>
-                <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#10b981' }}>{categoryTotalValueSom.toLocaleString()} <span style={{fontSize: '14px', fontWeight: 'normal'}}>so'm</span></span>
-                  {categoryTotalValueUsd > 0 && <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#10b981' }}>{categoryTotalValueUsd.toLocaleString()} <span style={{fontSize: '14px', fontWeight: 'normal'}}>$</span></span>}
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {displayedProducts.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center', padding: '20px' }}>Bu yerda tovar yo'q yoki topilmadi.</p> : (
-            <div style={{ display: 'grid', gridTemplateColumns: searchQuery.trim() ? 'repeat(auto-fill, minmax(400px, 1fr))' : '1fr', gap: '15px' }}>
-              {displayedProducts.map(p => (
-                <div key={p.id} className="fade-in" style={{ padding: '15px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px', position: 'relative' }}>
-                  <button onClick={() => handleDeleteProduct(p.id, p.name)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }} title="O'chirish"><Trash2 size={20} /></button>
-                  
-                  {editingProductId === p.id ? (
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px', paddingRight: '35px' }}>
-                      <input type="text" value={editingName} onChange={(e) => setEditingName(e.target.value)} style={{ flex: 1, padding: '8px 12px', border: '1px solid #6366f1', borderRadius: '8px', outline: 'none', fontSize: '16px' }} autoFocus />
-                      <button onClick={() => handleSaveEditName(p.id)} className="btn btn-primary" style={{ padding: '8px', width: 'auto' }} title="Saqlash"><Check size={18} /></button>
-                      <button onClick={() => setEditingProductId(null)} className="btn btn-danger" style={{ padding: '8px', width: 'auto' }} title="Bekor qilish"><X size={18} /></button>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingRight: '35px', marginBottom: '10px' }}>
-                      <h4 style={{ margin: 0, color: '#111827', fontSize: '18px' }}>{p.name}</h4>
-                      <button onClick={() => { setEditingProductId(p.id); setEditingName(p.name); setAddingStockId(null); setAssigningCatId(null); setChangingPriceId(null); setChangingCostPriceId(null); }} style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }} title="Nomini o'zgartirish"><Edit size={18} /></button>
-                    </div>
-                  )}
-
-                  {p.barcode && (
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', marginBottom: '8px' }}>
-                      <QrCode size={14} style={{ color: '#059669' }} />
-                      <span style={{ fontSize: '12px', color: '#065f46', fontFamily: 'monospace', fontWeight: 'bold' }}>{p.barcode}</span>
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <span style={{ display: 'inline-block', backgroundColor: '#e5e7eb', color: '#4b5563', fontSize: '12px', fontWeight: 'bold', padding: '4px 10px', borderRadius: '12px', alignSelf: 'flex-start', marginBottom: '4px' }}>Bo'lim: {p.category || 'Umumiy'}</span>
-                    <div style={{ color: '#6b7280', fontSize: '14px' }}>Qoldiq: <span style={{ fontWeight: 'bold', color: '#1e3a8a', fontSize: '16px' }}>{p.quantity} {p.unit}</span></div>
-                    <div style={{ color: '#6b7280', fontSize: '13px' }}>1 {getUnitText(p.unit)} olingan narxi: <span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '14px' }}>{p.costPrice ? p.costPrice.toLocaleString() : 'Kiritilmagan'} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span></div>
-                    <div style={{ color: '#6b7280', fontSize: '13px' }}>1 {getUnitText(p.unit)} sotilish narxi: <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>{p.price.toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span></div>
-                    <div style={{ color: '#1e3a8a', fontSize: '13px', marginTop: '4px', backgroundColor: '#eff6ff', padding: '6px 10px', borderRadius: '6px', border: '1px solid #bfdbfe', display: 'inline-block', alignSelf: 'flex-start' }}>Umumiy summasi: <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{(p.quantity * p.price).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span></div>
-                    {p.costPrice && p.price && <div style={{ color: '#059669', fontSize: '13px', marginTop: '2px', backgroundColor: '#ecfdf5', padding: '4px 8px', borderRadius: '6px', display: 'inline-block', alignSelf: 'flex-start' }}>Foyda (1 {getUnitText(p.unit)} uchun): <span style={{ fontWeight: 'bold' }}>{(p.price - p.costPrice).toLocaleString()} {(p.unit === 'kv' || p.unit === 'Dona/$') ? '$' : "so'm"}</span></div>}
-                  </div>
-
-                  <div style={{ borderTop: '1px dashed #d1d5db', margin: '15px 0' }}></div>
-
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
-                    {addingStockId === p.id ? (
-                      <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#eff6ff', padding: '6px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                        <input type="number" placeholder="Miqdor" value={stockAmount} onChange={e => setStockAmount(e.target.value)} style={{ width: '80px', padding: '6px', border: '1px solid #93c5fd', borderRadius: '6px', outline: 'none' }} autoFocus step="any" />
-                        <button onClick={() => handleConfirmAddStock(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto' }}><Check size={16} /></button>
-                        <button onClick={() => { setAddingStockId(null); setStockAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }}><X size={16} /></button>
-                      </div>
-                    ) : (
-                      <button onClick={() => { setAddingStockId(p.id); setAssigningCatId(null); setEditingProductId(null); setChangingPriceId(null); setChangingCostPriceId(null); }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#e0e7ff', color: '#4338ca', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #c7d2fe' }}><PlusCircle size={16} /> Kirim</button>
-                    )}
-
-                    {assigningCatId === p.id ? (
-                      <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#f3f4f6', padding: '6px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
-                        <select value={selectedCat} onChange={e => setSelectedCat(e.target.value)} style={{ padding: '6px', border: '1px solid #d1d5db', borderRadius: '6px', outline: 'none', fontSize: '13px' }}>
-                          <option value="">-- Bo'lim --</option>
-                          <option value="Umumiy">Umumiy</option>
-                          {categories.map((c, i) => <option key={i} value={c}>{c}</option>)}
-                        </select>
-                        <button onClick={() => handleAssignCategory(p.id)} className="btn" style={{ backgroundColor: '#10b981', color: 'white', padding: '6px 10px', width: 'auto' }}><Check size={16} /></button>
-                        <button onClick={() => setAssigningCatId(null)} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }}><X size={16} /></button>
-                      </div>
-                    ) : (
-                      <button onClick={() => { setAssigningCatId(p.id); setAddingStockId(null); setSelectedCat(p.category || 'Umumiy'); setEditingProductId(null); setChangingPriceId(null); setChangingCostPriceId(null); }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#f3f4f6', color: '#4b5563', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #d1d5db' }}><Tags size={16} /> Ko'chirish</button>
-                    )}
-
-                    {changingCostPriceId === p.id ? (
-                      <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#fef2f2', padding: '6px', borderRadius: '8px', border: '1px solid #fecaca' }}>
-                        <input type="number" placeholder="Yangi olingan narx" value={newCostPriceAmount} onChange={e => setNewCostPriceAmount(e.target.value)} style={{ width: '110px', padding: '6px', border: '1px solid #fca5a5', borderRadius: '6px', outline: 'none' }} autoFocus min="0" step="any" />
-                        <button onClick={() => handleConfirmChangeCostPrice(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#ef4444', border: 'none' }} title="Saqlash"><Check size={16} /></button>
-                        <button onClick={() => { setChangingCostPriceId(null); setNewCostPriceAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#991b1b' }} title="Bekor qilish"><X size={16} /></button>
-                      </div>
-                    ) : (
-                      <button onClick={() => { setChangingCostPriceId(p.id); setChangingPriceId(null); setAddingStockId(null); setAssigningCatId(null); setEditingProductId(null); setNewCostPriceAmount(p.costPrice || ''); }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#fef2f2', color: '#991b1b', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #fecaca' }}><DollarSign size={16} /> Tan narxi</button>
-                    )}
-
-                    {changingPriceId === p.id ? (
-                      <div className="fade-in" style={{ display: 'flex', gap: '5px', alignItems: 'center', backgroundColor: '#f0fdf4', padding: '6px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
-                        <input type="number" placeholder="Yangi sotuv narxi" value={newPriceAmount} onChange={e => setNewPriceAmount(e.target.value)} style={{ width: '110px', padding: '6px', border: '1px solid #86efac', borderRadius: '6px', outline: 'none' }} autoFocus min="0" step="any" />
-                        <button onClick={() => handleConfirmChangePrice(p.id)} className="btn btn-primary" style={{ padding: '6px 10px', width: 'auto', backgroundColor: '#10b981', border: 'none' }} title="Saqlash"><Check size={16} /></button>
-                        <button onClick={() => { setChangingPriceId(null); setNewPriceAmount(''); }} className="btn btn-danger" style={{ padding: '6px 10px', width: 'auto' }} title="Bekor qilish"><X size={16} /></button>
-                      </div>
-                    ) : (
-                      <button onClick={() => { setChangingPriceId(p.id); setChangingCostPriceId(null); setAddingStockId(null); setAssigningCatId(null); setEditingProductId(null); setNewPriceAmount(p.price); }} className="btn" style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', backgroundColor: '#f0fdf4', color: '#166534', display: 'flex', gap: '6px', alignItems: 'center', border: '1px solid #bbf7d0' }}><DollarSign size={16} /> Sotuv narxi</button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 };

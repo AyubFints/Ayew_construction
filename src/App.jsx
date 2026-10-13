@@ -22,6 +22,30 @@ import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, setDoc, onSnapshot, collection } from 'firebase/firestore';
 
+// =======================================================
+// 1. SIZ YUBORGAN LOGO RASMINI CHAQIRIB OLAMIZ
+// =======================================================
+import logo from './assets/myup_pdf.jfif';
+
+// =======================================================
+// 2. 3 SONIYALIK YUKLANISH EKRANI KOMPONENTI (SPLASH SCREEN)
+// =======================================================
+const SplashScreen = () => (
+  <div className="fade-in" style={{
+    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', 
+    justifyContent: 'center', alignItems: 'center', zIndex: 999999
+  }}>
+    <img 
+      src={logo} 
+      alt="Smart Dokon Logo" 
+      style={{ width: '150px', height: '150px', objectFit: 'contain', marginBottom: '20px', borderRadius: '15px' }} 
+    />
+    <h1 style={{ color: '#1e3a8a', fontSize: '38px', fontWeight: '900', margin: 0, letterSpacing: '1px' }}>Smart dokon</h1>
+    <p style={{ color: '#64748b', fontSize: '15px', fontWeight: 'bold', marginTop: '10px' }}>Ishga tushmoqda...</p>
+  </div>
+);
+
 const MasterGate = ({ onUnlock }) => {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
@@ -64,6 +88,18 @@ const MasterGate = ({ onUnlock }) => {
 };
 
 function App() {
+  // =======================================================
+  // 3. EKRANNI 3 SONIYA KO'RSATISH UCHUN TIMER
+  // =======================================================
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 3000); // 3 soniya
+    return () => clearTimeout(timer);
+  }, []);
+
   const cachedAuth = localStorage.getItem('app_isAuth') === 'true';
   const cachedMaster = localStorage.getItem('app_master_unlocked') === 'true';
 
@@ -71,10 +107,8 @@ function App() {
   const [isAuth, setIsAuth] = useState(cachedAuth);
   const [page, setPage] = useState('dashboard');
 
-  // QORONG'U REJIM STATE (Xotiradan o'qiydi)
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('app_theme') === 'dark');
 
-  // INTERNET YO'Q PAYTIDA KUTTIRMASLIK UCHUN LOCALSTORAGE DAN DARHOL O'QIB OLAMIZ
   const [storeName, setStoreName] = useState(() => localStorage.getItem('app_storeName') || "Qurilish mollari do'koni");
   const [categories, setCategories] = useState(() => JSON.parse(localStorage.getItem('app_categories') || '["Umumiy"]'));
   
@@ -84,7 +118,6 @@ function App() {
   const [customers, setCustomers] = useState(() => JSON.parse(localStorage.getItem('app_customers') || '[]'));
   const [arenda, setArenda] = useState(() => JSON.parse(localStorage.getItem('app_arenda') || '[]'));
 
-  // REJIM O'ZGARISHINI KUZATUVCHI EFFECT
   useEffect(() => {
     if (isDarkMode) {
       document.body.classList.add('dark-mode');
@@ -119,7 +152,6 @@ function App() {
 
         const storeUid = currentUser.uid;
         
-        // INSTAGRAM KABI ISHLASHI UCHUN: { includeMetadataChanges: true } QO'SHILDI
         const mainSub = onSnapshot(doc(db, "stores", storeUid), { includeMetadataChanges: true }, (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
@@ -140,7 +172,6 @@ function App() {
         ];
 
         cols.forEach(({ name, setter }) => {
-          // { includeMetadataChanges: true } - Oflayn rejim uchun eng muhim qism
           const sub = onSnapshot(collection(db, "stores", storeUid, name), { includeMetadataChanges: true }, (snapshot) => {
             const dataArr = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setter(dataArr);
@@ -209,7 +240,6 @@ function App() {
     );
   };
 
-  // QORONG'U/YORUG' REJIM TUGMASI 
   const renderThemeToggle = () => {
     if (!isAuth) return null;
     return (
@@ -231,12 +261,22 @@ function App() {
     );
   };
 
-  if (!isMasterUnlocked) return <MasterGate onUnlock={() => { setIsMasterUnlocked(true); localStorage.setItem('app_master_unlocked', 'true'); }} />;
+  // Agar master kod yozilmagan bo'lsa (Bunda ham Splash ekran chiqib turadi)
+  if (!isMasterUnlocked) {
+    return (
+      <>
+        {showSplash && <SplashScreen />}
+        <MasterGate onUnlock={() => { setIsMasterUnlocked(true); localStorage.setItem('app_master_unlocked', 'true'); }} />
+      </>
+    );
+  }
 
   return (
     <div className="app-container" style={{ paddingBottom: page !== 'dashboard' && page !== 'settings' ? '110px' : '20px' }}>
       
-      {/* Tungi/Kunduzgi rejim tugmasini chaqiramiz */}
+      {/* 4. SPLASH EKRAN DASTUR USTIDAN CHIQIB TURADI VA YO'QOLADI */}
+      {showSplash && <SplashScreen />}
+
       {renderThemeToggle()}
 
       {!isAuth ? <Login /> : (
@@ -258,7 +298,9 @@ function App() {
           {page === 'debts' && <Debts sales={sales} setSales={setSales} setPage={setPage} customers={customers} />}
           {page === 'settings' && <Settings storeName={storeName} setStoreName={setStoreName} setProducts={setProducts} setSales={setSales} setReturns={setReturns} setPage={setPage} />}
           {page === 'arenda' && <Arenda arenda={arenda} setArenda={setArenda} setPage={setPage} />}
-          {page === 'profit' && <Profit sales={sales} setPage={setPage} />}
+          
+          {/* FOYDA ISHLASHI UCHUN TO'G'IRLANGAN QISM */}
+          {page === 'profit' && <Profit sales={sales} returns={returns} products={products} setPage={setPage} />}
         </>
       )}
       {renderBottomNav()}

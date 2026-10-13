@@ -1,36 +1,44 @@
 import React, { useState } from 'react';
 import { ArrowLeft, TrendingUp, Calendar, DollarSign, Activity, ShoppingBag } from 'lucide-react';
 
-const Profit = ({ sales = [], setPage }) => {
+const Profit = ({ sales = [], returns = [], products = [], setPage }) => {
   const today = new Date().toISOString().split('T')[0];
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
 
-  // Tanlangan oraliqdagi barcha savdolarni ajratib olish
+  // Tanlangan oraliqdagi SAVDOLAR
   const filteredSales = sales.filter(sale => {
-    if (!sale.id) return false;
+    if (!sale || !sale.id) return false;
     const saleDate = new Date(sale.id).toISOString().split('T')[0];
     return saleDate >= startDate && saleDate <= endDate;
   });
 
-  // Tushum va Foydani hisoblash uchun
+  // Tanlangan oraliqdagi QAYTISHLAR
+  const filteredReturns = returns.filter(ret => {
+    if (!ret || !ret.id) return false;
+    const retDate = new Date(ret.id).toISOString().split('T')[0];
+    return retDate >= startDate && retDate <= endDate;
+  });
+
   let totalProfitSom = 0;
   let totalProfitUsd = 0;
   let totalRevenueSom = 0; 
   let totalRevenueUsd = 0;
 
-  // Jadval uchun tovarlarni bittalab chaqib olish ro'yxati
-  const flatSalesList = [];
+  const flatActivityList = [];
 
+  // ================= 1. SAVDOLARNI HISOBLASH (QO'SHISH) =================
   filteredSales.forEach(sale => {
-    // Agar savdo ichida savatcha (cartItems) bo'lsa, ularni bittalab o'qiymiz
-    if (sale.cartItems && sale.cartItems.length > 0) {
+    if (sale.cartItems && Array.isArray(sale.cartItems)) {
       sale.cartItems.forEach(cartItem => {
-        const cost = cartItem.product.costPrice || 0; // Olingan narx
-        const price = cartItem.product.price || 0; // Sotilgan narx
+        if (!cartItem || !cartItem.product) return;
+
+        const cost = cartItem.product.costPrice || 0; 
+        const price = cartItem.price || cartItem.product.price || 0; 
         const qty = cartItem.qty || 0; 
         
-        const isUsd = (cartItem.product.unit === 'kv' || cartItem.product.unit.includes('$'));
+        const unit = cartItem.product.unit || '';
+        const isUsd = (unit === 'kv' || unit.includes('$'));
 
         const profit = (price - cost) * qty;
         const revenue = price * qty;
@@ -43,23 +51,110 @@ const Profit = ({ sales = [], setPage }) => {
           totalRevenueSom += revenue;
         }
 
-        flatSalesList.push({
+        flatActivityList.push({
           date: sale.id,
-          customer: sale.customer,
-          productName: cartItem.product.name,
+          customer: sale.customer || 'Chakana xaridor',
+          productName: cartItem.product.name || 'Noma\'lum tovar',
           qty: qty,
-          unit: cartItem.product.unit,
+          unit: unit,
           costPrice: cost,
           price: price,
-          profit: profit,
-          isUsd: isUsd
+          profit: profit, 
+          isUsd: isUsd,
+          type: 'sale' 
         });
       });
     }
   });
 
-  // Eng so'nggi sotilganlar birinchi turishi uchun saralaymiz
-  flatSalesList.sort((a, b) => b.date - a.date);
+  // ================= 2. QAYTISHLARNI HISOBLASH (AYIRISH VA ESKI VOZVRATLARNI TOPISH) =================
+  filteredReturns.forEach(ret => {
+    
+    // AGAR YANGI VOZVRAT BO'LSA (cartItems bor bo'lsa)
+    if (ret.cartItems && Array.isArray(ret.cartItems) && ret.cartItems.length > 0) {
+      ret.cartItems.forEach(cartItem => {
+        if (!cartItem || !cartItem.product) return;
+
+        const cost = cartItem.product.costPrice || 0;
+        const returnPrice = cartItem.price || cartItem.product.price || 0; 
+        const qty = cartItem.qty || 0; 
+        
+        const unit = cartItem.product.unit || '';
+        const isUsd = (unit === 'kv' || unit.includes('$'));
+
+        const lostProfit = (returnPrice - cost) * qty;
+        const lostRevenue = returnPrice * qty;
+
+        if (isUsd) {
+          totalProfitUsd -= lostProfit;
+          totalRevenueUsd -= lostRevenue;
+        } else {
+          totalProfitSom -= lostProfit;
+          totalRevenueSom -= lostRevenue;
+        }
+
+        flatActivityList.push({
+          date: ret.id,
+          customer: ret.customer || 'Chakana xaridor',
+          productName: cartItem.product.name,
+          qty: qty,
+          unit: unit,
+          costPrice: cost,
+          price: returnPrice,
+          profit: -lostProfit, 
+          isUsd: isUsd,
+          type: 'return' 
+        });
+      });
+    } 
+    // AGAR ESKI VOZVRAT BO'LSA (Yozuv ko'rinishidagi ma'lumot)
+    else if (ret.productName) {
+      const isUsd = ret.unit === 'kv' || (ret.unit && ret.unit.includes('$'));
+      const returnTotalSum = ret.returnSumSom || ret.returnSumUsd || ret.returnSum || 0;
+      
+      // Eski tovar ismini tozalash va aslini topish
+      let cleanName = ret.productName;
+      if (cleanName.includes('•')) cleanName = cleanName.split('—')[0].replace('•', '').trim();
+      
+      // Ombordan tovarning asl tan narxini va sotuv narxini aniqlaymiz
+      const foundProduct = products.find(p => p.name.toLowerCase().trim() === cleanName.toLowerCase().trim());
+      
+      const cost = foundProduct ? (foundProduct.costPrice || 0) : 0;
+      const price = foundProduct ? (foundProduct.price || 0) : 0;
+      
+      // Miqdorini aniqlash (Umumiy summani narxga bo'lib qancha donaligini bilamiz)
+      let qty = 1;
+      if (price > 0 && returnTotalSum > 0) {
+        qty = returnTotalSum / price;
+      }
+
+      const lostProfit = (price - cost) * qty;
+      const lostRevenue = returnTotalSum;
+
+      if (isUsd) {
+        totalProfitUsd -= lostProfit;
+        totalRevenueUsd -= lostRevenue;
+      } else {
+        totalProfitSom -= lostProfit;
+        totalRevenueSom -= lostRevenue;
+      }
+
+      flatActivityList.push({
+        date: ret.id,
+        customer: ret.customer || 'Chakana xaridor',
+        productName: cleanName,
+        qty: parseFloat(qty.toFixed(2)),
+        unit: ret.unit || 'dona',
+        costPrice: cost,
+        price: price,
+        profit: -lostProfit,
+        isUsd: isUsd,
+        type: 'return' 
+      });
+    }
+  });
+
+  flatActivityList.sort((a, b) => b.date - a.date);
 
   return (
     <div className="fade-in">
@@ -104,7 +199,7 @@ const Profit = ({ sales = [], setPage }) => {
             {totalProfitSom.toLocaleString()} <span style={{ fontSize: '18px', color: '#059669' }}>so'm</span>
           </h2>
           <p style={{ margin: '10px 0 0 0', fontSize: '13px', color: '#059669' }}>
-            Umumiy savdo tushumi: {totalRevenueSom.toLocaleString()} so'm
+            Vozvratdan keyingi tushum: {totalRevenueSom.toLocaleString()} so'm
           </p>
         </div>
 
@@ -117,7 +212,7 @@ const Profit = ({ sales = [], setPage }) => {
             {totalProfitUsd.toLocaleString()} <span style={{ fontSize: '18px', color: '#0284c7' }}>$</span>
           </h2>
           <p style={{ margin: '10px 0 0 0', fontSize: '13px', color: '#0284c7' }}>
-            Umumiy savdo tushumi: {totalRevenueUsd.toLocaleString()} $
+            Vozvratdan keyingi tushum: {totalRevenueUsd.toLocaleString()} $
           </p>
         </div>
 
@@ -125,41 +220,42 @@ const Profit = ({ sales = [], setPage }) => {
 
       <div className="card" style={{ padding: '20px', backgroundColor: '#ffffff' }}>
         <h3 style={{ margin: '0 0 20px 0', color: '#1f2937', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <ShoppingBag size={20} color="#4b5563"/> Tanlangan davrdagi sotuvlardan foyda
+          <ShoppingBag size={20} color="#4b5563"/> Davrdagi harakatlar va minus qilingan foydalar
         </h3>
 
-        {flatSalesList.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px 0' }}>Bu sanalarda sotuv amaliyoti topilmadi.</p>
+        {flatActivityList.length === 0 ? (
+          <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px 0' }}>Bu sanalarda sotuv yoki vozvrat amaliyoti topilmadi.</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f3f4f6', color: '#374151', fontSize: '14px' }}>
+                  <th style={{ padding: '12px', borderBottom: '2px solid #d1d5db' }}>Harakat</th>
                   <th style={{ padding: '12px', borderBottom: '2px solid #d1d5db' }}>Sana & Vaqt</th>
                   <th style={{ padding: '12px', borderBottom: '2px solid #d1d5db' }}>Xaridor</th>
                   <th style={{ padding: '12px', borderBottom: '2px solid #d1d5db' }}>Mahsulot</th>
                   <th style={{ padding: '12px', borderBottom: '2px solid #d1d5db' }}>Miqdori</th>
-                  <th style={{ padding: '12px', borderBottom: '2px solid #d1d5db' }}>Tan narxi</th>
-                  <th style={{ padding: '12px', borderBottom: '2px solid #d1d5db' }}>Sotildi</th>
-                  <th style={{ padding: '12px', borderBottom: '2px solid #d1d5db', textAlign: 'right', color: '#059669' }}>Sof Foyda</th>
+                  <th style={{ padding: '12px', borderBottom: '2px solid #d1d5db', textAlign: 'right', color: '#059669' }}>Foyda / Zarar</th>
                 </tr>
               </thead>
               <tbody>
-                {flatSalesList.map((sale, idx) => {
-                  const cur = sale.isUsd ? '$' : "so'm";
+                {flatActivityList.map((item, idx) => {
+                  const cur = item.isUsd ? '$' : "so'm";
+                  const isReturn = item.type === 'return';
 
                   return (
-                    <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb', fontSize: '14px' }}>
-                      <td style={{ padding: '12px', color: '#6b7280' }}>
-                        {new Date(sale.date).toLocaleString('uz-UZ', {day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit'})}
+                    <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb', fontSize: '14px', backgroundColor: isReturn ? '#fef2f2' : 'transparent' }}>
+                      <td style={{ padding: '12px', fontWeight: 'bold', color: isReturn ? '#ef4444' : '#10b981' }}>
+                        {isReturn ? 'Qaytarildi' : 'Sotildi'}
                       </td>
-                      <td style={{ padding: '12px', color: '#4b5563' }}>{sale.customer}</td>
-                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#111827' }}>{sale.productName}</td>
-                      <td style={{ padding: '12px' }}>{sale.qty} {sale.unit}</td>
-                      <td style={{ padding: '12px', color: '#ef4444' }}>{sale.costPrice.toLocaleString()} {cur}</td>
-                      <td style={{ padding: '12px', color: '#3b82f6' }}>{sale.price.toLocaleString()} {cur}</td>
-                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: '#10b981' }}>
-                        +{sale.profit.toLocaleString()} {cur}
+                      <td style={{ padding: '12px', color: '#6b7280' }}>
+                        {new Date(item.date).toLocaleString('uz-UZ', {day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit'})}
+                      </td>
+                      <td style={{ padding: '12px', color: '#4b5563' }}>{item.customer}</td>
+                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#111827' }}>{item.productName}</td>
+                      <td style={{ padding: '12px' }}>{item.qty} {item.unit}</td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: isReturn ? '#ef4444' : '#10b981' }}>
+                        {isReturn ? '' : '+'}{item.profit.toLocaleString()} {cur}
                       </td>
                     </tr>
                   );

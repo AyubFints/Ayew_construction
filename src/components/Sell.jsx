@@ -901,7 +901,8 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
         <form onSubmit={handleAddToCart}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '15px' }}>
             
-            <div style={{ display: 'flex', gap: '10px', backgroundColor: '#f3f4f6', padding: '5px', borderRadius: '12px' }}>
+            {/* YUQORI TUGMALAR FON */}
+            <div className="sell-bg-gray" style={{ display: 'flex', gap: '10px', padding: '5px', borderRadius: '12px', border: 'none' }}>
               <button 
                 type="button"
                 className="btn" 
@@ -920,7 +921,8 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
               </button>
             </div>
 
-            <div style={{ backgroundColor: '#f9fafb', padding: '15px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+            {/* ASOSIY OQ/KULRANG FON */}
+            <div className="sell-bg-gray" style={{ padding: '15px', borderRadius: '12px' }}>
               
               {sellMode === 'inventory' ? (
                 <>
@@ -983,7 +985,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                         type="text" className="form-control" placeholder="Bo'limi bo'yicha qidirish..." 
                         value={categoryQuery} onChange={(e) => { setCategoryQuery(e.target.value); setIsDropdownOpen(true); }} 
                         onFocus={() => setIsDropdownOpen(true)}
-                        style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
+                        style={{ marginBottom: 0, paddingLeft: '38px', width: '100%' }} 
                       />
                     </div>
                     
@@ -993,7 +995,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                         type="text" className="form-control" placeholder="Nomi bo'yicha qidirish..." 
                         value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setIsDropdownOpen(true); }} 
                         onFocus={() => setIsDropdownOpen(true)}
-                        style={{ marginBottom: 0, paddingLeft: '38px', backgroundColor: '#ffffff', width: '100%' }} 
+                        style={{ marginBottom: 0, paddingLeft: '38px', width: '100%' }} 
                       />
 
                       {isDropdownOpen && (searchQuery || categoryQuery) && (
@@ -1002,12 +1004,12 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }} 
                             onClick={() => setIsDropdownOpen(false)} 
                           />
-                          <div style={{ 
+                          {/* QIDIRUV RO'YXATI */}
+                          <div className="sell-bg-white" style={{ 
                             position: 'absolute', 
                             top: '100%', 
                             left: 0, 
                             right: 0, 
-                            backgroundColor: 'white', 
                             border: '1px solid #cbd5e1', 
                             borderRadius: '8px', 
                             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', 
@@ -1022,6 +1024,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                               filteredProducts.map(p => (
                                 <div
                                   key={p.id}
+                                  className={selectedProductId === p.id.toString() ? "sell-bg-blue" : "sell-bg-white"}
                                   onClick={() => {
                                     setSelectedProductId(p.id.toString());
                                     setSearchQuery(p.name);
@@ -1035,14 +1038,13 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                                     borderBottom: '1px solid #f1f5f9',
                                     display: 'flex',
                                     justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    backgroundColor: selectedProductId === p.id.toString() ? '#eff6ff' : 'white'
+                                    alignItems: 'center'
                                   }}
-                                  onMouseEnter={(e) => { if(selectedProductId !== p.id.toString()) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
-                                  onMouseLeave={(e) => { if(selectedProductId !== p.id.toString()) e.currentTarget.style.backgroundColor = 'white'; }}
+                                  onMouseEnter={(e) => { if(selectedProductId !== p.id.toString()) e.currentTarget.classList.add('sell-bg-gray'); }}
+                                  onMouseLeave={(e) => { e.currentTarget.classList.remove('sell-bg-gray'); }}
                                 >
                                   <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-                                    <span style={{ fontWeight: '500', color: '#1e293b' }}>{p.name}</span>
+                                    <span style={{ fontWeight: '500' }}>{p.name}</span>
                                     {p.category && <span style={{ fontSize: '11px', color: '#64748b' }}>Kategoriya: {p.category}</span>}
                                   </div>
                                   <span style={{ fontSize: '12px', backgroundColor: '#e2e8f0', color: '#475569', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold' }}>
@@ -1083,10 +1085,10 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                     </div>
                     
                     {selectedProduct && (
-                      <div className="fade-in" style={{ marginTop: '10px', backgroundColor: '#eff6ff', padding: '15px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                      <div className="fade-in sell-bg-blue" style={{ marginTop: '10px', padding: '15px', borderRadius: '8px' }}>
                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                           <span style={{ fontSize: '14px', color: '#1e40af', fontWeight: 'bold' }}>Sotish narxini belgilash:</span>
-                           <span style={{ fontSize: '14px', color: '#475569' }}>
+                           <span style={{ fontSize: '14px', fontWeight: 'bold' }}>Sotish narxini belgilash:</span>
+                           <span style={{ fontSize: '14px' }}>
                              Asl narx: <b>{selectedProduct.price.toLocaleString()}</b> {isUsdUnit(selectedProduct.unit) ? '$' : "so'm"}
                            </span>
                          </div>
@@ -1094,16 +1096,16 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                            <button 
                              type="button" 
                              onClick={() => { setPriceMode('original'); setError(''); }} 
-                             className="btn" 
-                             style={{ flex: 1, backgroundColor: priceMode === 'original' ? '#1e3a8a' : 'white', color: priceMode === 'original' ? 'white' : '#334155', border: '1px solid #cbd5e1', padding: '10px' }}
+                             className={`btn ${priceMode !== 'original' ? 'sell-bg-white' : ''}`} 
+                             style={{ flex: 1, backgroundColor: priceMode === 'original' ? '#1e3a8a' : undefined, color: priceMode === 'original' ? 'white' : undefined, border: '1px solid #cbd5e1', padding: '10px' }}
                            >
                              O'zini narxida
                            </button>
                            <button 
                              type="button" 
                              onClick={() => { setPriceMode('custom'); setError(''); }} 
-                             className="btn" 
-                             style={{ flex: 1, backgroundColor: priceMode === 'custom' ? '#1e3a8a' : 'white', color: priceMode === 'custom' ? 'white' : '#334155', border: '1px solid #cbd5e1', padding: '10px' }}
+                             className={`btn ${priceMode !== 'custom' ? 'sell-bg-white' : ''}`}
+                             style={{ flex: 1, backgroundColor: priceMode === 'custom' ? '#1e3a8a' : undefined, color: priceMode === 'custom' ? 'white' : undefined, border: '1px solid #cbd5e1', padding: '10px' }}
                            >
                              Boshqa narx
                            </button>
@@ -1119,7 +1121,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                                   onChange={e => { setInventoryCustomPrice(e.target.value); setError(''); }} 
                                   style={{ marginBottom: 0, flex: 1 }} 
                                 />
-                                <span style={{ fontWeight: 'bold', color: '#475569' }}>
+                                <span style={{ fontWeight: 'bold' }}>
                                   {isUsdUnit(selectedProduct.unit) ? '$' : "so'm"}
                                 </span>
                              </div>
@@ -1136,7 +1138,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                     <input 
                       type="text" className="form-control" placeholder="Tavar nomi (Masalan: Bolt, Sement...)" 
                       value={customName} onChange={(e) => { setCustomName(e.target.value); setError(''); }} 
-                      style={{ marginBottom: 0, backgroundColor: '#ffffff', width: '100%' }} 
+                      style={{ marginBottom: 0, width: '100%' }} 
                     />
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <input 
@@ -1150,9 +1152,9 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                         style={{ marginBottom: 0, flex: 1 }} min="0" step="any"
                       />
                       <select 
-                        className="form-control" 
+                        className="form-control sell-bg-gray" 
                         value={customCurrency} onChange={(e) => setCustomCurrency(e.target.value)} 
-                        style={{ marginBottom: 0, flex: 1, backgroundColor: '#f3f4f6' }}
+                        style={{ marginBottom: 0, flex: 1, border: 'none' }}
                       >
                         <option value="som">so'm</option>
                         <option value="usd">USD ($)</option>
@@ -1178,10 +1180,10 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                   
                   {sellMode === 'custom' && (
                       <select 
-                        className="form-control"
+                        className="form-control sell-bg-gray"
                         value={sellUnit}
                         onChange={(e) => setSellUnit(e.target.value)}
-                        style={{ marginBottom: 0, height: '46px', flex: '1.2', backgroundColor: '#f3f4f6', padding: '0 8px' }}
+                        style={{ marginBottom: 0, height: '46px', flex: '1.2', padding: '0 8px', border: 'none' }}
                       >
                         <option value="dona">dona</option>
                         <option value="kv">kv</option>
@@ -1194,7 +1196,7 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
                   )}
 
                   {sellMode === 'inventory' && selectedProduct && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 15px', backgroundColor: '#e2e8f0', borderRadius: '8px', color: '#475569', fontWeight: 'bold' }}>
+                      <div className="sell-bg-gray" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 15px', borderRadius: '8px', fontWeight: 'bold' }}>
                           {selectedProduct.unit.replace('$', '').trim() || 'birlik'}
                       </div>
                   )}
@@ -1212,7 +1214,6 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
             </div>
           </div>
         </form>
-
         {error && <div style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '15px' }}>{error}</div>}
 
         {cart.length > 0 && (
