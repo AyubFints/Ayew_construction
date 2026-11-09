@@ -314,7 +314,7 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
           <button 
             onClick={() => setShowAddForm(true)} 
             className="btn btn-primary" 
-            style={{ width: '100%', padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', backgroundColor: '#1e3a8a' }}
+            style={{ width: '100%', padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', backgroundColor: '#1e3a8a', color: 'white' }}
           >
             <PlusCircle size={20} /> Yangi qarz qo'shish (Qo'lda kiritish)
           </button>
@@ -375,7 +375,7 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
                 <input type="number" className="form-control" placeholder="Muddat (kun)" value={newDebtDays} onChange={e => setNewDebtDays(e.target.value)} min="0" style={{ marginBottom: 0 }} />
               </div>
 
-              <button type="submit" className="btn btn-primary" style={{ backgroundColor: '#10b981', border: 'none', padding: '12px', fontWeight: 'bold', marginTop: '10px' }}>
+              <button type="submit" className="btn btn-primary" style={{ backgroundColor: '#10b981', color: 'white', border: 'none', padding: '12px', fontWeight: 'bold', marginTop: '10px' }}>
                 Qarzni tasdiqlash va yozish
               </button>
             </form>
@@ -551,10 +551,10 @@ const Debts = ({ sales, setSales, setPage, customers = [] }) => {
                             onChange={(e) => setRepayAmounts({...repayAmounts, [sale.id]: e.target.value})} 
                             style={{ marginBottom: 0, flex: '1 1 120px' }} 
                           />
-                          <button onClick={() => handleRepay(sale, false)} className="btn" style={{ backgroundColor: '#f59e0b', color: 'white', flex: '1 1 auto', fontSize: '13px', padding: '10px' }}>
+                          <button onClick={() => handleRepay(sale, false)} className="btn" style={{ backgroundColor: '#f59e0b', color: 'white', flex: '1 1 auto', fontSize: '13px', padding: '10px', fontWeight: 'bold' }}>
                             Qism to'lov
                           </button>
-                          <button onClick={() => handleRepay(sale, true)} className="btn" style={{ backgroundColor: '#10b981', color: 'white', flex: '1 1 auto', fontSize: '13px', padding: '10px' }}>
+                          <button onClick={() => handleRepay(sale, true)} className="btn" style={{ backgroundColor: '#10b981', color: 'white', flex: '1 1 auto', fontSize: '13px', padding: '10px', fontWeight: 'bold' }}>
                             To'liq yopish
                           </button>
                         </div>

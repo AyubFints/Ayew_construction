@@ -640,7 +640,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
                   </div>
                   
                   {quantity && price && (
-                    <div style={{ padding: '15px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '20px', color: '#1e3a8a' }}>
+                    <div className="profit-calc-box" style={{ padding: '15px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '20px', color: '#1e3a8a' }}>
                       <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Umumiy qiymat (Sotuv): {(parseFloat(quantity) * parseFloat(price)).toLocaleString()} {(unit === 'kv' || unit === 'Dona/$') ? '$' : "so'm"}</div>
                       {costPrice && <div style={{ fontSize: '13px', color: '#10b981', fontWeight: 'bold' }}>Kutilayotgan sof foyda: {((parseFloat(price) - parseFloat(costPrice)) * parseFloat(quantity)).toLocaleString()} {(unit === 'kv' || unit === 'Dona/$') ? '$' : "so'm"}</div>}
                     </div>
@@ -658,7 +658,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
               </div>
 
               {!searchQuery.trim() && displayedProducts.length > 0 && (
-                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '15px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'space-between' }}>
+                <div className="category-summary-box" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '15px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'space-between' }}>
                   <div>
                     <p style={{ margin: '0 0 5px 0', fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>{activeFilter === 'Barchasi' ? 'Barcha tovarlar' : `"${activeFilter}" bo'limi`} tan narxi:</p>
                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
@@ -680,7 +680,7 @@ const Products = ({ products, setProducts, categories = [], setCategories, setPa
               {displayedProducts.length === 0 ? <p style={{ color: '#6b7280', textAlign: 'center', padding: '20px' }}>Bu yerda tovar yo'q yoki topilmadi.</p> : (
                 <div style={{ display: 'grid', gridTemplateColumns: searchQuery.trim() ? 'repeat(auto-fill, minmax(400px, 1fr))' : '1fr', gap: '15px' }}>
                   {displayedProducts.map(p => (
-                    <div key={p.id} className="fade-in" style={{ padding: '15px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px', position: 'relative' }}>
+                    <div key={p.id} className="fade-in product-card-item" style={{ padding: '15px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px', position: 'relative' }}>
                       <button onClick={() => handleDeleteProduct(p.id, p.name)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }} title="O'chirish"><Trash2 size={20} /></button>
                       
                       {editingProductId === p.id ? (

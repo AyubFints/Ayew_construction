@@ -37,6 +37,13 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
           }
           .smart-subtitle { margin: 5px 0 0 60px; font-size: 14px; color: #6b7280; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; }
           .gradient-text { background: linear-gradient(90deg, #1e3a8a 0%, #10b981 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+          body.dark-mode .menu-title {
+            color: #ffffff !important;
+            font-weight: 700 !important;
+          }
+          body.dark-mode .menu-card:hover .menu-title {
+            color: #38bdf8 !important;
+          }
           @media (max-width: 768px) {
             .dashboard-grid { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
             .menu-card { padding: 15px 10px !important; }
@@ -100,9 +107,9 @@ const Dashboard = ({ storeName, products = [], setPage, onLogout }) => {
           <div className="menu-icon"><Landmark size={40} color="#1e3a8a" strokeWidth={1.5} /></div>
           <div className="menu-title">Arenda va Chiqimlar</div>
         </div>
-        <div className="menu-card fade-in" style={{ animationDelay: '0.4s', backgroundColor: '#f9fafb' }} onClick={() => setPage('settings')}>
+        <div className="menu-card fade-in" style={{ animationDelay: '0.4s' }} onClick={() => setPage('settings')}>
           <div className="menu-icon"><SettingsIcon size={40} color="#4b5563" strokeWidth={1.5} /></div>
-          <div className="menu-title" style={{ color: '#4b5563' }}>Sozlamalar</div>
+          <div className="menu-title">Sozlamalar</div>
         </div>
       </div>
 
