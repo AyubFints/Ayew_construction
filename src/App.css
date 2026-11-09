@@ -15,6 +15,7 @@ body {
 @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
 
 .app-container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
+.app-container.arenda-active { max-width: 100% !important; margin: 10px auto !important; padding-left: 6px !important; padding-right: 6px !important; }
 
 /* Asosiy oq bloklar va kartalar */
 .card, .modal-content, .popup { 

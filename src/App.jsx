@@ -272,7 +272,16 @@ function App() {
   }
 
   return (
-    <div className="app-container" style={{ paddingBottom: page !== 'dashboard' && page !== 'settings' ? '110px' : '20px' }}>
+    <div 
+      className={`app-container ${page === 'arenda' ? 'arenda-active' : ''}`} 
+      style={{ 
+        paddingBottom: page !== 'dashboard' && page !== 'settings' ? '110px' : '20px',
+        paddingLeft: page === 'arenda' ? '4px' : undefined,
+        paddingRight: page === 'arenda' ? '4px' : undefined,
+        maxWidth: page === 'arenda' ? '100%' : undefined,
+        marginTop: page === 'arenda' ? '10px' : undefined
+      }}
+    >
       
       {/* 4. SPLASH EKRAN DASTUR USTIDAN CHIQIB TURADI VA YO'QOLADI */}
       {showSplash && <SplashScreen />}
