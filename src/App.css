@@ -711,3 +711,153 @@ body.dark-mode .sell-bg-white *,
 body.dark-mode .sell-bg-blue * {
   color: #f8fafc !important;
 }
+
+
+/* ========================================================= */
+/* ZAMONAVIY SAVAT STEPPERI (ZAMONAVIY + / - TUGMALARI)      */
+/* ========================================================= */
+.modern-qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 3px;
+  gap: 3px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.modern-qty-stepper:focus-within {
+  border-color: #3b82f6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15), 0 2px 6px rgba(15, 23, 42, 0.06);
+}
+
+.modern-qty-stepper .qty-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modern-qty-stepper .qty-btn:active {
+  transform: scale(0.9);
+}
+
+/* Minus tugmasi */
+.modern-qty-stepper .qty-btn-minus {
+  background: #ffffff;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.modern-qty-stepper .qty-btn-minus:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  border-color: #fecaca;
+  box-shadow: 0 2px 5px rgba(239, 68, 68, 0.18);
+  transform: translateY(-1px);
+}
+
+.modern-qty-stepper .qty-btn-minus:active {
+  transform: scale(0.9);
+}
+
+/* Plus tugmasi */
+.modern-qty-stepper .qty-btn-plus {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+}
+
+.modern-qty-stepper .qty-btn-plus:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.4);
+  transform: translateY(-1px);
+}
+
+.modern-qty-stepper .qty-btn-plus:active {
+  transform: scale(0.9);
+}
+
+/* O'rtadagi miqdor kiritish inputi */
+.modern-qty-stepper .qty-input-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modern-qty-stepper .qty-input {
+  width: 50px;
+  height: 32px;
+  text-align: center;
+  border: none;
+  background: transparent;
+  font-weight: 800;
+  font-size: 15px;
+  color: #0f172a;
+  padding: 0 2px;
+  margin: 0;
+  outline: none;
+  font-family: inherit;
+}
+
+.modern-qty-stepper .qty-input::-webkit-inner-spin-button, 
+.modern-qty-stepper .qty-input::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+.modern-qty-stepper .qty-input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* --------------------------------------------------------- */
+/* TUNGI REJIM (DARK MODE)                                   */
+/* --------------------------------------------------------- */
+body.dark-mode .modern-qty-stepper {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+body.dark-mode .modern-qty-stepper:focus-within {
+  border-color: #60a5fa !important;
+  background: #0f172a !important;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2) !important;
+}
+
+body.dark-mode .modern-qty-stepper .qty-btn-minus {
+  background: #334155 !important;
+  color: #cbd5e1 !important;
+  border-color: #475569 !important;
+  box-shadow: none !important;
+}
+
+body.dark-mode .modern-qty-stepper .qty-btn-minus:hover {
+  background: rgba(239, 68, 68, 0.25) !important;
+  color: #fca5a5 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+body.dark-mode .modern-qty-stepper .qty-btn-plus {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4) !important;
+}
+
+body.dark-mode .modern-qty-stepper .qty-btn-plus:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+}
+
+body.dark-mode .modern-qty-stepper .qty-input {
+  color: #f8fafc !important;
+}

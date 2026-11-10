@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, Search, X, PackageOpen, Tag, DollarSign, Wallet, ScanLine, Camera, QrCode } from 'lucide-react';
+import { ShoppingCart, ArrowLeft, BarChart3, User, PlusCircle, CheckCircle, ClipboardList, CalendarDays, Filter, Search, X, PackageOpen, Tag, DollarSign, Wallet, ScanLine, Camera, QrCode, Minus, Plus, Trash2 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 // YANGI: Firestore dan updateDoc va collection import qilindi
@@ -374,16 +374,31 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
          if (isNaN(finalPrice) || finalPrice <= 0) return setError("Yangi narxni to'g'ri kiriting!");
       }
 
-      const alreadyInCart = cart.filter(item => !item.isCustom && item.product.id === selectedProduct.id).reduce((sum, item) => sum + item.qty, 0);
+      const alreadyInCart = cart.filter(item => !item.isCustom && item.product.id === selectedProduct.id).reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0);
       if (qty + alreadyInCart > selectedProduct.quantity) return setError(`Omborda yetarli emas! Qoldiq: ${selectedProduct.quantity} ${selectedProduct.unit}`);
 
-      setCart([...cart, { 
-        id: Date.now(), 
-        isCustom: false, 
-        product: { ...selectedProduct, price: finalPrice }, 
-        qty: qty, 
-        total: qty * finalPrice 
-      }]);
+      const existingIndex = cart.findIndex(item => 
+        !item.isCustom && item.product.id === selectedProduct.id && item.product.price === finalPrice
+      );
+
+      if (existingIndex > -1) {
+        const updated = [...cart];
+        const newQty = Math.round((parseFloat(updated[existingIndex].qty) + qty) * 100) / 100;
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          qty: newQty,
+          total: Math.round(newQty * finalPrice * 100) / 100
+        };
+        setCart(updated);
+      } else {
+        setCart([...cart, { 
+          id: Date.now(), 
+          isCustom: false, 
+          product: { ...selectedProduct, price: finalPrice }, 
+          qty: qty, 
+          total: Math.round(qty * finalPrice * 100) / 100 
+        }]);
+      }
       handleClearSelection();
     } 
     else {
@@ -419,6 +434,70 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
   };
 
   const handleRemoveFromCart = (cartItemId) => setCart(cart.filter(item => item.id !== cartItemId));
+
+  const handleUpdateCartQty = (cartItemId, newQtyVal) => {
+    if (newQtyVal === '') {
+      setCart(prevCart => prevCart.map(i => i.id === cartItemId ? { ...i, qty: '', total: 0 } : i));
+      return;
+    }
+
+    const qty = parseFloat(newQtyVal);
+    if (isNaN(qty) || qty < 0) return;
+
+    if (qty === 0) {
+      handleRemoveFromCart(cartItemId);
+      return;
+    }
+
+    const item = cart.find(i => i.id === cartItemId);
+    if (!item) return;
+
+    if (!item.isCustom) {
+      const origProd = products.find(p => p.id === item.product.id);
+      const maxStock = origProd ? origProd.quantity : item.product.quantity;
+      const otherQty = cart
+        .filter(other => other.id !== cartItemId && !other.isCustom && other.product.id === item.product.id)
+        .reduce((sum, other) => sum + (parseFloat(other.qty) || 0), 0);
+
+      if (qty + otherQty > maxStock) {
+        alert(`Omborda yetarli emas! Qoldiq: ${maxStock} ${item.product.unit}`);
+        return;
+      }
+    }
+
+    setCart(prevCart => prevCart.map(i => {
+      if (i.id !== cartItemId) return i;
+      const total = Math.round(qty * i.product.price * 100) / 100;
+      return { ...i, qty, total };
+    }));
+  };
+
+  const handleBlurCartQty = (cartItemId) => {
+    const item = cart.find(i => i.id === cartItemId);
+    if (!item || !item.qty || isNaN(parseFloat(item.qty)) || parseFloat(item.qty) <= 0) {
+      handleUpdateCartQty(cartItemId, 1);
+    }
+  };
+
+  const handleIncreaseCartQty = (cartItemId, delta = 1) => {
+    const item = cart.find(i => i.id === cartItemId);
+    if (!item) return;
+    const currentQty = parseFloat(item.qty) || 0;
+    const newQty = Math.round((currentQty + delta) * 100) / 100;
+    handleUpdateCartQty(cartItemId, newQty);
+  };
+
+  const handleDecreaseCartQty = (cartItemId, delta = 1) => {
+    const item = cart.find(i => i.id === cartItemId);
+    if (!item) return;
+    const currentQty = parseFloat(item.qty) || 0;
+    if (currentQty <= delta) {
+      handleRemoveFromCart(cartItemId);
+    } else {
+      const newQty = Math.round((currentQty - delta) * 100) / 100;
+      handleUpdateCartQty(cartItemId, newQty);
+    }
+  };
 
   // ==========================================
   // YANGI MANTIQ: Xaridlarni Subcollection'ga alohida saqlash va omborni to'g'irlash
@@ -1221,20 +1300,64 @@ const Sell = ({ products, setProducts, sales, setSales, returns = [], setPage, c
             <h3 style={{ margin: '0 0 15px 0', color: '#1f2937', borderBottom: '1px solid #d1d5db', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}><ShoppingCart size={20} color="#1e3a8a" /> Savatdagi tovarlar</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
               {cart.map((item, index) => (
-                <div key={item.id} className="cart-item-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '10px 15px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ margin: 0, fontWeight: 'bold', color: '#111827' }}>
+                <div key={item.id} className="cart-item-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '12px 14px', borderRadius: '10px', border: '1px solid #d1d5db', gap: '10px', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 180px', minWidth: '150px' }}>
+                    <p style={{ margin: 0, fontWeight: 'bold', color: '#111827', fontSize: '15px' }}>
                       {index + 1}. {item.product.name}
                       {item.isCustom && <span style={{ marginLeft: '8px', fontSize: '11px', backgroundColor: '#d1fae5', color: '#065f46', padding: '2px 6px', borderRadius: '4px' }}>Erkin savdo</span>}
                     </p>
-                    <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
-                      {item.qty} {item.product.unit} x {item.product.price.toLocaleString()} {isUsdUnit(item.product.unit) ? '$' : "so'm"}
-                    </p>
+                    
+                    {/* Miqdor boshqaruvi (Minus / Input / Plus) va birlik narxi */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px', flexWrap: 'wrap' }}>
+                      <div className="modern-qty-stepper">
+                        <button 
+                          type="button"
+                          className="qty-btn qty-btn-minus"
+                          onClick={() => handleDecreaseCartQty(item.id)}
+                          title="1 taga kamaytirish (-1)"
+                        >
+                          <Minus size={15} strokeWidth={2.8} />
+                        </button>
+                        <div className="qty-input-wrap">
+                          <input 
+                            type="number"
+                            className="qty-input"
+                            value={item.qty}
+                            onChange={(e) => handleUpdateCartQty(item.id, e.target.value)}
+                            onBlur={() => handleBlurCartQty(item.id)}
+                            min="0.1"
+                            step="any"
+                          />
+                        </div>
+                        <button 
+                          type="button"
+                          className="qty-btn qty-btn-plus"
+                          onClick={() => handleIncreaseCartQty(item.id)}
+                          title="1 ta qo'shish (+1)"
+                        >
+                          <Plus size={15} strokeWidth={3} />
+                        </button>
+                      </div>
+
+                      <span style={{ fontSize: '13px', color: '#6b7280', fontWeight: '500' }}>
+                        {item.product.unit} × {item.product.price.toLocaleString()} {isUsdUnit(item.product.unit) ? '$' : "so'm"}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ fontWeight: 'bold', color: isUsdUnit(item.product.unit) ? '#10b981' : '#1e3a8a', marginRight: '15px' }}>
-                    {item.total.toLocaleString()} {isUsdUnit(item.product.unit) ? '$' : "so'm"}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ fontWeight: '800', fontSize: '16px', color: isUsdUnit(item.product.unit) ? '#10b981' : '#1e3a8a', textAlign: 'right' }}>
+                      {item.total.toLocaleString()} {isUsdUnit(item.product.unit) ? '$' : "so'm"}
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => handleRemoveFromCart(item.id)} 
+                      style={{ background: '#fee2e2', border: 'none', color: '#dc2626', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 'bold' }}
+                      title="Savatdan o'chirish"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
-                  <button onClick={() => handleRemoveFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '18px' }}>✖</button>
                 </div>
               ))}
             </div>

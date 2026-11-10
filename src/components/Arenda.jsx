@@ -3,7 +3,7 @@ import {
   ArrowLeft, Plus, Trash2, Calendar, Clock, TrendingDown, TrendingUp, 
   Users, UserPlus, Phone, DollarSign, CheckCircle, 
   ChevronRight, X, Edit, FileText, Utensils, Zap, Building, Wallet, 
-  Search, AlertTriangle, ArrowRight, CornerDownRight, BarChart3
+  Search, AlertTriangle, ArrowRight, CornerDownRight, BarChart3, FolderOpen, FolderPlus
 } from 'lucide-react';
 
 import { auth, db } from "../firebase";
@@ -21,6 +21,19 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
       return [];
     }
   });
+
+  // Maxsus kategoriyalar (Foydalanuvchi o'zi qo'shgan kategoriyalar)
+  const [customCategories, setCustomCategories] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('app_arenda_custom_categories') || '[]');
+    } catch (e) {
+      return [];
+    }
+  });
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatSubtitle, setNewCatSubtitle] = useState('');
+  const [newCatColor, setNewCatColor] = useState('#0284c7');
 
   // Modal oynalar holati
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
@@ -63,6 +76,20 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
           localStorage.setItem('app_employees', JSON.stringify(emps));
         }, (error) => {
           console.error("Ishchilarni yuklashda xatolik:", error);
+        });
+
+        // Maxsus kategoriyalarni Firebase stores/{storeUid} dan real-time sinxronlash
+        const storeRef = doc(db, "stores", storeUid);
+        onSnapshot(storeRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.arendaCustomCategories && Array.isArray(data.arendaCustomCategories)) {
+              setCustomCategories(data.arendaCustomCategories);
+              localStorage.setItem('app_arenda_custom_categories', JSON.stringify(data.arendaCustomCategories));
+            }
+          }
+        }, (err) => {
+          console.error("Kategoriyalarni yuklashda xatolik:", err);
         });
       }
     });
@@ -173,9 +200,11 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
       case 'utilities': return utilitiesStats;
       case 'food': return foodStats;
       case 'rent': return rentStats;
-      default: return allStats;
+      case 'hub': return allStats;
+      default:
+        return calcStatsForItems(arenda.filter(i => getItemCategory(i) === currentView));
     }
-  }, [currentView, allStats, salaryStats, utilitiesStats, foodStats, rentStats]);
+  }, [currentView, allStats, salaryStats, utilitiesStats, foodStats, rentStats, arenda]);
 
   // Chiqimlar ro'yxati (ichki sahifa uchun)
   const currentCategoryExpenses = useMemo(() => {
@@ -550,6 +579,83 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
     }
   };
 
+  // Maxsus kategoriya qo'shish va saqlash
+  const handleSaveCustomCategory = async (e) => {
+    e.preventDefault();
+    if (!newCatName.trim()) {
+      alert("Iltimos, kategoriya nomini kiriting!");
+      return;
+    }
+
+    const newCat = {
+      id: 'custom_' + Date.now(),
+      name: newCatName.trim(),
+      subtitle: newCatSubtitle.trim() || "Maxsus xarajatlar",
+      color: newCatColor || '#0284c7',
+      createdAt: Date.now()
+    };
+
+    const updatedCategories = [...customCategories, newCat];
+    setCustomCategories(updatedCategories);
+    localStorage.setItem('app_arenda_custom_categories', JSON.stringify(updatedCategories));
+
+    if (auth.currentUser) {
+      try {
+        const storeUid = auth.currentUser.uid;
+        await setDoc(doc(db, "stores", storeUid), {
+          arendaCustomCategories: updatedCategories
+        }, { merge: true });
+      } catch (err) {
+        console.error("Kategoriyani saqlashda xato:", err);
+      }
+    }
+
+    setNewCatName('');
+    setNewCatSubtitle('');
+    setShowAddCategoryModal(false);
+    setCurrentView(newCat.id);
+  };
+
+  // Maxsus kategoriyani o'chirish
+  const handleDeleteCustomCategory = async (catId, catName, e) => {
+    if (e) e.stopPropagation();
+    const catExpenses = arenda.filter(i => getItemCategory(i) === catId);
+    const confirmMsg = catExpenses.length > 0 
+      ? `"${catName}" kategoriyasi va uning ichidagi barcha (${catExpenses.length} ta) chiqimlar o'chiriladi. Rozimisiz?`
+      : `"${catName}" kategoriyasini o'chirmoqchimisiz?`;
+    
+    if (!window.confirm(confirmMsg)) return;
+
+    const updatedCategories = customCategories.filter(c => c.id !== catId);
+    setCustomCategories(updatedCategories);
+    localStorage.setItem('app_arenda_custom_categories', JSON.stringify(updatedCategories));
+
+    if (catExpenses.length > 0) {
+      setArenda(arenda.filter(i => getItemCategory(i) !== catId));
+      if (auth.currentUser) {
+        const storeUid = auth.currentUser.uid;
+        for (const item of catExpenses) {
+          deleteDoc(doc(db, "stores", storeUid, "arenda", item.id.toString())).catch(() => {});
+        }
+      }
+    }
+
+    if (auth.currentUser) {
+      try {
+        const storeUid = auth.currentUser.uid;
+        await setDoc(doc(db, "stores", storeUid), {
+          arendaCustomCategories: updatedCategories
+        }, { merge: true });
+      } catch (err) {
+        console.error("Kategoriyani o'chirishda xato:", err);
+      }
+    }
+
+    if (currentView === catId) {
+      setCurrentView('hub');
+    }
+  };
+
   // Kategoriya ma'lumotlari
   const categoryConfig = {
     salary: {
@@ -589,6 +695,37 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
       addBtnText: "Arenda Chiqimi Yozish"
     }
   };
+
+  // Faol kategoriya tafsilotlari (Asosiy yoki Foydalanuvchi qo'shgan)
+  const currentCatInfo = useMemo(() => {
+    if (categoryConfig[currentView]) {
+      return { ...categoryConfig[currentView], isCustom: false };
+    }
+    const custom = customCategories.find(c => c.id === currentView);
+    if (custom) {
+      return {
+        title: custom.name,
+        subtitle: custom.subtitle || "Maxsus xarajatlar bo'limi",
+        icon: <FolderOpen size={24} color="#ffffff" />,
+        bgIcon: <FolderOpen size={90} />,
+        color: custom.color || "#0284c7",
+        lightBg: "#f0f9ff",
+        addBtnText: "Chiqim Yozish",
+        isCustom: true,
+        id: custom.id
+      };
+    }
+    return {
+      title: "Chiqimlar",
+      subtitle: "Barcha xarajatlar",
+      icon: <Wallet size={24} color="#ffffff" />,
+      bgIcon: <Wallet size={90} />,
+      color: "#1e3a8a",
+      lightBg: "#f8fafc",
+      addBtnText: "Chiqim Yozish",
+      isCustom: false
+    };
+  }, [currentView, categoryConfig, customCategories]);
 
   return (
     <div className="fade-in" style={{ width: '100%', maxWidth: '100%', margin: '0', padding: '0 0 120px 0', boxSizing: 'border-box' }}>
@@ -834,6 +971,79 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
               </div>
             </div>
 
+            {/* FOYDALANUVCHI QO'SHGAN MAXSUS KATEGORIYALAR */}
+            {customCategories.map(cat => {
+              const catStats = calcStatsForItems(arenda.filter(i => getItemCategory(i) === cat.id));
+              return (
+                <div 
+                  key={cat.id}
+                  onClick={() => { setCurrentView(cat.id); setSearchQuery(''); }}
+                  className="card touch-card"
+                  style={{ 
+                    padding: '15px 14px', borderRadius: '16px', cursor: 'pointer', display: 'flex', 
+                    alignItems: 'center', justifyContent: 'space-between', border: '1px solid #e2e8f0', 
+                    boxShadow: '0 3px 10px rgba(0,0,0,0.03)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: 0 }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '14px', backgroundColor: cat.color || '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 10px ${cat.color || '#0284c7'}40`, flexShrink: 0 }}>
+                      <FolderOpen size={24} color="#ffffff" />
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: '16px', fontWeight: '800', color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {cat.name}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {cat.subtitle || "Maxsus xarajatlar"}
+                      </div>
+                      <div style={{ fontSize: '14px', fontWeight: '800', color: cat.color || '#0284c7', marginTop: '4px' }}>
+                        Shu oy: {formatMoney(catStats.month)} so'm
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '10px' }}>
+                    <button
+                      onClick={(e) => handleDeleteCustomCategory(cat.id, cat.name, e)}
+                      style={{ background: 'none', border: 'none', color: '#ef4444', padding: '6px', cursor: 'pointer', borderRadius: '8px' }}
+                      title="Kategoriyani o'chirish"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                    <div style={{ color: '#94a3b8' }}>
+                      <ChevronRight size={22} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* YANGI KATEGORIYA QO'SHISH TUGMASI */}
+            <button
+              onClick={() => { setNewCatName(''); setNewCatSubtitle(''); setNewCatColor('#0284c7'); setShowAddCategoryModal(true); }}
+              className="btn"
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: '16px',
+                backgroundColor: '#eff6ff',
+                color: '#1d4ed8',
+                border: '2px dashed #93c5fd',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontWeight: '700',
+                fontSize: '15px',
+                cursor: 'pointer',
+                marginTop: '4px',
+                marginBottom: '8px',
+                transition: 'all 0.2s'
+              }}
+            >
+              <FolderPlus size={20} /> + Yangi Kategoriya Qo'shish
+            </button>
+
           </div>
 
           {/* OXIRGI CHIQIMLAR TASMASI (RECENT EXPENSES) */}
@@ -880,10 +1090,10 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
               </button>
               <div>
                 <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>
-                  {categoryConfig[currentView]?.title}
+                  {currentCatInfo.title}
                 </h2>
                 <span style={{ fontSize: '11px', color: '#64748b' }}>
-                  {categoryConfig[currentView]?.subtitle}
+                  {currentCatInfo.subtitle}
                 </span>
               </div>
             </div>
@@ -898,13 +1108,24 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
                 <UserPlus size={16} /> Ishchi
               </button>
             ) : (
-              <button 
-                onClick={handleOpenAddExpense}
-                className="btn btn-primary"
-                style={{ width: 'auto', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '12px', fontSize: '13px', fontWeight: 'bold' }}
-              >
-                <Plus size={16} /> Chiqim
-              </button>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {currentCatInfo.isCustom && (
+                  <button 
+                    onClick={() => handleDeleteCustomCategory(currentCatInfo.id, currentCatInfo.title)}
+                    style={{ border: 'none', background: '#fee2e2', color: '#dc2626', width: '38px', height: '38px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    title="Kategoriyani o'chirish"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+                <button 
+                  onClick={handleOpenAddExpense}
+                  className="btn btn-primary"
+                  style={{ width: 'auto', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '12px', fontSize: '13px', fontWeight: 'bold', backgroundColor: currentCatInfo.color || '#1e3a8a' }}
+                >
+                  <Plus size={16} /> Chiqim
+                </button>
+              </div>
             )}
           </div>
 
@@ -1102,7 +1323,7 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
                   <FileText size={44} style={{ opacity: 0.3, marginBottom: '8px' }} />
                   <h4 style={{ margin: '0 0 6px 0', fontSize: '16px' }}>Hozircha chiqim yozilmagan</h4>
                   <p style={{ fontSize: '13px', margin: '0 0 15px 0' }}>Yangi chiqim kiritish uchun yuqoridagi tugmani bosing.</p>
-                  <button onClick={handleOpenAddExpense} className="btn btn-primary" style={{ width: 'auto', margin: '0 auto', padding: '10px 22px' }}>
+                  <button onClick={handleOpenAddExpense} className="btn btn-primary" style={{ width: 'auto', margin: '0 auto', padding: '10px 22px', backgroundColor: currentCatInfo.color || '#1e3a8a' }}>
                     + Chiqim yozish
                   </button>
                 </div>
@@ -1458,6 +1679,99 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
       {/* ================================================================= */}
       {/* 6. MODAL: YANGI CHIQIM YOZISH (KOMMUNAL, OVQAT, ARENDA) */}
       {/* ================================================================= */}
+      {/* YANGI KATEGORIYA QO'SHISH MODAL OYNASI */}
+      {/* ================================================================= */}
+      {showAddCategoryModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
+          zIndex: 99999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '12px'
+        }}>
+          <div className="card fade-in" style={{ maxWidth: '420px', width: '100%', padding: '22px', borderRadius: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ margin: 0, color: '#1e3a8a', fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FolderPlus size={22} color="#1e3a8a" /> Yangi Chiqim Kategoriyasi
+              </h3>
+              <button 
+                onClick={() => setShowAddCategoryModal(false)}
+                style={{ border: 'none', background: '#f1f5f9', color: '#475569', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCustomCategory}>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
+                  Kategoriya Nomi *
+                </label>
+                <input 
+                  type="text"
+                  className="form-control"
+                  placeholder="Masalan: Benzin, Soliqlar, Reklama, Usta haqi..."
+                  value={newCatName}
+                  onChange={e => setNewCatName(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>
+                  Qisqacha Tavsif / Izoh (Ixtiyoriy)
+                </label>
+                <input 
+                  type="text"
+                  className="form-control"
+                  placeholder="Masalan: Avtomobil va yoqilg'i xarajatlari"
+                  value={newCatSubtitle}
+                  onChange={e => setNewCatSubtitle(e.target.value)}
+                />
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '8px' }}>
+                  Kategoriya Rangi
+                </label>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  {[
+                    { color: '#0284c7', name: 'Moviy' },
+                    { color: '#059669', name: 'Yashil' },
+                    { color: '#d97706', name: 'Sariq' },
+                    { color: '#7c3aed', name: 'Binafsha' },
+                    { color: '#e11d48', name: 'Qizil' },
+                    { color: '#0891b2', name: 'Dengiz' },
+                    { color: '#475569', name: 'Kulrang' }
+                  ].map(c => (
+                    <div 
+                      key={c.color}
+                      onClick={() => setNewCatColor(c.color)}
+                      style={{
+                        width: '36px', height: '36px', borderRadius: '50%',
+                        backgroundColor: c.color, cursor: 'pointer',
+                        border: newCatColor === c.color ? '3px solid #ffffff' : '2px solid transparent',
+                        boxShadow: newCatColor === c.color ? `0 0 0 2px ${c.color}, 0 4px 8px rgba(0,0,0,0.2)` : 'none',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transform: newCatColor === c.color ? 'scale(1.15)' : 'scale(1)',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title={c.name}
+                    >
+                      {newCatColor === c.color && <CheckCircle size={18} color="#ffffff" />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '14px', fontSize: '15px', fontWeight: 'bold', backgroundColor: newCatColor || '#1e3a8a' }}>
+                Kategoriyani Saqlash
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
       {showAddExpenseModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -1467,7 +1781,7 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
           <div className="card fade-in" style={{ maxWidth: '420px', width: '100%', padding: '22px', borderRadius: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <h3 style={{ margin: 0, color: '#1e3a8a', fontSize: '18px', fontWeight: '800' }}>
-                {categoryConfig[currentView]?.title || "Chiqim"} Yozish
+                {currentCatInfo.title || "Chiqim"} Yozish
               </h3>
               <button 
                 onClick={() => setShowAddExpenseModal(false)}
@@ -1488,7 +1802,8 @@ const Arenda = ({ arenda = [], setArenda, setPage }) => {
                   placeholder={
                     currentView === 'food' ? "Masalan: Obedga osh va non, Choyxona" :
                     currentView === 'utilities' ? "Masalan: Svet (Elektr), Gaz, Suv" :
-                    "Masalan: Do'kon arendasi, Transport"
+                    currentView === 'rent' ? "Masalan: Do'kon arendasi, Transport" :
+                    `Masalan: ${currentCatInfo.title} bo'yicha xarajat`
                   }
                   value={expenseType}
                   onChange={e => setExpenseType(e.target.value)}
